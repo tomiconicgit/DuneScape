@@ -9,24 +9,11 @@ export const gameState = {
         gold: 1250,
         mesh: null,
         body: null,
-        mixer: null // ✅ CHANGE: Added to manage animations
+        animationManager: null // ✅ MODIFIED: Will hold the new animation manager
     },
-    skills: {
-        combat: { level: 5, xp: 45 },
-        woodcutting: { level: 3, xp: 70 },
-        mining: { level: 2, xp: 30 },
-        fishing: { level: 4, xp: 20 }
-    },
-    inventory: ['wood', 'ore', 'shield', 'ring', 'hat', 'rune', 'fish', 'potion'],
-    currentMission: null,
-    scene: null,
-    camera: null,
-    renderer: null,
-    composer: null,
-    controls: null,
-    physicsWorld: null,
-    minimapCamera: null,
+    // ...
     minimapRenderer: null,
     enemies: [],
+    resources: [], // ✅ NEW: To hold instanced meshes like trees/rocks
     clock: new THREE.Clock()
 };
