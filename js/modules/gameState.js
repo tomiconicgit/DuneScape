@@ -8,7 +8,8 @@ export const gameState = {
         maxHealth: 100,
         gold: 1250,
         mesh: null,
-        body: null
+        body: null,
+        mixer: null // ✅ CHANGE: Added to manage animations
     },
     skills: {
         combat: { level: 5, xp: 45 },
