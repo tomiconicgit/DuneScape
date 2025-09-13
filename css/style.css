@@ -1,10 +1,456 @@
-/* css/style.css */
-
-{
+* {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-/* ... all your other CSS rules ... */
+body {
+    background: #0c0c0f;
+    color: #e0e0e0;
+    overflow: hidden;
+    touch-action: none;
+    height: 100vh;
+    width: 100vw;
+}
+
+#game-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+#canvas-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+}
+
+#ui-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    pointer-events: none;
+}
+
+#ui-container > * {
+    pointer-events: auto;
+}
+
+/* Header Bar */
+.header-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    padding: 15px;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%);
+}
+
+.player-stats {
+    display: flex;
+    gap: 15px;
+}
+
+.stat {
+    display: flex;
+    align-items: center;
+    background: rgba(40, 40, 45, 0.8);
+    padding: 8px 15px;
+    border-radius: 20px;
+    border: 1px solid rgba(100, 100, 120, 0.4);
+}
+
+.stat i {
+    margin-right: 8px;
+    color: #ffcc00;
+}
+
+.health-bar {
+    width: 120px;
+    height: 12px;
+    background: rgba(80, 0, 0, 0.6);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-left: 8px;
+}
+
+.health-fill {
+    height: 100%;
+    width: 80%;
+    background: linear-gradient(to right, #ff0000, #ff8800);
+    border-radius: 6px;
+    transition: width 0.3s;
+}
+
+/* Minimap */
+.minimap {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    width: 120px;
+    height: 120px;
+    background: rgba(0, 0, 0, 0.7);
+    border-radius: 50%;
+    border: 3px solid #555;
+    overflow: hidden;
+}
+
+/* Bottom Navigation */
+.nav-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    display: flex;
+    justify-content: space-around;
+    padding: 15px;
+    background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%);
+}
+
+.nav-btn {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: rgba(60, 60, 70, 0.8);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: 2px solid rgba(100, 100, 120, 0.4);
+    transition: all 0.2s;
+}
+
+.nav-btn:hover {
+    transform: translateY(-5px);
+    background: rgba(80, 80, 90, 0.9);
+}
+
+.nav-btn i {
+    font-size: 20px;
+    margin-bottom: 4px;
+    color: #ffcc00;
+}
+
+.nav-btn span {
+    font-size: 10px;
+    color: #ccc;
+}
+
+/* Panels */
+.panel {
+    position: absolute;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    max-width: 500px;
+    background: rgba(30, 30, 35, 0.95);
+    border-radius: 15px;
+    padding: 20px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(10px);
+    display: none;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 204, 0, 0.3);
+}
+
+.panel-title {
+    font-size: 1.2rem;
+    color: #ffcc00;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    color: #ccc;
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+/* Mission Panel */
+.mission-item {
+    background: rgba(50, 50, 55, 0.8);
+    padding: 12px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    border-left: 4px solid #ffcc00;
+}
+
+.mission-title {
+    font-weight: bold;
+    margin-bottom: 5px;
+    display: flex;
+    justify-content: space-between;
+}
+
+.mission-desc {
+    font-size: 0.9rem;
+    color: #aaa;
+    margin-bottom: 10px;
+}
+
+.mission-reward {
+    display: flex;
+    align-items: center;
+    font-size: 0.85rem;
+    color: #ffcc00;
+}
+
+.start-btn {
+    background: linear-gradient(to right, #ff9900, #ffcc00);
+    color: #332200;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: all 0.2s;
+}
+
+.start-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 10px rgba(255, 204, 0, 0.5);
+}
+
+/* Inventory Panel */
+.inventory-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+.inventory-slot {
+    aspect-ratio: 1;
+    background: rgba(50, 50, 55, 0.8);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid rgba(100, 100, 120, 0.4);
+}
+
+.inventory-slot i {
+    font-size: 24px;
+    margin-bottom: 5px;
+    color: #ffcc00;
+}
+
+.inventory-slot span {
+    font-size: 12px;
+    color: #ccc;
+}
+
+/* Levels Panel */
+.skill-item {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    background: rgba(50, 50, 55, 0.8);
+    margin-bottom: 8px;
+    border-radius: 8px;
+}
+
+.skill-icon {
+    width: 40px;
+    height: 40px;
+    background: rgba(70, 70, 80, 0.9);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 15px;
+}
+
+.skill-icon i {
+    color: #ffcc00;
+}
+
+.skill-info {
+    flex-grow: 1;
+}
+
+.skill-name {
+    font-weight: bold;
+    margin-bottom: 3px;
+}
+
+.skill-level {
+    font-size: 0.85rem;
+    color: #aaa;
+}
+
+.xp-bar {
+    height: 6px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 5px;
+}
+
+.xp-fill {
+    height: 100%;
+    width: 30%;
+    background: linear-gradient(to right, #00ccff, #0066ff);
+    border-radius: 3px;
+}
+
+/* Modals */
+.modal {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 90%;
+    max-width: 400px;
+    background: rgba(30, 30, 35, 0.95);
+    border-radius: 15px;
+    padding: 25px;
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
+    z-index: 10;
+    text-align: center;
+    backdrop-filter: blur(10px);
+}
+
+.modal-title {
+    font-size: 1.5rem;
+    color: #ffcc00;
+    margin-bottom: 15px;
+}
+
+.modal-text {
+    margin-bottom: 20px;
+    line-height: 1.5;
+}
+
+.modal-btn {
+    background: linear-gradient(to right, #ff9900, #ffcc00);
+    color: #332200;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 25px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 1.1rem;
+    transition: all 0.2s;
+}
+
+.modal-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(255, 204, 0, 0.5);
+}
+
+#welcome-modal {
+    display: block;
+}
+
+#death-modal {
+    display: none;
+}
+
+/* Toast Notifications */
+.toast {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(50, 50, 55, 0.95);
+    padding: 12px 20px;
+    border-radius: 30px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    z-index: 5;
+    animation: toastAnimation 3s forwards;
+    backdrop-filter: blur(5px);
+}
+
+@keyframes toastAnimation {
+    0% { top: -50px; opacity: 0; }
+    10% { top: 20px; opacity: 1; }
+    90% { top: 20px; opacity: 1; }
+    100% { top: -50px; opacity: 0; }
+}
+
+.toast i {
+    margin-right: 10px;
+    color: #ffcc00;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .stat {
+        padding: 6px 10px;
+    }
+    
+    .health-bar {
+        width: 80px;
+    }
+    
+    .minimap {
+        width: 100px;
+        height: 100px;
+    }
+    
+    .nav-btn {
+        width: 50px;
+        height: 50px;
+    }
+    
+    .nav-btn i {
+        font-size: 18px;
+    }
+}
+
+@media (max-width: 480px) {
+    .player-stats {
+        gap: 8px;
+    }
+    
+    .stat {
+        padding: 5px 8px;
+        font-size: 14px;
+    }
+    
+    .health-bar {
+        width: 60px;
+    }
+    
+    .minimap {
+        width: 80px;
+        height: 80px;
+    }
+    
+    .nav-btn {
+        width: 45px;
+        height: 45px;
+    }
+    
+    .nav-btn i {
+        font-size: 16px;
+    }
+    
+    .nav-btn span {
+        font-size: 9px;
+    }
+}
