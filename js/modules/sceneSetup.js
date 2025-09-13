@@ -40,16 +40,13 @@ function createDesertEnvironment() {
     const groundGeometry = new THREE.PlaneGeometry(100, 100, 50, 50);
     const vertices = groundGeometry.attributes.position.array;
     for (let i = 0; i < vertices.length; i += 3) {
-        // ✅ CHANGE: Temporarily disable Perlin noise for debugging.
-        // This ensures a flat plane is rendered.
+        // Temporarily disable Perlin noise for debugging.
         vertices[i + 1] = 0;
-        // const x = vertices[i] / 5;
-        // const z = vertices[i + 2] / 5;
-        // vertices[i + 1] = (perlinNoise(x, z) + perlinNoise(x * 2, z * 2) / 2) * 2;
     }
     groundGeometry.computeVertexNormals();
     const groundMaterial = new THREE.MeshStandardMaterial({ color: 0xC2B280, roughness: 0.9 });
     const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+    ground.name = 'ground'; // ✅ MODIFIED: Add a name to the ground mesh for raycasting
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     gameState.scene.add(ground);
@@ -67,7 +64,6 @@ function createDesertEnvironment() {
         gameState.player.mesh.traverse(node => { if (node.isMesh) node.castShadow = true; });
         gameState.scene.add(gameState.player.mesh);
 
-        // ✅ CHANGE: Set up the AnimationMixer to play the character's animation.
         gameState.player.mixer = new THREE.AnimationMixer(gltf.scene);
         if (gltf.animations.length > 0) {
             const action = gameState.player.mixer.clipAction(gltf.animations[0]);
@@ -127,6 +123,40 @@ export function initializeScene() {
     dirLight.shadow.mapSize.height = 2048;
     gameState.scene.add(dirLight);
 
+    // ✅ ADDED: A test cube for debugging rendering issues.
+    const testGeo = new THREE.BoxGeometry(1, 1, 1);
+    const testMat = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // Bright red
+    const testCube = new THREE.Mesh(testGeo, testMat);
+    testCube.position.set(0, 1, 0); // Place it slightly above the ground
+    gameState.scene.add(testCube);
+    
+    // ✅ ADDED: Raycasting logic for click-to-move functionality.
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    let targetPosition = null; // This will hold the 3D point to move to.
+
+    function onPointerDown(event) {
+        // Calculate pointer position in normalized device coordinates (-1 to +1)
+        pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+        pointer.y = - (event.clientY / window.innerHeight) * 2 + 1;
+
+        // Update the raycaster with the camera and pointer position
+        raycaster.setFromCamera(pointer, gameState.camera);
+
+        // Calculate objects intersecting the picking ray
+        const intersects = raycaster.intersectObjects(gameState.scene.children);
+
+        for (const intersect of intersects) {
+            // Check if the ray hit our ground mesh
+            if (intersect.object.name === 'ground') {
+                console.log("Ground clicked at:", intersect.point);
+                targetPosition = intersect.point;
+                break; // Stop checking after we find the ground
+            }
+        }
+    }
+    window.addEventListener('pointerdown', onPointerDown);
+
     // Minimap
     gameState.minimapCamera = new THREE.OrthographicCamera(-20, 20, 20, -20, 1, 100);
     gameState.minimapCamera.position.set(0, 50, 0);
@@ -146,9 +176,32 @@ export function animate() {
     requestAnimationFrame(animate);
     const delta = gameState.clock.getDelta();
     
-    // ✅ CHANGE: Update the animation mixer on each frame.
     if (gameState.player.mixer) {
         gameState.player.mixer.update(delta);
+    }
+    
+    // ✅ ADDED: Player movement logic that uses the targetPosition from the raycaster.
+    if (targetPosition && gameState.player.body) {
+        const moveDirection = new CANNON.Vec3(
+            targetPosition.x - gameState.player.body.position.x,
+            0, // We only want to move on the XZ plane
+            targetPosition.z - gameState.player.body.position.z
+        );
+        
+        // If we are close enough to the target, stop moving.
+        if (moveDirection.lengthSquared() < 0.1) {
+            targetPosition = null;
+            gameState.player.body.velocity.set(0, 0, 0);
+        } else {
+            // Move towards the target.
+            moveDirection.normalize();
+            const speed = 5; // Adjust speed as needed
+            gameState.player.body.velocity.set(
+                moveDirection.x * speed,
+                gameState.player.body.velocity.y, // Keep current vertical velocity for gravity
+                moveDirection.z * speed
+            );
+        }
     }
 
     // Update physics
