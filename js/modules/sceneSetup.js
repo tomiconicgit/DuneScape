@@ -1,5 +1,6 @@
 // js/modules/sceneSetup.js
 import * as THREE from 'three';
+import * as CANNON from 'cannon-es'; // CHANGE: Import CANNON here
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
