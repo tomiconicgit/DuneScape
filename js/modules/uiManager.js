@@ -1,5 +1,7 @@
 // js/modules/uiManager.js
 import { gameState } from './gameState.js';
+// ✅ FIX: Import the function to set the target position from sceneSetup
+import { setTargetPosition } from './sceneSetup.js';
 
 function updateHealthBar() {
     const healthPercent = (gameState.player.health / gameState.player.maxHealth) * 100;
@@ -33,19 +35,23 @@ function completeMission() {
     updateGoldDisplay();
     showNotification(`Mission complete! Received ${reward} gold.`);
     gameState.currentMission = null;
-    if (gameState.player.body) {
-        gameState.player.body.velocity.set(0, 0, 0);
-    }
+    // No need to set velocity here, the animate loop handles stopping.
 }
 
 function startMission(missionTitle) {
     gameState.currentMission = missionTitle;
     document.getElementById('missions-panel').style.display = 'none';
     showNotification(`Mission started: ${missionTitle}`);
+    
+    // ✅ FIX: Instead of setting velocity directly, set a target destination.
+    // This makes the mission "autoplay" use the same logic as click-to-move.
     if (gameState.player.body) {
-        gameState.player.body.velocity.set(5, 0, 0);
+        const currentPos = gameState.player.body.position;
+        // Set a target 20 units away in a random-ish direction
+        const missionTarget = new THREE.Vector3(currentPos.x + 20, 0, currentPos.z + 5);
+        setTargetPosition(missionTarget);
     }
-    setTimeout(completeMission, 5000);
+    setTimeout(completeMission, 5000); // Mission completes after 5 seconds
 }
 
 function startGame() {
@@ -86,7 +92,6 @@ export function initUI() {
         });
     });
     
-    // Initial UI state sync
     updateHealthBar();
     updateGoldDisplay();
 }
