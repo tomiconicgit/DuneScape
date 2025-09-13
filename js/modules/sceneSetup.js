@@ -1,6 +1,6 @@
 // js/modules/sceneSetup.js
 import * as THREE from 'three';
-import * as CANNON from 'cannon-es'; // CHANGE: Import CANNON here
+import * as CANNON from 'cannon-es';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -40,9 +40,12 @@ function createDesertEnvironment() {
     const groundGeometry = new THREE.PlaneGeometry(100, 100, 50, 50);
     const vertices = groundGeometry.attributes.position.array;
     for (let i = 0; i < vertices.length; i += 3) {
-        const x = vertices[i] / 5;
-        const z = vertices[i + 2] / 5;
-        vertices[i + 1] = (perlinNoise(x, z) + perlinNoise(x * 2, z * 2) / 2) * 2;
+        // ✅ CHANGE: Temporarily disable Perlin noise for debugging.
+        // This ensures a flat plane is rendered.
+        vertices[i + 1] = 0;
+        // const x = vertices[i] / 5;
+        // const z = vertices[i + 2] / 5;
+        // vertices[i + 1] = (perlinNoise(x, z) + perlinNoise(x * 2, z * 2) / 2) * 2;
     }
     groundGeometry.computeVertexNormals();
     const groundMaterial = new THREE.MeshStandardMaterial({ color: 0xC2B280, roughness: 0.9 });
@@ -63,6 +66,13 @@ function createDesertEnvironment() {
         gameState.player.mesh.position.set(0, 0, 5);
         gameState.player.mesh.traverse(node => { if (node.isMesh) node.castShadow = true; });
         gameState.scene.add(gameState.player.mesh);
+
+        // ✅ CHANGE: Set up the AnimationMixer to play the character's animation.
+        gameState.player.mixer = new THREE.AnimationMixer(gltf.scene);
+        if (gltf.animations.length > 0) {
+            const action = gameState.player.mixer.clipAction(gltf.animations[0]);
+            action.play();
+        }
 
         gameState.player.body = new CANNON.Body({ mass: 70, shape: new CANNON.Box(new CANNON.Vec3(0.5, 1, 0.5)) });
         gameState.player.body.position.set(0, 5, 5);
@@ -135,6 +145,11 @@ export function initializeScene() {
 export function animate() {
     requestAnimationFrame(animate);
     const delta = gameState.clock.getDelta();
+    
+    // ✅ CHANGE: Update the animation mixer on each frame.
+    if (gameState.player.mixer) {
+        gameState.player.mixer.update(delta);
+    }
 
     // Update physics
     if (gameState.physicsWorld) {
