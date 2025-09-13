@@ -10,8 +10,6 @@ import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 
 import { gameState } from './gameState.js';
 
-// ✅ FIX: This global variable will be set by the UI and read by the animate loop.
-// This is a simple way to communicate between modules.
 export let targetPosition = null;
 export function setTargetPosition(pos) {
     targetPosition = pos;
@@ -21,6 +19,7 @@ export function setTargetPosition(pos) {
 // --- Private Utility Functions ---
 
 function onWindowResize() {
+    if (!gameState.camera || !gameState.renderer) return;
     gameState.camera.aspect = window.innerWidth / window.innerHeight;
     gameState.camera.updateProjectionMatrix();
     gameState.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -30,7 +29,6 @@ function onWindowResize() {
 function createDesertEnvironment() {
     // Ground plane
     const groundGeometry = new THREE.PlaneGeometry(100, 100, 50, 50);
-    // You can re-enable your Perlin noise later, starting flat is best for debugging.
     const groundMaterial = new THREE.MeshStandardMaterial({ color: 0xC2B280, roughness: 0.9 });
     const ground = new THREE.Mesh(groundGeometry, groundMaterial);
     ground.name = 'ground';
@@ -44,27 +42,37 @@ function createDesertEnvironment() {
     
     // Load player model
     const loader = new GLTFLoader();
-    loader.load('https://threejs.org/examples/models/gltf/Soldier.glb', (gltf) => {
-        gameState.player.mesh = gltf.scene;
-        gameState.player.mesh.scale.set(1, 1, 1);
-        gameState.scene.add(gameState.player.mesh);
+    loader.load(
+        'https://threejs.org/examples/models/gltf/Soldier.glb',
+        // onSuccess
+        (gltf) => {
+            gameState.player.mesh = gltf.scene;
+            gameState.player.mesh.scale.set(1, 1, 1);
+            gameState.scene.add(gameState.player.mesh);
 
-        // Animation setup
-        gameState.player.mixer = new THREE.AnimationMixer(gltf.scene);
-        if (gltf.animations.length > 0) {
-            const action = gameState.player.mixer.clipAction(gltf.animations[0]);
-            action.play();
+            gameState.player.mixer = new THREE.AnimationMixer(gltf.scene);
+            if (gltf.animations.length > 0) {
+                const action = gameState.player.mixer.clipAction(gltf.animations[0]);
+                action.play();
+            }
+
+            const startPosition = new CANNON.Vec3(0, 5, 5);
+            gameState.player.body = new CANNON.Body({ mass: 70, shape: new CANNON.Box(new CANNON.Vec3(0.5, 1, 0.5)) });
+            gameState.player.body.position.copy(startPosition);
+            gameState.physicsWorld.addBody(gameState.player.body);
+
+            gameState.player.mesh.position.copy(startPosition);
+        },
+        // onProgress (optional)
+        undefined,
+        // ✅ ADDED: onError callback to report loading failures
+        (error) => {
+            window.SuperErrorHandler.report('Failed to load player 3D model', {
+                error: error.message,
+                url: 'https://threejs.org/examples/models/gltf/Soldier.glb'
+            }, 'CRITICAL');
         }
-
-        // Physics body setup
-        const startPosition = new CANNON.Vec3(0, 5, 5);
-        gameState.player.body = new CANNON.Body({ mass: 70, shape: new CANNON.Box(new CANNON.Vec3(0.5, 1, 0.5)) });
-        gameState.player.body.position.copy(startPosition);
-        gameState.physicsWorld.addBody(gameState.player.body);
-
-        // ✅ FIX: Ensure the visual mesh starts at the same position as the physics body.
-        gameState.player.mesh.position.copy(startPosition);
-    });
+    );
 }
 
 
@@ -78,10 +86,13 @@ export function initializeScene() {
 
     // Camera
     gameState.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    gameState.camera.position.set(0, 10, 20); // Adjusted camera for a better view
+    gameState.camera.position.set(0, 10, 20);
 
     // Renderer
     const canvasContainer = document.getElementById('canvas-container');
+    if (!canvasContainer) {
+        return window.SuperErrorHandler.report('Initialization failed: #canvas-container not found in DOM.', {}, 'CRITICAL');
+    }
     gameState.renderer = new THREE.WebGLRenderer({ antialias: true });
     gameState.renderer.setSize(window.innerWidth, window.innerHeight);
     gameState.renderer.shadowMap.enabled = true;
@@ -89,6 +100,9 @@ export function initializeScene() {
     gameState.renderer.outputColorSpace = THREE.SRGBColorSpace;
     canvasContainer.appendChild(gameState.renderer.domElement);
     
+    // ✅ ADDED: Hook into the renderer for WebGL error monitoring
+    window.SuperErrorHandler.monitorWebGL(gameState.renderer);
+
     // Post-processing
     gameState.composer = new EffectComposer(gameState.renderer);
     gameState.composer.addPass(new RenderPass(gameState.scene, gameState.camera));
@@ -123,7 +137,7 @@ export function initializeScene() {
         const intersects = raycaster.intersectObjects(gameState.scene.children);
         for (const intersect of intersects) {
             if (intersect.object.name === 'ground') {
-                setTargetPosition(intersect.point); // Use the exported function
+                setTargetPosition(intersect.point);
                 break;
             }
         }
@@ -146,6 +160,9 @@ export function initializeScene() {
 }
 
 export function animate() {
+    // ✅ ADDED: Check for silent WebGL errors on every frame
+    window.SuperErrorHandler.checkGLErrors();
+    
     requestAnimationFrame(animate);
     const delta = gameState.clock.getDelta();
     
@@ -153,17 +170,15 @@ export function animate() {
         gameState.player.mixer.update(delta);
     }
     
-    // ✅ FIX: Major overhaul of the movement logic
-    if (gameState.player.body) {
-        if (targetPosition) {
+    if (targetPosition) {
+        if (gameState.player.body) {
             const moveDirection = new THREE.Vector3().subVectors(targetPosition, gameState.player.body.position);
-            moveDirection.y = 0; // Move on the XZ plane
+            moveDirection.y = 0;
 
             if (moveDirection.lengthSq() < 0.1) {
                 setTargetPosition(null);
                 gameState.player.body.velocity.set(0, gameState.player.body.velocity.y, 0);
             } else {
-                // Move towards the target
                 moveDirection.normalize();
                 const speed = 5;
                 gameState.player.body.velocity.set(
@@ -172,17 +187,25 @@ export function animate() {
                     moveDirection.z * speed
                 );
 
-                // ✅ FIX: Rotate character to face movement direction
                 if (gameState.player.mesh) {
-                    const targetQuaternion = new THREE.Quaternion();
                     const lookAtPosition = new THREE.Vector3().addVectors(gameState.player.mesh.position, moveDirection);
                     gameState.player.mesh.lookAt(lookAtPosition);
                 }
             }
+        } else {
+            // ✅ ADDED: Report a logical error if we try to move a non-existent player body
+            window.SuperErrorHandler.report(
+                "Attempted to move player, but physics body is not loaded yet.",
+                { 
+                    targetPosition: targetPosition,
+                    playerMeshExists: !!gameState.player.mesh
+                },
+                'WARNING'
+            );
+            setTargetPosition(null); // Reset to prevent spamming the log
         }
     }
 
-    // Update physics
     if (gameState.physicsWorld) {
         gameState.physicsWorld.step(1 / 60, delta, 3);
         
