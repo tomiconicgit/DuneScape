@@ -5,10 +5,10 @@ import * as THREE from 'three';
  * @param {THREE.Scene} scene The scene to add the character to.
  */
 export function createCharacter(scene) {
-    // Define the character's dimensions
-    const characterWidth = 1;
-    const characterHeight = 2;
-    const characterDepth = 1;
+    // Define the character's dimensions to fit inside a 1x1 tile
+    const characterWidth = 0.8;  // <-- CHANGED from 1
+    const characterHeight = 1.6; // <-- CHANGED from 2 (for proportion)
+    const characterDepth = 0.8;  // <-- CHANGED from 1
 
     // Create the geometry (the shape)
     const geometry = new THREE.BoxGeometry(characterWidth, characterHeight, characterDepth);
