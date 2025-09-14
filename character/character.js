@@ -7,9 +7,9 @@ import * as THREE from 'three';
  */
 export function createCharacter(scene) {
     // Define the character's dimensions to fit inside a 1x1 tile
-    const characterWidth = 0.8;
-    const characterHeight = 1.6;
-    const characterDepth = 0.8;
+    const characterWidth = 0.4;
+    const characterHeight = 1.2;
+    const characterDepth = 0.4;
 
     // Create the geometry (the shape)
     const geometry = new THREE.BoxGeometry(characterWidth, characterHeight, characterDepth);
