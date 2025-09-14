@@ -22,6 +22,19 @@ const RTSCamera = {
         isPinching: false,
         lastDragX: 0,
         initialPinchDist: 0,
+        startTime: 0,
+        startX: 0,
+        startY: 0,
+    },
+
+    onTap: null, // Callback for tap events
+
+    /**
+     * Sets the onTap callback.
+     * @param {Function} callback - Function to call on tap, receives touch data.
+     */
+    setOnTap(callback) {
+        this.onTap = callback;
     },
 
     /**
@@ -79,10 +92,13 @@ const RTSCamera = {
 
     _onTouchStart(event) {
         event.preventDefault();
-        if (event.touches.length === 1) { // Orbit
-            this.touchState.isDragging = true;
-            this.touchState.lastDragX = event.touches[0].clientX;
-        } else if (event.touches.length === 2) { // Zoom
+        if (event.touches.length === 1) {
+            this.touchState.startTime = Date.now();
+            this.touchState.startX = event.touches[0].clientX;
+            this.touchState.startY = event.touches[0].clientY;
+            this.touchState.lastDragX = this.touchState.startX;
+            this.touchState.isDragging = false;
+        } else if (event.touches.length === 2) {
             this.touchState.isPinching = true;
             this.touchState.initialPinchDist = this._getPinchDistance(event.touches);
         }
@@ -90,23 +106,38 @@ const RTSCamera = {
 
     _onTouchMove(event) {
         event.preventDefault();
-        if (this.touchState.isDragging && event.touches.length === 1) { // Orbit
-            const deltaX = event.touches[0].clientX - this.touchState.lastDragX;
+        if (event.touches.length === 1) {
+            const clientX = event.touches[0].clientX;
+            const clientY = event.touches[0].clientY;
+            if (!this.touchState.isDragging) {
+                const dist = Math.hypot(clientX - this.touchState.startX, clientY - this.touchState.startY);
+                if (dist > 5) { // Pixel threshold to start dragging
+                    this.touchState.isDragging = true;
+                } else {
+                    return;
+                }
+            }
+            const deltaX = clientX - this.touchState.lastDragX;
             this.orbitAngle -= deltaX * 0.01;
-            this.touchState.lastDragX = event.touches[0].clientX;
-        } else if (this.touchState.isPinching && event.touches.length === 2) { // Zoom
+            this.touchState.lastDragX = clientX;
+        } else if (this.touchState.isPinching && event.touches.length === 2) {
             const currentPinchDist = this._getPinchDistance(event.touches);
             const delta = this.touchState.initialPinchDist - currentPinchDist;
-            
-            // Adjust zoom level based on pinch delta
             this.zoomLevel += delta * 0.001;
-            this.zoomLevel = Math.max(0, Math.min(1, this.zoomLevel)); // Clamp between 0 and 1
-
+            this.zoomLevel = Math.max(0, Math.min(1, this.zoomLevel));
             this.touchState.initialPinchDist = currentPinchDist;
         }
     },
 
     _onTouchEnd(event) {
+        event.preventDefault();
+        if (!this.touchState.isDragging && !this.touchState.isPinching && event.touches.length === 0) {
+            const duration = Date.now() - this.touchState.startTime;
+            const dist = Math.hypot(event.changedTouches[0].clientX - this.touchState.startX, event.changedTouches[0].clientY - this.touchState.startY);
+            if (duration < 300 && dist < 5 && this.onTap) {
+                this.onTap(event.changedTouches[0]);
+            }
+        }
         this.touchState.isDragging = false;
         this.touchState.isPinching = false;
     },
