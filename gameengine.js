@@ -16,22 +16,21 @@ export function startGameEngine(scene, domElement) {
     console.log("Game Engine: Initializing game world...");
 
     const plane = createEnvironmentGrid(scene);
-    console.log("Grid created");
-
+    
+    // Create character and get a reference to it
     const character = createCharacter(scene);
-    console.log("Character created");
-
+    
+    // Initialize the camera and give it the character to follow
     RTSCamera.init(character, domElement);
-    console.log("Camera init done");
 
+    // Initialize movement
     Movement.init(character, scene, RTSCamera, plane);
-    console.log("Movement init done");
 
+    // Initialize map textures
     MapTexture.init(scene);
-    console.log("MapTexture init done");
 
+    // Initialize developer UI
     DeveloperUI.init(Movement);
-    console.log("DeveloperUI init done");
 
     console.log("Game Engine: World setup complete.");
 }
