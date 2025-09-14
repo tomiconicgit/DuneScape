@@ -23,7 +23,7 @@ export function createCharacter(scene) {
     // The grid is on the XZ plane at y=0.
     // To make the character "stand" on the grid, we set its y position
     // to half of its height.
-    character.position.set(0, characterHeight / 2, 0);
+    character.position.set(0.5, characterHeight / 2, 0.5); // Snapped to tile center
     
     // Add the character to the scene
     scene.add(character);
