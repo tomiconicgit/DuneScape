@@ -1,4 +1,4 @@
-import { createEnvironmentGrid } from './environment.js';
+import { createEnvironmentGrid } from './environment/gridmap.js'; // <-- PATH UPDATED
 import { createCharacter } from './character/character.js';
 
 /**
