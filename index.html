@@ -28,7 +28,7 @@
     <script type="module">
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-        import { createEnvironmentGrid } from './environment.js';
+        import { startGameEngine } from './gameengine.js'; // <-- UPDATED IMPORT
 
         // 1. Scene Setup
         const scene = new THREE.Scene();
@@ -39,27 +39,21 @@
         document.body.appendChild(renderer.domElement);
 
         // 2. Camera & Controls
-        // Position the camera so we can see the grid
         camera.position.set(0, 50, 50);
         camera.lookAt(0, 0, 0);
-
-        // OrbitControls allow the camera to be manipulated with the mouse/touch
         const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true; // an animation loop is required when either damping or auto-rotation are enabled
+        controls.enableDamping = true;
         controls.dampingFactor = 0.05;
         controls.screenSpacePanning = false;
-        controls.maxPolarAngle = Math.PI / 2; // Prevent camera from going below the grid
+        controls.maxPolarAngle = Math.PI / 2;
 
-        // 3. Create Environment
-        // This function is imported from your environment.js file
-        createEnvironmentGrid(scene);
+        // 3. Start the Game Engine
+        startGameEngine(scene); // <-- UPDATED FUNCTION CALL
 
         // 4. Animation Loop
         function animate() {
             requestAnimationFrame(animate);
-
-            controls.update(); // only required if controls.enableDamping = true, or if controls.autoRotate = true
-
+            controls.update();
             renderer.render(scene, camera);
         }
 
