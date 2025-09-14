@@ -179,6 +179,13 @@ const Debug = {
             this.addError('Console.error', args.join(' '));
             originalConsoleError.apply(console, args); // Still log to console
         };
+
+        // Hijack console.warn to capture warnings
+        const originalConsoleWarn = console.warn;
+        console.warn = (...args) => {
+            this.addError('Console.warn', args.join(' '));
+            originalConsoleWarn.apply(console, args);
+        };
     },
 
     /**
@@ -232,4 +239,3 @@ const Debug = {
 };
 
 export default Debug;
-
