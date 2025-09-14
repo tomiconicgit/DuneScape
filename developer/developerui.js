@@ -28,6 +28,7 @@ const DeveloperUI = {
         this.dom.bar.style.background = 'rgba(255, 255, 255, 0.1)';
         this.dom.bar.style.borderRadius = '16px';
         this.dom.bar.style.backdropFilter = 'blur(10px)';
+        this.dom.bar.style.webkitBackdropFilter = 'blur(10px)'; // Added for Safari
         this.dom.bar.style.border = '1px solid rgba(255, 255, 255, 0.2)';
         this.dom.bar.style.boxShadow = '0 4px 30px rgba(0, 0, 0, 0.1)';
         document.body.appendChild(this.dom.bar);
@@ -56,6 +57,7 @@ const DeveloperUI = {
             button.style.alignItems = 'center';
             button.style.justifyContent = 'center';
             button.style.backdropFilter = 'blur(5px)';
+            button.style.webkitBackdropFilter = 'blur(5px)'; // Added for Safari
             button.addEventListener('click', () => this._toggleType(type));
             this.dom.buttons[type] = button;
             this.dom.bar.appendChild(button);
