@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import MapTexture from '../environment/maptexture.js'; // Fixed path (removed extra /map/)
 
 /**
  * Handles grid-based movement for the character, including pathfinding and marker placement.
@@ -14,8 +13,7 @@ const Movement = {
     raycaster: new THREE.Raycaster(),
     plane: null,
     isMoving: false,
-    cameraSystem: null,
-    buildMode: null, // Added for build mode
+    cameraSystem: null, // Added to store camera reference
 
     /**
      * Initializes the movement system.
@@ -27,13 +25,9 @@ const Movement = {
     init(character, scene, camera, plane) {
         this.character = character;
         this.scene = scene;
-        this.cameraSystem = camera;
+        this.cameraSystem = camera; // Added
         this.plane = plane;
         this.cameraSystem.setOnTap((touch) => this.handleTap(touch));
-    },
-
-    setBuildMode(type) { // Added
-        this.buildMode = type;
     },
 
     /**
@@ -45,19 +39,15 @@ const Movement = {
         mouse.x = (touch.clientX / window.innerWidth) * 2 - 1;
         mouse.y = -(touch.clientY / window.innerHeight) * 2 + 1;
 
-        this.raycaster.setFromCamera(mouse, this.cameraSystem.camera);
+        this.raycaster.setFromCamera(mouse, this.cameraSystem.camera); // Updated
 
         const intersects = this.raycaster.intersectObject(this.plane);
         if (intersects.length > 0) {
             const point = intersects[0].point;
             const targetGrid = this.getGridPos(point);
-            if (this.buildMode) {
-                MapTexture.apply(this.buildMode, targetGrid); // Added build mode logic
-            } else {
-                const targetPos = { x: targetGrid.x + 0.5, z: targetGrid.z + 0.5 };
-                this.placeMarker(targetPos.x, 0.1, targetPos.z);
-                this.calculatePath(targetGrid);
-            }
+            const targetPos = { x: targetGrid.x + 0.5, z: targetGrid.z + 0.5 };
+            this.placeMarker(targetPos.x, 0.1, targetPos.z);
+            this.calculatePath(targetGrid);
         }
     },
 
