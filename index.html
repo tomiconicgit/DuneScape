@@ -21,13 +21,17 @@
     <script type="module">
         import * as THREE from 'three';
         import { startGameEngine } from './gameengine.js';
-        import RTSCamera from './utility/camera.js'; // <-- IMPORT CAMERA
+        import RTSCamera from './utility/camera.js';
+        import Movement from './character/movement.js'; // <-- IMPORT MOVEMENT
 
         // 1. Scene & Renderer Setup
         const scene = new THREE.Scene();
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
+
+        // Clock for delta time
+        const clock = new THREE.Clock();
 
         // 2. Start the Game Engine
         // Pass the renderer's canvas element to the engine
@@ -37,7 +41,9 @@
         function animate() {
             requestAnimationFrame(animate);
             
+            const delta = clock.getDelta();
             RTSCamera.update(); // <-- UPDATE THE CAMERA EACH FRAME
+            Movement.update(delta); // <-- UPDATE MOVEMENT EACH FRAME
 
             // Render the scene with the new camera
             renderer.render(scene, RTSCamera.camera);
