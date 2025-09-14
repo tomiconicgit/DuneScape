@@ -1,14 +1,15 @@
 import * as THREE from 'three';
 
 /**
- * Creates a simple character mesh and adds it to the scene.
+ * Creates a simple character mesh, adds it to the scene, and returns it.
  * @param {THREE.Scene} scene The scene to add the character to.
+ * @returns {THREE.Mesh} The created character mesh.
  */
 export function createCharacter(scene) {
     // Define the character's dimensions to fit inside a 1x1 tile
-    const characterWidth = 0.8;  // <-- CHANGED from 1
-    const characterHeight = 1.6; // <-- CHANGED from 2 (for proportion)
-    const characterDepth = 0.8;  // <-- CHANGED from 1
+    const characterWidth = 0.8;
+    const characterHeight = 1.6;
+    const characterDepth = 0.8;
 
     // Create the geometry (the shape)
     const geometry = new THREE.BoxGeometry(characterWidth, characterHeight, characterDepth);
@@ -26,4 +27,7 @@ export function createCharacter(scene) {
     
     // Add the character to the scene
     scene.add(character);
+    
+    // Return the character object so other parts of the engine can use it
+    return character;
 }
