@@ -13,6 +13,7 @@ const Movement = {
     raycaster: new THREE.Raycaster(),
     plane: null,
     isMoving: false,
+    cameraSystem: null, // Added to store camera reference
 
     /**
      * Initializes the movement system.
@@ -24,8 +25,9 @@ const Movement = {
     init(character, scene, camera, plane) {
         this.character = character;
         this.scene = scene;
+        this.cameraSystem = camera; // Added
         this.plane = plane;
-        camera.setOnTap((touch) => this.handleTap(touch));
+        this.cameraSystem.setOnTap((touch) => this.handleTap(touch));
     },
 
     /**
@@ -37,7 +39,7 @@ const Movement = {
         mouse.x = (touch.clientX / window.innerWidth) * 2 - 1;
         mouse.y = -(touch.clientY / window.innerHeight) * 2 + 1;
 
-        this.raycaster.setFromCamera(mouse, camera.camera); // Assuming camera.camera is the THREE.Camera
+        this.raycaster.setFromCamera(mouse, this.cameraSystem.camera); // Updated
 
         const intersects = this.raycaster.intersectObject(this.plane);
         if (intersects.length > 0) {
