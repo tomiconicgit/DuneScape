@@ -3,17 +3,17 @@ import { createWaterMaterial } from './assets/textures/codetextures/water.js';
 
 const MapTexture = {
     scene: null,
-    tiles: new Map(), // key: `${x},${z}`, value: mesh
+    tiles: new Map(), // key: `${x},${grid.z}`, value: mesh
     materials: {},
     textureLoader: new THREE.TextureLoader(),
 
     init(scene) {
         this.scene = scene;
-        // Load image textures (assume paths relative to root)
-        this.materials.grass = new THREE.MeshBasicMaterial({ map: this.textureLoader.load('environment/map/assets/textures/imagetextures/grass.JPEG') });
-        this.materials.dirt = new THREE.MeshBasicMaterial({ map: this.textureLoader.load('environment/map/assets/textures/imagetextures/dirt.JPEG') });
-        this.materials.sand = new THREE.MeshBasicMaterial({ map: this.textureLoader.load('environment/map/assets/textures/imagetextures/sand.JPEG') });
-        this.materials.stone = new THREE.MeshBasicMaterial({ map: this.textureLoader.load('environment/map/assets/textures/imagetextures/stone.JPEG') });
+        // Load image textures with error handling
+        this.materials.grass = new THREE.MeshBasicMaterial({ map: this.textureLoader.load('environment/map/assets/textures/imagetextures/grass.JPEG', undefined, undefined, (err) => console.error(`Failed to load grass texture: ${err}`)) });
+        this.materials.dirt = new THREE.MeshBasicMaterial({ map: this.textureLoader.load('environment/map/assets/textures/imagetextures/dirt.JPEG', undefined, undefined, (err) => console.error(`Failed to load dirt texture: ${err}`)) });
+        this.materials.sand = new THREE.MeshBasicMaterial({ map: this.textureLoader.load('environment/map/assets/textures/imagetextures/sand.JPEG', undefined, undefined, (err) => console.error(`Failed to load sand texture: ${err}`)) });
+        this.materials.stone = new THREE.MeshBasicMaterial({ map: this.textureLoader.load('environment/map/assets/textures/imagetextures/stone.JPEG', undefined, undefined, (err) => console.error(`Failed to load stone texture: ${err}`)) });
         this.materials.water = createWaterMaterial();
     },
 
