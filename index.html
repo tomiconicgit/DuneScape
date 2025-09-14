@@ -22,7 +22,8 @@
         import * as THREE from 'three';
         import { startGameEngine } from './gameengine.js';
         import RTSCamera from './utility/camera.js';
-        import Movement from './character/movement.js'; // <-- IMPORT MOVEMENT
+        import Movement from './character/movement.js';
+        import MapTexture from './environment/map/maptexture.js'; // <-- Added import
 
         // 1. Scene & Renderer Setup
         const scene = new THREE.Scene();
@@ -42,8 +43,9 @@
             requestAnimationFrame(animate);
             
             const delta = clock.getDelta();
-            RTSCamera.update(); // <-- UPDATE THE CAMERA EACH FRAME
-            Movement.update(delta); // <-- UPDATE MOVEMENT EACH FRAME
+            RTSCamera.update();
+            Movement.update(delta);
+            MapTexture.update(delta); // <-- Added for water animation
 
             // Render the scene with the new camera
             renderer.render(scene, RTSCamera.camera);
@@ -51,7 +53,7 @@
 
         // Handle window resizing
         window.addEventListener('resize', () => {
-            RTSCamera.handleResize(); // <-- LET CAMERA HANDLE RESIZE
+            RTSCamera.handleResize();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
