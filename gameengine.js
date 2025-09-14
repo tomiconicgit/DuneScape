@@ -3,8 +3,6 @@ import RTSCamera from './utility/camera.js';
 import { createEnvironmentGrid } from './environment/gridmap.js';
 import { createCharacter } from './character/character.js';
 import Movement from './character/movement.js';
-import DeveloperUI from './developer/developerui.js'; // Added
-import MapTexture from './environment/map/maptexture.js'; // Added
 
 /**
  * The main game engine director.
@@ -25,12 +23,6 @@ export function startGameEngine(scene, domElement) {
 
     // Initialize movement
     Movement.init(character, scene, RTSCamera, plane);
-
-    // Initialize map textures
-    MapTexture.init(scene);
-
-    // Initialize developer UI
-    DeveloperUI.init(Movement);
 
     console.log("Game Engine: World setup complete.");
 }
