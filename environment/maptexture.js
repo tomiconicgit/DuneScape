@@ -9,11 +9,11 @@ const MapTexture = {
 
     init(scene) {
         this.scene = scene;
-        // Load image textures with error handling
-        this.materials.grass = new THREE.MeshBasicMaterial({ map: this.textureLoader.load('environment/map/assets/textures/imagetextures/grass.jpeg', undefined, undefined, (err) => console.error(`Failed to load grass texture: ${err}`)) });
-        this.materials.dirt = new THREE.MeshBasicMaterial({ map: this.textureLoader.load('environment/map/assets/textures/imagetextures/dirt.jpeg', undefined, undefined, (err) => console.error(`Failed to load dirt texture: ${err}`)) });
-        this.materials.sand = new THREE.MeshBasicMaterial({ map: this.textureLoader.load('environment/map/assets/textures/imagetextures/sand.jpeg', undefined, undefined, (err) => console.error(`Failed to load sand texture: ${err}`)) });
-        this.materials.stone = new THREE.MeshBasicMaterial({ map: this.textureLoader.load('environment/map/assets/textures/imagetextures/stone.jpeg', undefined, undefined, (err) => console.error(`Failed to load stone texture: ${err}`)) });
+        // Temporary color materials for testing load issues
+        this.materials.grass = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        this.materials.dirt = new THREE.MeshBasicMaterial({ color: 0x8b4513 });
+        this.materials.sand = new THREE.MeshBasicMaterial({ color: 0xf4a460 });
+        this.materials.stone = new THREE.MeshBasicMaterial({ color: 0x808080 });
         this.materials.water = new THREE.MeshBasicMaterial({ color: 0x0000ff }); // Temporary basic blue for testing
     },
 
