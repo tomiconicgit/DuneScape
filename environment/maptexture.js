@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { createWaterMaterial } from './assets/textures/codetextures/water.js';
+import { createWaterMaterial } from './map/assets/textures/codetextures/water.js'; // Fixed path (added /map/)
 
 const MapTexture = {
     scene: null,
