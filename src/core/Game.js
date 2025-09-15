@@ -7,7 +7,8 @@ import Movement from '../mechanics/Movement.js';
 import DeveloperUI from '../ui/DeveloperUI.js';
 import Grid from '../world/Grid.js';
 import TileMap from '../world/TileMap.js';
-import Sky from '../world/Sky.js';
+import Atmosphere from '../world/Atmosphere.js';
+import VolumetricClouds from '../world/VolumetricClouds.js';
 import { setupLighting } from '../world/Lighting.js';
 
 export default class Game {
@@ -25,12 +26,19 @@ export default class Game {
         this.character = new Character(this.scene);
         this.grid = new Grid(this.scene);
         this.tileMap = new TileMap(this.scene);
-        this.sky = new Sky(this.scene);
+        
+        // NEW: Replace Sky with Atmosphere and Clouds
+        this.atmosphere = new Atmosphere(this.scene);
+        this.clouds = new VolumetricClouds(this.scene);
+
         this.movement = new Movement(this.character.mesh);
 
         // Input and UI
         this.input = new InputController(this.camera.threeCamera, this.grid.plane);
         this.devUI = new DeveloperUI();
+
+        // A Vector3 to control the sun's position
+        this.sunPosition = new THREE.Vector3();
 
         this._setupEvents();
         setupLighting(this.scene);
@@ -80,11 +88,23 @@ export default class Game {
         requestAnimationFrame(() => this._animate());
 
         const delta = this.clock.getDelta();
+        const elapsed = this.clock.getElapsedTime();
+
+        // Animate the sun in a circle for a day/night cycle
+        const angle = elapsed * 0.1;
+        this.sunPosition.set(
+            Math.cos(angle) * 8000,
+            Math.sin(angle) * 4000 - 1000, // Move up and down
+            0
+        );
 
         // Update all components
         this.movement.update(delta);
         this.camera.update();
-        this.sky.update(delta);
+        
+        // Update atmosphere and clouds with the sun's position
+        this.atmosphere.update(this.sunPosition);
+        this.clouds.update(this.sunPosition, delta);
 
         this.renderer.render(this.scene, this.camera.threeCamera);
     }
