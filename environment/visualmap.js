@@ -8,11 +8,10 @@ const VisualMap = {
     tileSize: 1,
     textures: {},
     sky: null,
-    clock: null,
+    clock: new THREE.Clock(),
 
     init(scene) {
         this.scene = scene;
-        this.clock = new THREE.Clock();
         this._loadTextures();
         this._createTiles();
         this._createSky();
@@ -26,7 +25,6 @@ const VisualMap = {
             t.magFilter = THREE.NearestFilter;
             return t;
         };
-
         this.textures = {
             grass: wrap(loader.load('./environment/assets/grass.jpeg')),
             dirt: wrap(loader.load('./environment/assets/dirt.jpeg')),
@@ -37,7 +35,6 @@ const VisualMap = {
 
     _createTiles() {
         const half = this.size / 2;
-
         for (let x = 0; x < this.divisions; x++) {
             for (let z = 0; z < this.divisions; z++) {
                 const geometry = new THREE.PlaneGeometry(this.tileSize, this.tileSize);
@@ -57,54 +54,6 @@ const VisualMap = {
         }
     },
 
-    _createSky() {
-        // Simple procedural sky using a large shader plane
-        const skyGeo = new THREE.SphereGeometry(200, 32, 16);
-        const skyMat = new THREE.ShaderMaterial({
-            uniforms: {
-                time: { value: 0 },
-            },
-            vertexShader: `
-                varying vec3 vPos;
-                void main() {
-                    vPos = position;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
-                }
-            `,
-            fragmentShader: `
-                uniform float time;
-                varying vec3 vPos;
-
-                float hash(vec2 p) {
-                    return fract(sin(dot(p,vec2(127.1,311.7))) * 43758.5453);
-                }
-
-                float noise(vec2 p) {
-                    vec2 i = floor(p);
-                    vec2 f = fract(p);
-                    float a = hash(i);
-                    float b = hash(i + vec2(1.0,0.0));
-                    float c = hash(i + vec2(0.0,1.0));
-                    float d = hash(i + vec2(1.0,1.0));
-                    vec2 u = f*f*(3.0-2.0*f);
-                    return mix(a,b,u.x) + (c-a)*u.y*(1.0-u.x) + (d-b)*u.x*u.y;
-                }
-
-                void main() {
-                    float clouds = noise(vPos.xz*0.05 + time*0.02);
-                    vec3 skyColor = mix(vec3(0.0,0.0,0.05), vec3(0.5,0.7,1.0), vPos.y*0.02 + clouds*0.3);
-                    gl_FragColor = vec4(skyColor, 1.0);
-                }
-            `,
-            side: THREE.BackSide,
-        });
-
-        const sky = new THREE.Mesh(skyGeo, skyMat);
-        sky.position.y = 30;
-        this.scene.add(sky);
-        this.sky = sky;
-    },
-
     paintTile(gridPos, type) {
         const key = `${gridPos.x},${gridPos.z}`;
         const tile = this.tiles.get(key);
@@ -115,13 +64,60 @@ const VisualMap = {
 
         tile.material.map = tex;
         tile.material.needsUpdate = true;
+
+        this._blendNeighbors(gridPos, type);
     },
 
-    update() {
-        if (this.sky) {
-            this.sky.material.uniforms.time.value = this.clock.getElapsedTime();
+    _blendNeighbors(gridPos, type) {
+        const offsets = [
+            { dx: 1, dz: 0 },
+            { dx: -1, dz: 0 },
+            { dx: 0, dz: 1 },
+            { dx: 0, dz: -1 },
+        ];
+
+        for (const o of offsets) {
+            const key = `${gridPos.x + o.dx},${gridPos.z + o.dz}`;
+            const neighbor = this.tiles.get(key);
+            if (neighbor && neighbor.material.map !== this.textures[type]) {
+                neighbor.material.color = new THREE.Color(0.85, 0.85, 0.85);
+                neighbor.material.needsUpdate = true;
+            }
         }
     },
+
+    _createSky() {
+        const skyGeo = new THREE.SphereGeometry(this.size * 4, 32, 16);
+        const skyMat = new THREE.ShaderMaterial({
+            side: THREE.BackSide,
+            uniforms: { time: { value: 0 } },
+            vertexShader: `
+                varying vec3 vPos;
+                void main() {
+                    vPos = position;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform float time;
+                varying vec3 vPos;
+                void main() {
+                    vec3 base = mix(vec3(0.2,0.4,0.7), vec3(0.6,0.8,1.0), smoothstep(-0.5,1.0,vPos.y));
+                    float clouds = sin(vPos.x*0.05 + time*0.2) * sin(vPos.z*0.05 + time*0.2) * 0.15;
+                    clouds = clamp(clouds,0.0,1.0);
+                    vec3 color = base + clouds;
+                    gl_FragColor = vec4(color,1.0);
+                }
+            `
+        });
+        this.sky = new THREE.Mesh(skyGeo, skyMat);
+        this.sky.position.y = this.size / 2;
+        this.scene.add(this.sky);
+    },
+
+    update(delta) {
+        if (this.sky) this.sky.material.uniforms.time.value += delta;
+    }
 };
 
 export default VisualMap;
