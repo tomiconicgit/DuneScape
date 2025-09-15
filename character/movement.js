@@ -50,7 +50,106 @@ const Movement = {
         }
     },
 
-    // (rest unchanged from v0.0.5: placeMarker, calculatePath, update, getGridPos, findPath)
+    placeMarker(x, y, z) {
+        if (this.marker) {
+            this.scene.remove(this.marker);
+        }
+        const geometry = new THREE.CylinderGeometry(0.2, 0.2, 0.1, 32);
+        const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        this.marker = new THREE.Mesh(geometry, material);
+        this.marker.position.set(x, y, z);
+        this.scene.add(this.marker);
+    },
+
+    calculatePath(targetGrid) {
+        const startGrid = this.getGridPos(this.character.position);
+        const gridPath = this.findPath(startGrid, targetGrid);
+        this.path = gridPath.map(g => ({
+            x: g.x + 0.5,
+            y: this.character.position.y,
+            z: g.z + 0.5
+        }));
+        this.currentPathIndex = 0;
+        this.isMoving = this.path.length > 0;
+    },
+
+    update(delta) {
+        if (!this.isMoving || this.path.length === 0) return;
+
+        const target = this.path[this.currentPathIndex];
+        const direction = new THREE.Vector3().subVectors(target, this.character.position);
+        const distance = direction.length();
+
+        if (distance < 0.01) {
+            this.currentPathIndex++;
+            if (this.currentPathIndex >= this.path.length) {
+                this.isMoving = false;
+                return;
+            }
+            return;
+        }
+
+        direction.normalize();
+        const moveDist = this.moveSpeed * delta;
+        if (moveDist >= distance) {
+            this.character.position.copy(target);
+        } else {
+            this.character.position.add(direction.multiplyScalar(moveDist));
+        }
+    },
+
+    getGridPos(pos) {
+        return { x: Math.floor(pos.x), z: Math.floor(pos.z) };
+    },
+
+    findPath(start, goal) {
+        const openSet = [];
+        const cameFrom = new Map();
+        const gScore = new Map();
+        const fScore = new Map();
+        const key = (p) => `${p.x},${p.z}`;
+
+        gScore.set(key(start), 0);
+        fScore.set(key(start), Math.abs(goal.x - start.x) + Math.abs(goal.z - start.z));
+        openSet.push(start);
+
+        while (openSet.length > 0) {
+            openSet.sort((a, b) => fScore.get(key(a)) - fScore.get(key(b)));
+            const current = openSet.shift();
+
+            if (current.x === goal.x && current.z === goal.z) {
+                const path = [];
+                let curr = current;
+                while (curr) {
+                    path.push(curr);
+                    curr = cameFrom.get(key(curr));
+                }
+                path.reverse();
+                return path;
+            }
+
+            const neighbors = [
+                { x: current.x + 1, z: current.z },
+                { x: current.x - 1, z: current.z },
+                { x: current.x, z: current.z + 1 },
+                { x: current.x, z: current.z - 1 },
+            ];
+
+            for (const neigh of neighbors) {
+                const tentG = gScore.get(key(current)) + 1;
+                const nkey = key(neigh);
+                if (!gScore.has(nkey) || tentG < gScore.get(nkey)) {
+                    cameFrom.set(nkey, current);
+                    gScore.set(nkey, tentG);
+                    fScore.set(nkey, tentG + Math.abs(goal.x - neigh.x) + Math.abs(goal.z - neigh.z));
+                    if (!openSet.some(p => p.x === neigh.x && p.z === neigh.z)) {
+                        openSet.push(neigh);
+                    }
+                }
+            }
+        }
+        return [];
+    }
 };
 
 export default Movement;
