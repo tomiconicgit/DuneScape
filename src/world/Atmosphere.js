@@ -15,6 +15,7 @@ uniform vec3 uSunPosition;
 uniform float uRayleigh;
 uniform float uMie;
 uniform float uMieDirectionalG;
+uniform float uHorizonOffset; // NEW: For fine-tuning
 
 // Atmosphere scattering logic
 const float PI = 3.1415926535897932384626433832795;
@@ -62,6 +63,11 @@ void main() {
     float sunDisk = smoothstep(0.999, 0.9995, dot(rayDir, normalize(uSunPosition)));
     finalColor += vec3(1.0, 0.9, 0.7) * sunDisk * 20.0;
     
+    // MODIFIED: Blend to a ground color below the horizon to meet the grid
+    vec3 groundColor = vec3(0.05, 0.05, 0.08); // A dark, hazy ground color
+    float horizonBlend = smoothstep(-0.02 + uHorizonOffset, 0.02 + uHorizonOffset, rayDir.y);
+    finalColor = mix(groundColor, finalColor, horizonBlend);
+    
     gl_FragColor = vec4(finalColor, 1.0);
 }`;
 
@@ -72,7 +78,8 @@ export default class Atmosphere {
             uSunPosition: { value: new THREE.Vector3() },
             uRayleigh: { value: 2.5 },
             uMie: { value: 0.001 },
-            uMieDirectionalG: { value: 0.8 }
+            uMieDirectionalG: { value: 0.8 },
+            uHorizonOffset: { value: 0.0 } // MODIFIED: Add the new uniform
         };
         const material = new THREE.ShaderMaterial({
             vertexShader,
