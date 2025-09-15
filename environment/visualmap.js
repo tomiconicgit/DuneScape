@@ -46,6 +46,7 @@ const VisualMap = {
 
                 const tile = new THREE.Mesh(geometry, material);
                 tile.position.set(x - half + 0.5, 0, z - half + 0.5);
+                tile.castShadow = true;
                 tile.receiveShadow = true;
 
                 this.scene.add(tile);
@@ -67,13 +68,11 @@ const VisualMap = {
     },
 
     _createSky() {
-        // Sphere radius 4x size of grid
-        const radius = this.size * 4;
+        const radius = this.size * 2; // smaller than before
         const skyGeo = new THREE.SphereGeometry(radius, 64, 32);
 
-        // Shift sky down so its bottom aligns with y = 0
-        const skyYPos = radius - (this.size / 2);
-        
+        // Position so bottom of sphere aligns with grid (y=0)
+        const skyYPos = radius;
         const skyMat = new THREE.ShaderMaterial({
             side: THREE.BackSide,
             uniforms: { time: { value: 0 } },
@@ -87,8 +86,11 @@ const VisualMap = {
             fragmentShader: `
                 uniform float time;
                 varying vec3 vPos;
+
                 void main() {
-                    vec3 base = mix(vec3(0.3,0.5,0.8), vec3(0.6,0.85,1.0), smoothstep(-1.0,1.0,vPos.y/200.0));
+                    // Sky gradient
+                    vec3 base = mix(vec3(0.3,0.5,0.8), vec3(0.6,0.85,1.0), smoothstep(-1.0,1.0,(vPos.y - 0.0)/${radius.toFixed(1)}));
+                    // Clouds
                     float clouds = sin(vPos.x*0.02 + time*0.15) * sin(vPos.z*0.02 + time*0.15) * 0.12;
                     clouds = clamp(clouds,0.0,1.0);
                     vec3 color = base + clouds;
