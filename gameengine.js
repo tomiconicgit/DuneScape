@@ -7,47 +7,57 @@ import DeveloperUI from './developer/developerui.js';
 import VisualMap from './environment/visualmap.js';
 import * as THREE from 'three';
 
+/**
+ * The main game engine director.
+ * @param {THREE.Scene} scene The main scene object.
+ * @param {HTMLElement} domElement The canvas element.
+ */
 export function startGameEngine(scene, domElement) {
     Debug.init();
     console.log("Game Engine: Initializing game world...");
 
-    // 1. Environment grid
-    const plane = createEnvironmentGrid(scene);
+    // Enable shadows in renderer
+    const renderer = domElement.renderer;
+    if (renderer) {
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    }
 
-    // 2. Character
-    const character = createCharacter(scene);
-
-    // 3. Camera
-    RTSCamera.init(character, domElement);
-
-    // 4. Movement
-    Movement.init(character, scene, RTSCamera, plane);
-
-    // 5. Visual map (tiles + sky)
-    VisualMap.init(scene);
-
-    // 6. Developer UI
-    DeveloperUI.init(Movement);
-
-    // 7. Lights
-    const sun = new THREE.DirectionalLight(0xffffff, 1.0);
-    sun.position.set(30, 50, 20);
+    // Create directional sun light
+    const sun = new THREE.DirectionalLight(0xffffff, 1);
+    sun.position.set(50, 100, 50);
     sun.castShadow = true;
     sun.shadow.mapSize.width = 2048;
     sun.shadow.mapSize.height = 2048;
+    sun.shadow.camera.near = 1;
+    sun.shadow.camera.far = 500;
     sun.shadow.camera.left = -100;
     sun.shadow.camera.right = 100;
     sun.shadow.camera.top = 100;
     sun.shadow.camera.bottom = -100;
-    sun.shadow.camera.near = 1;
-    sun.shadow.camera.far = 200;
     scene.add(sun);
 
+    // Add subtle ambient light
     const ambient = new THREE.AmbientLight(0xffffff, 0.3);
     scene.add(ambient);
 
-    // 8. Ground plane receives shadows
-    plane.receiveShadow = true;
+    // Create the grid/plane
+    const plane = createEnvironmentGrid(scene);
+
+    // Create character
+    const character = createCharacter(scene);
+
+    // Initialize camera
+    RTSCamera.init(character, domElement);
+
+    // Initialize movement
+    Movement.init(character, scene, RTSCamera, plane);
+
+    // Initialize visual map painter (also adds sky)
+    VisualMap.init(scene);
+
+    // Initialize developer UI
+    DeveloperUI.init(Movement);
 
     console.log("Game Engine: World setup complete.");
 }
