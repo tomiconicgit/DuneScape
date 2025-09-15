@@ -5,7 +5,9 @@ export default class Camera {
         this.domElement = domElement;
         this.target = null;
         const aspect = window.innerWidth / window.innerHeight;
-        this.threeCamera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
+        
+        // MODIFIED: Increased far plane from 1000 to 20000
+        this.threeCamera = new THREE.PerspectiveCamera(75, aspect, 0.1, 20000);
 
         // State
         this.orbitAngle = Math.PI / 4;
@@ -72,7 +74,6 @@ export default class Camera {
     _onTouchMove(event) {
         event.preventDefault();
 
-        // Check for dragging (which is handled by InputController) vs. camera orbiting
         const isTapAndDrag = event.target.isTapAndDrag;
         if (isTapAndDrag) return;
 
