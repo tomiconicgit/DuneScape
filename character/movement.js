@@ -19,6 +19,10 @@ const Movement = {
         this.scene = scene;
         this.cameraSystem = camera; 
         this.plane = plane;
+
+        // Store half grid for conversions
+        this.scene.userData.gridHalf = 50;
+
         this.cameraSystem.setOnTap((touch) => this.handleTap(touch));
     },
 
@@ -32,19 +36,19 @@ const Movement = {
         mouse.y = -(touch.clientY / window.innerHeight) * 2 + 1;
 
         this.raycaster.setFromCamera(mouse, this.cameraSystem.camera);
-
         const intersects = this.raycaster.intersectObject(this.plane);
-        if (intersects.length > 0) {
-            const point = intersects[0].point;
-            const targetGrid = this.getGridPos(point);
 
-            if (this.buildMode) {
-                VisualMap.paintTile(targetGrid, this.buildMode);
-                return;
-            }
+        if (intersects.length === 0) return;
 
-            const targetPos = { x: targetGrid.x + 0.5, z: targetGrid.z + 0.5 };
-            this.placeMarker(targetPos.x, 0.1, targetPos.z);
+        const point = intersects[0].point;
+        const targetGrid = this.getGridPos(point);
+
+        if (this.buildMode) {
+            VisualMap.paintTile(targetGrid, this.buildMode);
+        } else {
+            const half = this.scene.userData.gridHalf;
+            const targetPos = { x: targetGrid.x - half + 0.5, z: targetGrid.z - half + 0.5 };
+            this.placeMarker(targetPos.x, 0.05, targetPos.z);
             this.calculatePath(targetGrid);
         }
     },
@@ -64,9 +68,9 @@ const Movement = {
         const startGrid = this.getGridPos(this.character.position);
         const gridPath = this.findPath(startGrid, targetGrid);
         this.path = gridPath.map(g => ({
-            x: g.x + 0.5,
+            x: g.x - this.scene.userData.gridHalf + 0.5,
             y: this.character.position.y,
-            z: g.z + 0.5
+            z: g.z - this.scene.userData.gridHalf + 0.5
         }));
         this.currentPathIndex = 0;
         this.isMoving = this.path.length > 0;
@@ -83,6 +87,7 @@ const Movement = {
             this.currentPathIndex++;
             if (this.currentPathIndex >= this.path.length) {
                 this.isMoving = false;
+                this.path = [];
                 return;
             }
             return;
@@ -98,7 +103,7 @@ const Movement = {
     },
 
     getGridPos(pos) {
-        const half = 50; // size/2
+        const half = this.scene.userData.gridHalf || 50;
         return { 
             x: Math.floor(pos.x + half), 
             z: Math.floor(pos.z + half) 
