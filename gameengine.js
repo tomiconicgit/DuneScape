@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import Debug from './debug.js';
 import RTSCamera from './utility/camera.js';
 import { createEnvironmentGrid } from './environment/gridmap.js';
@@ -5,56 +6,50 @@ import { createCharacter } from './character/character.js';
 import Movement from './character/movement.js';
 import DeveloperUI from './developer/developerui.js';
 import VisualMap from './environment/visualmap.js';
-import * as THREE from 'three';
 
-export function startGameEngine(scene, domElement, renderer) {
+export function startGameEngine(scene, renderer) {
     Debug.init();
 
-    // Enable shadows in renderer
+    console.log("Game Engine: Initializing game world...");
+
+    // Enable shadows
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-    // Create grid (dev purposes, no shadows)
-    const plane = createEnvironmentGrid(scene);
-
-    // Create character
-    const character = createCharacter(scene);
-    character.castShadow = true;
-
-    // Sun directional light
-    const sun = new THREE.DirectionalLight(0xfff6e5, 1.5); // slightly warm sunlight
-    sun.position.set(40, 80, 40);
+    // Lights
+    const sun = new THREE.DirectionalLight(0xffffff, 1);
+    sun.position.set(50, 100, 50);
     sun.castShadow = true;
-    sun.shadow.mapSize.width = 4096;
-    sun.shadow.mapSize.height = 4096;
-    sun.shadow.camera.near = 0.5;
-    sun.shadow.camera.far = 200;
-    sun.shadow.camera.left = -100;
-    sun.shadow.camera.right = 100;
-    sun.shadow.camera.top = 100;
-    sun.shadow.camera.bottom = -100;
-    sun.shadow.radius = 4;  // softer shadow edges
+    sun.shadow.mapSize.width = 2048;
+    sun.shadow.mapSize.height = 2048;
+    sun.shadow.camera.near = 1;
+    sun.shadow.camera.far = 500;
+    sun.shadow.camera.left = -150;
+    sun.shadow.camera.right = 150;
+    sun.shadow.camera.top = 150;
+    sun.shadow.camera.bottom = -150;
     scene.add(sun);
 
-    // Ambient light for soft fill
-    const ambient = new THREE.AmbientLight(0xffffff, 0.25);
+    const ambient = new THREE.AmbientLight(0xffffff, 0.3);
     scene.add(ambient);
 
-    // Visual map (tiles)
-    VisualMap.init(scene);
+    // Grid & plane
+    const plane = createEnvironmentGrid(scene); // plane is dev grid
 
-    // Make tiles cast/receive shadows
-    VisualMap.tiles.forEach(tile => {
-        tile.castShadow = true;
-        tile.receiveShadow = true;
-    });
+    // Character
+    const character = createCharacter(scene);
 
-    // Initialize camera
-    RTSCamera.init(character, domElement);
+    // Camera
+    RTSCamera.init(character, renderer.domElement);
 
-    // Initialize movement
+    // Movement
     Movement.init(character, scene, RTSCamera, plane);
+
+    // Visual Map (tiles + sky)
+    VisualMap.init(scene);
 
     // Developer UI
     DeveloperUI.init(Movement);
+
+    console.log("Game Engine: World setup complete.");
 }
