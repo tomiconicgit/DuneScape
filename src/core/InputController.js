@@ -7,51 +7,54 @@ export default class InputController {
         this.raycaster = new THREE.Raycaster();
         
         this.onTap = null; // Callback for tap events
-        this.buildMode = null;
-
+        
         // Touch State
         this.touchState = {
             startTime: 0,
             startX: 0,
             startY: 0,
+            isDragging: false,
         };
-
+        
         this._addEventListeners();
     }
     
-    setBuildMode(mode) {
-        this.buildMode = mode;
-    }
-
     _addEventListeners() {
         const domElement = document.querySelector('canvas');
         domElement.addEventListener('touchstart', this._onTouchStart.bind(this), { passive: false });
+        domElement.addEventListener('touchmove', this._onTouchMove.bind(this), { passive: false });
         domElement.addEventListener('touchend', this._onTouchEnd.bind(this), { passive: false });
     }
 
     _onTouchStart(event) {
+        if (event.touches.length !== 1) return;
         event.preventDefault();
-        if (event.touches.length === 1) {
-            this.touchState.startTime = Date.now();
-            this.touchState.startX = event.touches[0].clientX;
-            this.touchState.startY = event.touches[0].clientY;
+        
+        this.touchState.startTime = Date.now();
+        this.touchState.startX = event.touches[0].clientX;
+        this.touchState.startY = event.touches[0].clientY;
+        this.touchState.isDragging = false;
+    }
+
+    _onTouchMove(event) {
+        if (event.touches.length !== 1) return;
+        event.preventDefault();
+
+        const touch = event.touches[0];
+        const dist = Math.hypot(touch.clientX - this.touchState.startX, touch.clientY - this.touchState.startY);
+        if (dist > 10) {
+            this.touchState.isDragging = true;
         }
     }
 
     _onTouchEnd(event) {
+        if (event.changedTouches.length !== 1) return;
         event.preventDefault();
         
-        // Check if camera was dragged/pinched
-        const cameraIsDragging = event.target.cameraDragInProgress;
-        if (cameraIsDragging) return;
-
-        // Check for a valid tap (short duration, minimal movement)
         const duration = Date.now() - this.touchState.startTime;
-        const touch = event.changedTouches[0];
-        const dist = Math.hypot(touch.clientX - this.touchState.startX, touch.clientY - this.touchState.startY);
 
-        if (duration < 300 && dist < 10 && this.onTap) {
-            this._handleTap(touch);
+        if (duration < 300 && !this.touchState.isDragging && this.onTap) {
+            this._handleTap(event.changedTouches[0]);
         }
     }
     
