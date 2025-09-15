@@ -1,65 +1,28 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DuneScape</title>
-    <style>
-        body { margin: 0; overflow: hidden; background-color: black; }
-        canvas { display: block; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DuneScape</title>
+<style>
+body { margin: 0; overflow: hidden; background: black; }
+canvas { display: block; }
+</style>
 </head>
 <body>
-    <script type="importmap">
-    {
-        "imports": {
-            "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
-            "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
-        }
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://unpkg.com/three@0.158.0/build/three.module.js"
     }
-    </script>
-    <script type="module">
-        import * as THREE from 'three';
-        import { startGameEngine } from './gameengine.js';
-        import Movement from './character/movement.js';
-        import RTSCamera from './utility/camera.js';
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { startGameEngine } from './gameengine.js';
 
-        // Scene & Renderer
-        const scene = new THREE.Scene();
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        document.body.appendChild(renderer.domElement);
-
-        // Clock for delta time
-        const clock = new THREE.Clock();
-
-        // Start Game Engine
-        startGameEngine(scene, renderer);
-
-        // Animation loop
-        function animate() {
-            requestAnimationFrame(animate);
-
-            const delta = clock.getDelta();
-            RTSCamera.update();
-            Movement.update(delta);
-
-            // Update VisualMap sky and clouds
-            import('./environment/visualmap.js').then(module => {
-                if(module.default.update) module.default.update();
-            });
-
-            renderer.render(scene, RTSCamera.camera);
-        }
-
-        window.addEventListener('resize', () => {
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            RTSCamera.handleResize();
-        });
-
-        animate();
-    </script>
+const scene = new THREE.Scene();
+startGameEngine(scene, document.body);
+</script>
 </body>
 </html>
