@@ -15,10 +15,9 @@ export default class TileMap {
         const loader = new THREE.TextureLoader();
         const wrap = t => {
             t.wrapS = t.wrapT = THREE.RepeatWrapping;
-            t.minFilter = THREE.LinearFilter;
-            t.magFilter = THREE.LinearFilter;
             return t;
         };
+        // NOTE: Make sure you have an /assets folder in your project root
         this.textures = {
             grass: wrap(loader.load('./assets/grass.jpeg')),
             dirt: wrap(loader.load('./assets/dirt.jpeg')),
