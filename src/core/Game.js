@@ -13,9 +13,9 @@ import { setupLighting } from '../world/Lighting.js';
 
 export default class Game {
     constructor() {
-        // ... (constructor setup is the same until _setupEvents) ...
         Debug.init();
         console.log("Game Engine: Initializing...");
+
         this.scene = new THREE.Scene();
         this.renderer = this._createRenderer();
         this.clock = new THREE.Clock();
@@ -29,13 +29,17 @@ export default class Game {
         this.input = new InputController(this.camera.threeCamera, this.grid.plane);
         this.devUI = new DeveloperUI();
         this.sunPosition = new THREE.Vector3();
+
+        // MODIFIED: Store the returned sun light object
+        const { sun } = setupLighting(this.scene);
+        this.sunLight = sun;
+
         this._setupEvents();
-        setupLighting(this.scene);
         this.character.mesh.castShadow = true;
     }
 
+    // ... (_createRenderer, _setupEvents, _handleSettingChange, start methods are unchanged)
     _createRenderer() {
-        // ... (this method is unchanged) ...
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
@@ -43,13 +47,11 @@ export default class Game {
         document.body.appendChild(renderer.domElement);
         return renderer;
     }
-
     _setupEvents() {
         window.addEventListener('resize', () => {
             this.camera.handleResize();
             this.renderer.setSize(window.innerWidth, window.innerHeight);
         });
-
         this.input.onTap = (worldPos, gridPos, buildMode) => {
             if (buildMode) {
                 this.tileMap.paintTile(gridPos, buildMode);
@@ -57,21 +59,15 @@ export default class Game {
                 this.movement.calculatePath(worldPos, gridPos);
             }
         };
-
         this.devUI.onBuildModeChange = (mode) => {
             this.input.setBuildMode(mode);
         };
-        
-        // MODIFIED: Add listener for new advanced settings
         this.devUI.onSettingChange = (change) => {
             this._handleSettingChange(change);
         };
     }
-    
-    // NEW: Method to handle changes from the sliders
     _handleSettingChange(change) {
         switch (change.setting) {
-            // Atmosphere controls
             case 'exposure':
                 this.atmosphere.uniforms.uExposure.value = change.value;
                 break;
@@ -84,7 +80,6 @@ export default class Game {
             case 'horizonOffset':
                 this.atmosphere.uniforms.uHorizonOffset.value = change.value;
                 break;
-            // Cloud controls
             case 'cloudCover':
                 this.clouds.uniforms.uCloudCover.value = change.value;
                 break;
@@ -93,29 +88,37 @@ export default class Game {
                 break;
         }
     }
-
     start() {
-        // ... (this method is unchanged) ...
         console.log("Game Engine: World setup complete.");
         this.camera.setTarget(this.character.mesh);
         this._animate();
     }
 
     _animate() {
-        // ... (this method is unchanged) ...
         requestAnimationFrame(() => this._animate());
+
         const delta = this.clock.getDelta();
         const elapsed = this.clock.getElapsedTime();
+
         const angle = elapsed * 0.1;
         this.sunPosition.set(
             Math.cos(angle) * 8000,
             Math.sin(angle) * 4000 - 1000,
-            0
+            Math.sin(angle * 0.5) * 2000 // Added some Z movement for more interesting shadows
         );
+
+        // MODIFIED: Update the actual light source to match the visual sun
+        this.sunLight.position.copy(this.sunPosition);
+        // Point the light at the center of the world
+        this.sunLight.target.position.set(0, 0, 0); 
+        this.sunLight.target.updateMatrixWorld();
+
         this.movement.update(delta);
         this.camera.update();
+        
         this.atmosphere.update(this.sunPosition);
         this.clouds.update(this.sunPosition, delta);
+
         this.renderer.render(this.scene, this.camera.threeCamera);
     }
 }
