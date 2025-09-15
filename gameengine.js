@@ -7,57 +7,54 @@ import DeveloperUI from './developer/developerui.js';
 import VisualMap from './environment/visualmap.js';
 import * as THREE from 'three';
 
-/**
- * Main game engine initialization.
- * @param {THREE.Scene} scene
- * @param {HTMLElement} domElement
- */
 export function startGameEngine(scene, domElement) {
     Debug.init();
-    console.log("Game Engine: Initializing world...");
+    console.log("Game Engine: Initializing game world...");
 
-    // --- 1. Lighting Setup ---
-    scene.background = new THREE.Color(0x000000);
+    // Set realistic scene background
+    scene.background = new THREE.Color(0x87ceeb); // fallback sky blue
 
-    // Directional sunlight
+    // Enable shadows in the renderer
+    const renderer = domElement.renderer;
+    if (renderer) {
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    }
+
+    // Directional "sun" light
     const sun = new THREE.DirectionalLight(0xffffff, 1.0);
-    sun.position.set(30, 50, 30);
+    sun.position.set(50, 100, 50);
     sun.castShadow = true;
     sun.shadow.mapSize.width = 2048;
     sun.shadow.mapSize.height = 2048;
+    sun.shadow.camera.left = -100;
+    sun.shadow.camera.right = 100;
+    sun.shadow.camera.top = 100;
+    sun.shadow.camera.bottom = -100;
     sun.shadow.camera.near = 1;
-    sun.shadow.camera.far = 200;
-    sun.shadow.camera.left = -50;
-    sun.shadow.camera.right = 50;
-    sun.shadow.camera.top = 50;
-    sun.shadow.camera.bottom = -50;
+    sun.shadow.camera.far = 500;
     scene.add(sun);
 
-    // Ambient light
-    const ambient = new THREE.AmbientLight(0xffffff, 0.25);
+    // Ambient fill light
+    const ambient = new THREE.AmbientLight(0xffffff, 0.3);
     scene.add(ambient);
 
-    // --- 2. Grid / plane ---
+    // Create the grid/plane
     const plane = createEnvironmentGrid(scene);
 
-    // --- 3. Character ---
+    // Create character
     const character = createCharacter(scene);
-    character.castShadow = true;
-    character.receiveShadow = true;
 
-    // --- 4. Tiles ---
-    VisualMap.init(scene);
-
-    // Enable shadows for tiles
-    VisualMap.tiles.forEach(tile => tile.receiveShadow = true);
-
-    // --- 5. Camera ---
+    // Initialize camera
     RTSCamera.init(character, domElement);
 
-    // --- 6. Movement ---
+    // Initialize movement
     Movement.init(character, scene, RTSCamera, plane);
 
-    // --- 7. Developer UI ---
+    // Initialize visual map painter with procedural sky
+    VisualMap.init(scene);
+
+    // Initialize developer UI
     DeveloperUI.init(Movement);
 
     console.log("Game Engine: World setup complete.");
