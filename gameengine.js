@@ -5,23 +5,29 @@ import { createCharacter } from './character/character.js';
 import Movement from './character/movement.js';
 import DeveloperUI from './developer/developerui.js';
 import VisualMap from './environment/visualmap.js';
-import * as THREE from 'three';
 
-export function startGameEngine(scene, rendererDom) {
+/**
+ * Main game engine initializer
+ * @param {THREE.Scene} scene
+ * @param {HTMLElement} domElement
+ */
+export function startGameEngine(scene, domElement) {
     Debug.init();
+    console.log("Game Engine: Initializing world...");
 
-    // Renderer & Shadows
+    // Renderer (needed for shadows)
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.body.appendChild(renderer.domElement);
 
-    // Create Grid
+    // Grid + invisible plane
     const plane = createEnvironmentGrid(scene);
 
-    // Create Character
+    // Character
     const character = createCharacter(scene);
+    character.castShadow = true;
 
     // Camera
     RTSCamera.init(character, renderer.domElement);
@@ -29,7 +35,7 @@ export function startGameEngine(scene, rendererDom) {
     // Movement
     Movement.init(character, scene, RTSCamera, plane);
 
-    // VisualMap
+    // Visual Map
     VisualMap.init(scene);
 
     // Developer UI
@@ -37,18 +43,26 @@ export function startGameEngine(scene, rendererDom) {
 
     // Animation loop
     const clock = new THREE.Clock();
+
     function animate() {
         requestAnimationFrame(animate);
+
         const delta = clock.getDelta();
+
         RTSCamera.update();
         Movement.update(delta);
         VisualMap.update();
+
         renderer.render(scene, RTSCamera.camera);
     }
+
     animate();
 
+    // Handle resize
     window.addEventListener('resize', () => {
         RTSCamera.handleResize();
         renderer.setSize(window.innerWidth, window.innerHeight);
     });
+
+    console.log("Game Engine: World setup complete.");
 }
