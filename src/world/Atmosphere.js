@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 
-// GLSL code for the shader
 const vertexShader = `
 varying vec3 vWorldPosition;
 void main() {
@@ -10,60 +9,46 @@ void main() {
 }`;
 
 const fragmentShader = `
-varying vec3 vWorldPosition;
 uniform vec3 uSunPosition;
-uniform float uRayleigh;
-uniform float uMie;
-uniform float uMieDirectionalG;
 uniform float uHorizonOffset;
 uniform float uExposure;
 
-const float PI = 3.1415926535897932384626433832795;
-const float earthRadius = 6371e3;
+varying vec3 vWorldPosition;
 
-vec3 getSkyColor(vec3 rayDir) {
-    vec3 sunDir = normalize(uSunPosition);
-
-    // MODIFIED: Replaced flawed sunfade logic with a simpler, more robust fade
-    float day_night_fade = smoothstep(-0.1, 0.1, sunDir.y);
-
-    float rayleigh = uRayleigh;
-    vec3 betaR = vec3(5.5e-6, 13.0e-6, 22.4e-6) * rayleigh;
-    vec3 betaM = vec3(21e-6) * uMie;
-
-    float sunAngle = dot(sunDir, rayDir);
-    float r = length(vWorldPosition);
-    float mu = dot(rayDir, normalize(vWorldPosition));
-    
-    float phaseR = (3.0 / (16.0 * PI)) * (1.0 + pow(sunAngle, 2.0));
-    
-    float g = uMieDirectionalG;
-    float phaseM = (1.0 / (4.0 * PI)) * ((1.0 - g*g) / pow(1.0 - 2.0*g*sunAngle + g*g, 1.5));
-    
-    vec3 dayExtinction = exp(-(betaR / 0.8e3 + betaM / 0.8e3) * (sqrt(max(0.0, earthRadius * earthRadius * mu * mu + 2.0 * earthRadius * r + r * r)) - earthRadius * mu));
-    
-    vec3 color = (phaseR * betaR + phaseM * betaM) / (betaR + betaM) * (1.0 - dayExtinction);
-
-    // Apply the day/night fade
-    color *= day_night_fade;
-    
-    return color;
-}
-
+// Artistic sky shader, not physically based but looks good and is controllable
 void main() {
     vec3 rayDir = normalize(vWorldPosition - cameraPosition);
-    vec3 finalColor = getSkyColor(rayDir);
+    vec3 sunDir = normalize(uSunPosition);
 
-    float sunDisk = smoothstep(0.999, 0.9995, dot(rayDir, normalize(uSunPosition)));
-    finalColor += vec3(1.0, 0.9, 0.7) * sunDisk * 20.0 * smoothstep(0.0, 0.1, normalize(uSunPosition).y);
-    
+    // Main sky color gradient (from zenith to horizon)
+    float zenithFactor = smoothstep(0.0, 1.0, rayDir.y);
+    vec3 zenithColor = vec3(0.2, 0.4, 0.8);
+    vec3 horizonColor = vec3(0.6, 0.8, 1.0);
+    vec3 skyGradient = mix(horizonColor, zenithColor, zenithFactor);
+
+    // Sun haze/glow
+    float sunDot = dot(rayDir, sunDir);
+    float sunHaze = smoothstep(0.9, 1.0, sunDot);
+    vec3 sunColor = vec3(1.0, 0.95, 0.8);
+    vec3 finalColor = mix(skyGradient, sunColor, sunHaze * sunHaze);
+
+    // Sun disk
+    float sunDisk = smoothstep(0.998, 1.0, sunDot);
+    finalColor += sunColor * sunDisk * 2.0;
+
+    // Day/Night fade
+    float dayNightFade = smoothstep(-0.1, 0.1, sunDir.y);
+    finalColor *= dayNightFade;
+
+    // Horizon line blend
     vec3 groundColor = vec3(0.05, 0.05, 0.08);
     float horizonBlend = smoothstep(-0.02 + uHorizonOffset, 0.02 + uHorizonOffset, rayDir.y);
     finalColor = mix(groundColor, finalColor, horizonBlend);
-    
+
+    // Exposure and tone mapping
     finalColor *= uExposure;
     finalColor = finalColor / (finalColor + vec3(1.0));
-    
+
     gl_FragColor = vec4(finalColor, 1.0);
 }`;
 
@@ -72,9 +57,6 @@ export default class Atmosphere {
         const geometry = new THREE.SphereGeometry(10000, 32, 32);
         this.uniforms = {
             uSunPosition: { value: new THREE.Vector3() },
-            uRayleigh: { value: 2.5 },
-            uMie: { value: 0.001 },
-            uMieDirectionalG: { value: 0.8 },
             uHorizonOffset: { value: 0.0 },
             uExposure: { value: 1.0 }
         };
