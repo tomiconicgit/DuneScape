@@ -46,8 +46,7 @@ const VisualMap = {
 
                 const tile = new THREE.Mesh(geometry, material);
                 tile.position.set(x - half + 0.5, 0, z - half + 0.5);
-                tile.castShadow = true;
-                tile.receiveShadow = true;
+                tile.receiveShadow = false; // don't cast shadows on dev map
 
                 this.scene.add(tile);
                 this.tiles.set(`${x},${z}`, tile);
@@ -59,20 +58,16 @@ const VisualMap = {
         const key = `${gridPos.x},${gridPos.z}`;
         const tile = this.tiles.get(key);
         if (!tile) return;
-
         const tex = this.textures[type];
         if (!tex) return;
-
         tile.material.map = tex;
         tile.material.needsUpdate = true;
     },
 
     _createSky() {
-        const radius = this.size * 2; // smaller than before
+        const radius = this.size * 4;
         const skyGeo = new THREE.SphereGeometry(radius, 64, 32);
 
-        // Position so bottom of sphere aligns with grid (y=0)
-        const skyYPos = radius;
         const skyMat = new THREE.ShaderMaterial({
             side: THREE.BackSide,
             uniforms: { time: { value: 0 } },
@@ -86,21 +81,18 @@ const VisualMap = {
             fragmentShader: `
                 uniform float time;
                 varying vec3 vPos;
-
                 void main() {
-                    // Sky gradient
-                    vec3 base = mix(vec3(0.3,0.5,0.8), vec3(0.6,0.85,1.0), smoothstep(-1.0,1.0,(vPos.y - 0.0)/${radius.toFixed(1)}));
-                    // Clouds
+                    vec3 base = mix(vec3(0.3,0.5,0.8), vec3(0.6,0.85,1.0), smoothstep(-1.0,1.0,vPos.y/200.0));
                     float clouds = sin(vPos.x*0.02 + time*0.15) * sin(vPos.z*0.02 + time*0.15) * 0.12;
                     clouds = clamp(clouds,0.0,1.0);
                     vec3 color = base + clouds;
-                    gl_FragColor = vec4(color, 1.0);
+                    gl_FragColor = vec4(color,1.0);
                 }
             `
         });
 
         this.sky = new THREE.Mesh(skyGeo, skyMat);
-        this.sky.position.set(0, skyYPos, 0);
+        this.sky.position.set(0, this.size / 2, 0); // bottom level aligned with grid
         this.scene.add(this.sky);
     },
 
