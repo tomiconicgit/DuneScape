@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import Debug from './debug.js';
 import RTSCamera from './utility/camera.js';
 import { createEnvironmentGrid } from './environment/gridmap.js';
