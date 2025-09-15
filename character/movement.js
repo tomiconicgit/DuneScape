@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import VisualMap from '../environment/visualmap.js';
 
 /**
  * Handles grid-based movement for the character, including pathfinding and marker placement.
@@ -14,7 +15,7 @@ const Movement = {
     plane: null,
     isMoving: false,
     cameraSystem: null,
-    buildMode: null, // Added for UI toggle
+    buildMode: null, // texture type string when in build mode
 
     init(character, scene, camera, plane) {
         this.character = character;
@@ -39,14 +40,17 @@ const Movement = {
         if (intersects.length > 0) {
             const point = intersects[0].point;
             const targetGrid = this.getGridPos(point);
+
             if (this.buildMode) {
-                // No apply yet; just skip movement
+                // Paint the tile instead of moving
+                VisualMap.paintTile(targetGrid.x, targetGrid.z, this.buildMode);
                 return;
-            } else {
-                const targetPos = { x: targetGrid.x + 0.5, z: targetGrid.z + 0.5 };
-                this.placeMarker(targetPos.x, 0.1, targetPos.z);
-                this.calculatePath(targetGrid);
             }
+
+            // Normal movement mode
+            const targetPos = { x: targetGrid.x + 0.5, z: targetGrid.z + 0.5 };
+            this.placeMarker(targetPos.x, 0.1, targetPos.z);
+            this.calculatePath(targetGrid);
         }
     },
 
