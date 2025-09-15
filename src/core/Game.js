@@ -57,8 +57,9 @@ export default class Game {
 
         // Connect InputController taps to game logic
         this.input.onTap = (worldPos, gridPos) => {
-            if (this.devUI.getBuildMode()) {
-                this.tileMap.paintTile(gridPos, this.devUI.getBuildMode());
+            const buildMode = this.devUI.getBuildMode();
+            if (buildMode) {
+                this.tileMap.paintTile(gridPos, buildMode);
             } else {
                 this.movement.calculatePath(worldPos, gridPos);
             }
