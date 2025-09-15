@@ -1,28 +1,31 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DuneScape</title>
-<style>
-body { margin: 0; overflow: hidden; background: black; }
-canvas { display: block; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DuneScape</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: none; }
+        canvas { display: block; }
+    </style>
 </head>
 <body>
-<script type="importmap">
-{
-    "imports": {
-        "three": "https://unpkg.com/three@0.158.0/build/three.module.js"
-    }
-}
-</script>
-<script type="module">
-import * as THREE from 'three';
-import { startGameEngine } from './gameengine.js';
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { startGameEngine } from './gameengine.js';
 
-const scene = new THREE.Scene();
-startGameEngine(scene, document.body);
-</script>
+        const scene = new THREE.Scene();
+
+        // Start game engine
+        startGameEngine(scene, document.body);
+    </script>
 </body>
 </html>
