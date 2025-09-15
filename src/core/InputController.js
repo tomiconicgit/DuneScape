@@ -7,6 +7,7 @@ export default class InputController {
         this.raycaster = new THREE.Raycaster();
         
         this.onTap = null; // Callback for tap events
+        this.buildMode = null; // Property to hold the current build mode
         
         // Touch State
         this.touchState = {
@@ -17,6 +18,10 @@ export default class InputController {
         };
         
         this._addEventListeners();
+    }
+
+    setBuildMode(mode) {
+        this.buildMode = mode;
     }
     
     _addEventListeners() {
@@ -72,7 +77,8 @@ export default class InputController {
                 x: Math.floor(point.x + 50),
                 z: Math.floor(point.z + 50)
             };
-            this.onTap(point, gridPos);
+            // Pass the current buildMode along in the callback
+            this.onTap(point, gridPos, this.buildMode);
         }
     }
 }
