@@ -45,6 +45,7 @@ export default class Game {
         this.sunLight = sun;
         this.character.mesh.castShadow = true;
 
+        // All post-processing objects are initialized here to ensure they exist
         this._setupPostProcessing();
         this._setupEvents();
     }
@@ -66,17 +67,18 @@ export default class Game {
         this.sunMesh.layers.set(1); // Put it on a separate layer
         this.scene.add(this.sunMesh);
 
-        // Main composer
-        this.composer = new EffectComposer(this.renderer);
-        this.composer.addPass(new RenderPass(this.scene, this.camera.threeCamera));
-
-        // God Rays setup
+        // Render target for the god rays mask
         this.godRaysRenderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight);
+        
+        // The two shader passes we need for the effect
         this.godraysPass = new ShaderPass(GodRaysGenerateShader);
         this.combinePass = new ShaderPass(GodRaysCombineShader);
         this.combinePass.uniforms['fGodRayIntensity'].value = 0.6;
         this.combinePass.uniforms['tGodRays'].value = this.godRaysRenderTarget.texture;
-        
+
+        // The main composer that blends everything together
+        this.composer = new EffectComposer(this.renderer);
+        this.composer.addPass(new RenderPass(this.scene, this.camera.threeCamera));
         this.composer.addPass(this.combinePass);
     }
 
@@ -90,7 +92,6 @@ export default class Game {
             this.godRaysRenderTarget.setSize(width, height);
         });
 
-        // ... other event listeners are unchanged ...
         this.input.onTap = (worldPos, gridPos, buildMode) => {
             if (buildMode) {
                 this.tileMap.paintTile(gridPos, buildMode);
@@ -98,23 +99,22 @@ export default class Game {
                 this.movement.calculatePath(worldPos, gridPos);
             }
         };
+
         this.devUI.onBuildModeChange = (mode) => {
             this.input.setBuildMode(mode);
         };
+        
         this.devUI.onSettingChange = (change) => {
             this._handleSettingChange(change);
         };
     }
 
     _handleSettingChange(change) {
-        // ... this method is unchanged ...
         switch (change.setting) {
             case 'exposure': this.atmosphere.uniforms.uExposure.value = change.value; break;
-            case 'rayleigh': this.atmosphere.uniforms.uRayleigh.value = change.value; break;
-            case 'mie': this.atmosphere.uniforms.uMie.value = change.value; break;
-            case 'horizonOffset': this.atmosphere.uniforms.uHorizonOffset.value = change.value; break;
             case 'cloudCover': this.clouds.uniforms.uCloudCover.value = change.value; break;
             case 'cloudSharpness': this.clouds.uniforms.uCloudSharpness.value = change.value; break;
+            // Add other cases back if you re-add the sliders
         }
     }
 
@@ -126,10 +126,10 @@ export default class Game {
 
     _animate() {
         requestAnimationFrame(() => this._animate());
+
         const delta = this.clock.getDelta();
         const elapsed = this.clock.getElapsedTime();
 
-        // Day/night cycle logic
         const cycleProgress = (elapsed % TOTAL_CYCLE_SECONDS) / TOTAL_CYCLE_SECONDS;
         let angle;
         if (cycleProgress < (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) {
@@ -141,7 +141,6 @@ export default class Game {
         }
         this.sunPosition.set(Math.cos(angle) * 8000, Math.sin(angle) * 6000, Math.sin(angle * 0.5) * 2000);
         
-        // Update game objects
         this.sunLight.position.copy(this.sunPosition);
         this.sunLight.target.position.set(0, 0, 0); 
         this.sunLight.target.updateMatrixWorld();
@@ -149,26 +148,31 @@ export default class Game {
         this.camera.update();
         this.atmosphere.update(this.sunPosition);
         this.clouds.update(this.sunPosition, delta);
+        this.sunMesh.position.copy(this.sunPosition);
 
         // --- God Rays Rendering Pipeline ---
-        // 1. Update sun position for shader
-        this.sunMesh.position.copy(this.sunPosition);
+        // 1. Update the sun position uniform for the god rays shader
         const screenSpaceSun = this.sunPosition.clone().project(this.camera.threeCamera);
         this.godraysPass.uniforms['vSunPositionScreen'].value.set((screenSpaceSun.x + 1) / 2, (screenSpaceSun.y + 1) / 2, screenSpaceSun.z);
 
         // 2. Render a mask of the sun to our special render target
+        const oldClearColor = this.renderer.getClearColor(new THREE.Color());
+        const oldClearAlpha = this.renderer.getClearAlpha();
         const oldLayer = this.camera.threeCamera.layers.mask;
+
         this.renderer.setRenderTarget(this.godRaysRenderTarget);
+        this.renderer.setClearColor(0x000000, 0);
         this.renderer.clear();
         this.camera.threeCamera.layers.set(1); // See only the sun
         this.renderer.render(this.scene, this.camera.threeCamera);
-        this.camera.threeCamera.layers.set(oldLayer); // Restore layers
-        this.renderer.setRenderTarget(null);
 
-        // 3. Render the god rays effect itself
+        // 3. Manually render the god rays generation pass
         this.godraysPass.render(this.renderer, this.godRaysRenderTarget, this.godRaysRenderTarget);
 
-        // 4. Render the final combined scene to the screen
+        // 4. Restore renderer state and render the final scene through the composer
+        this.camera.threeCamera.layers.set(oldLayer); // Restore layers
+        this.renderer.setRenderTarget(null);
+        this.renderer.setClearColor(oldClearColor, oldClearAlpha);
         this.composer.render(delta);
     }
 }
