@@ -5,57 +5,50 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DuneScape</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; }
+        body { margin: 0; overflow: hidden; background-color: #000; }
         canvas { display: block; }
     </style>
 </head>
 <body>
-    <script type="importmap">
-    {
-        "imports": {
-            "three": "https://unpkg.com/three@0.158.0/build/three.module.js"
-        }
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://unpkg.com/three@0.158.0/build/three.module.js"
     }
-    </script>
-    <script type="module">
-        import * as THREE from 'three';
-        import { startGameEngine } from './gameengine.js';
-        import RTSCamera from './utility/camera.js';
-        import Movement from './character/movement.js';
-        import VisualMap from './environment/visualmap.js';
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { startGameEngine } from './gameengine.js';
+import RTSCamera from './utility/camera.js';
+import Movement from './character/movement.js';
+import VisualMap from './environment/visualmap.js';
 
-        // Scene and Renderer
-        const scene = new THREE.Scene();
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
 
-        // Clock
-        const clock = new THREE.Clock();
+const clock = new THREE.Clock();
+startGameEngine(scene, renderer.domElement);
 
-        // Start Game
-        startGameEngine(scene, renderer.domElement);
+function animate() {
+    requestAnimationFrame(animate);
+    const delta = clock.getDelta();
+    RTSCamera.update();
+    Movement.update(delta);
+    VisualMap.update();
+    renderer.render(scene, RTSCamera.camera);
+}
 
-        // Animation loop
-        function animate() {
-            requestAnimationFrame(animate);
+window.addEventListener('resize', () => {
+    RTSCamera.handleResize();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
 
-            const delta = clock.getDelta();
-            RTSCamera.update();
-            Movement.update(delta);
-            VisualMap.update();
-
-            renderer.render(scene, RTSCamera.camera);
-        }
-
-        window.addEventListener('resize', () => {
-            RTSCamera.handleResize();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-
-        animate();
-    </script>
+animate();
+</script>
 </body>
 </html>
