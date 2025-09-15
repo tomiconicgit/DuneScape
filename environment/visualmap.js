@@ -19,9 +19,10 @@ const VisualMap = {
 
     _loadTextures() {
         const loader = new THREE.TextureLoader();
-        const wrap = t => {
+        const wrap = (t) => {
             t.wrapS = t.wrapT = THREE.RepeatWrapping;
-            t.minFilter = t.magFilter = THREE.LinearFilter;
+            t.minFilter = THREE.NearestFilter;
+            t.magFilter = THREE.NearestFilter;
             return t;
         };
 
@@ -59,64 +60,97 @@ const VisualMap = {
         const key = `${gridPos.x},${gridPos.z}`;
         const tile = this.tiles.get(key);
         if (!tile) return;
-
         const tex = this.textures[type];
         if (!tex) return;
 
         tile.material.map = tex;
         tile.material.needsUpdate = true;
+
+        this._blendNeighbors(gridPos, type);
+    },
+
+    _blendNeighbors(gridPos, type) {
+        const offsets = [
+            { dx: 1, dz: 0 },
+            { dx: -1, dz: 0 },
+            { dx: 0, dz: 1 },
+            { dx: 0, dz: -1 },
+        ];
+
+        for (const o of offsets) {
+            const key = `${gridPos.x + o.dx},${gridPos.z + o.dz}`;
+            const neighbor = this.tiles.get(key);
+            if (neighbor && neighbor.material.map !== this.textures[type]) {
+                neighbor.material.color = new THREE.Color(0.85, 0.85, 0.85);
+                neighbor.material.needsUpdate = true;
+            }
+        }
     },
 
     _createSky() {
-        const skySize = this.size * 6;
-        const skyGeo = new THREE.BoxGeometry(skySize, skySize, skySize);
-        // Invert normals to render inside
-        skyGeo.scale(1, 1, -1);
+        const size = this.size * 3;
+        const geometry = new THREE.BoxGeometry(size, size, size);
+        
+        // Invert the normals for inside of box
+        geometry.scale(1,1,1);
+        for (let i = 0; i < geometry.attributes.position.count; i++) {
+            geometry.attributes.position.setY(i, geometry.attributes.position.getY(i));
+        }
 
-        const skyMat = new THREE.ShaderMaterial({
-            uniforms: { uTime: { value: 0 } },
-            vertexShader: `
-                varying vec3 vPosition;
-                void main() {
-                    vPosition = position;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        const vertexShader = `
+            varying vec3 vPosition;
+            void main() {
+                vPosition = position;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+            }
+        `;
+
+        const fragmentShader = `
+            varying vec3 vPosition;
+            uniform float uTime;
+
+            float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+            float noise(vec2 p){
+                vec2 i = floor(p);
+                vec2 f = fract(p);
+                float a = hash(i);
+                float b = hash(i + vec2(1.0,0.0));
+                float c = hash(i + vec2(0.0,1.0));
+                float d = hash(i + vec2(1.0,1.0));
+                vec2 u = f*f*(3.0-2.0*f);
+                return mix(a,b,u.x) + (c-a)*u.y*(1.0-u.x) + (d-b)*u.x*u.y;
+            }
+
+            void main(){
+                vec3 color = vec3(0.0);
+                if(vPosition.y > 0.0){
+                    vec2 uv = vPosition.xz*0.05 + vec2(uTime*0.02,0.0);
+                    float n = noise(uv*10.0);
+                    float cloud = smoothstep(0.5,0.7,n);
+                    vec3 skyColor = vec3(0.53,0.81,0.92);
+                    vec3 cloudColor = vec3(1.0);
+                    color = mix(skyColor, cloudColor, cloud);
                 }
-            `,
-            fragmentShader: `
-                varying vec3 vPosition;
-                uniform float uTime;
+                gl_FragColor = vec4(color,1.0);
+            }
+        `;
 
-                float rand(vec2 co){
-                    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
-                }
-
-                void main(){
-                    vec3 color = vec3(0.0);
-
-                    // Only show clouds above grid
-                    if(vPosition.y > 0.0){
-                        vec2 uv = vPosition.xz * 0.05 + vec2(uTime*0.02,0.0);
-                        float c = rand(uv);
-                        c = smoothstep(0.5,0.8,c);
-                        vec3 skyColor = vec3(0.53,0.81,0.92);
-                        vec3 cloudColor = vec3(1.0);
-                        color = mix(skyColor, cloudColor, c);
-                    }
-
-                    gl_FragColor = vec4(color,1.0);
-                }
-            `,
+        const material = new THREE.ShaderMaterial({
+            vertexShader,
+            fragmentShader,
             side: THREE.BackSide,
+            uniforms: { uTime: { value: 0 } }
         });
 
-        this.sky = new THREE.Mesh(skyGeo, skyMat);
-        this.sky.position.y = this.size / 2; // Raise sky so bottom is at y=0
+        this.sky = new THREE.Mesh(geometry, material);
+        this.sky.position.set(0, this.size/2, 0);
         this.scene.add(this.sky);
     },
 
     updateSky() {
-        if (!this.sky) return;
-        this.sky.material.uniforms.uTime.value = this.clock.getElapsedTime();
+        if(this.sky){
+            this.sky.material.uniforms.uTime.value = this.clock.getElapsedTime();
+        }
     }
 };
 
