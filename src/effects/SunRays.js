@@ -20,14 +20,12 @@ export default class SunRays {
         const sunPosition = new THREE.Vector3(0, 1000, -10000);
         const sunColor = 0xffffff;
 
-        // Create a fake sun mesh that is only visible to the god rays effect
         const sunGeometry = new THREE.SphereGeometry(200, 32, 32);
         const sunMaterial = new THREE.MeshBasicMaterial({ color: sunColor });
         this.sunMesh = new THREE.Mesh(sunGeometry, sunMaterial);
-        this.sunMesh.layers.set(1); // A custom layer for the sun
+        this.sunMesh.layers.set(1);
         this.scene.add(this.sunMesh);
 
-        // Set up render targets
         const renderTargetParameters = {
             minFilter: THREE.LinearFilter,
             magFilter: THREE.LinearFilter,
@@ -35,7 +33,6 @@ export default class SunRays {
         };
         const sunRenderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, renderTargetParameters);
 
-        // God Rays generation pass
         this.godraysPass = new ShaderPass(GodRaysGenerateShader);
         this.godraysPass.needsSwap = true;
 
@@ -50,43 +47,39 @@ export default class SunRays {
                 renderer.clear();
 
                 const oldLayer = this.camera.layers.mask;
-                this.camera.layers.set(1); // Render only layer 1 (the sun)
+                this.camera.layers.set(1);
                 renderer.render(this.scene, this.camera);
-                this.camera.layers.set(oldLayer); // Restore original layers
+                this.camera.layers.set(oldLayer);
 
                 renderer.setRenderTarget(null);
                 renderer.setClearColor(originalClearColor, originalClearAlpha);
 
-                // Pass the sun texture to the godrays shader
                 this.godraysPass.uniforms['tInput'].value = sunRenderTarget.texture;
+            },
+            // MODIFIED: Added the missing setSize method
+            setSize: (width, height) => {
+                sunRenderTarget.setSize(width, height);
             }
         };
         this.composer.addPass(sunPass);
         this.composer.addPass(this.godraysPass);
 
-        // Final combine pass to add the rays to the main scene
         const combinePass = new ShaderPass(GodRaysCombineShader);
         combinePass.uniforms['fGodRayIntensity'].value = 0.5;
-        // This shader needs two textures: the original scene and the generated god rays
-        // 'tDiffuse' is the original scene (passed by the composer)
-        // We manually set 'tGodRays' to the output of our godraysPass
         combinePass.uniforms['tGodRays'].value = this.godraysPass.renderTarget2.texture;
 
         this.composer.addPass(combinePass);
     }
 
     update(sunPosition) {
-        // Project the sun's 3D position to 2D screen space
         const screenSpaceSun = sunPosition.clone().project(this.camera);
         
-        // Update the uniform in the god rays generation shader
         this.godraysPass.uniforms['vSunPositionScreen'].value.set(
             (screenSpaceSun.x + 1) / 2,
             (screenSpaceSun.y + 1) / 2,
             screenSpaceSun.z
         );
         
-        // Keep the fake sun mesh's 3D position in sync
         this.sunMesh.position.copy(sunPosition);
     }
     
