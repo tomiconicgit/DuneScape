@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 
+const MAX_DISTANCE = 4000.0; // NEW: Define as a JavaScript constant
+
 // GLSL code for the cloud shader
 const vertexShader = `
 varying vec3 vWorldPosition;
@@ -11,17 +13,18 @@ void main() {
 const fragmentShader = `
 varying vec3 vWorldPosition;
 uniform vec3 uSunPosition;
-uniform sampler2D uNoise; // We'll use a 2D noise texture and fake 3D
+uniform sampler2D uNoise;
 uniform float uTime;
 uniform float uCloudCover;
 uniform float uCloudSharpness;
+uniform float uMaxDistance; // MODIFIED: Receive as a uniform
 
 const int STEPS = 64;
-const float MAX_DISTANCE = 4000.0;
+// MODIFIED: MAX_DISTANCE is now a uniform
 
 // Pseudo-random number generator
 float rand(vec2 n) { 
-	return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453);
+	return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453));
 }
 
 // 3D noise function (using a 2D texture lookup for performance)
@@ -56,7 +59,7 @@ float getCloudDensity(vec3 pos) {
 
 // Raymarching loop
 vec4 raymarch(vec3 rayOrigin, vec3 rayDir) {
-    float step_size = MAX_DISTANCE / float(STEPS);
+    float step_size = uMaxDistance / float(STEPS); // MODIFIED: Use uniform
     vec3 lightDir = normalize(uSunPosition);
     vec4 color = vec4(0.0);
 
@@ -109,7 +112,8 @@ export default class VolumetricClouds {
             uNoise: { value: noiseTexture },
             uTime: { value: 0 },
             uCloudCover: { value: 0.55 }, // 0.0 to 1.0
-            uCloudSharpness: { value: 30.0 } // Higher is sharper
+            uCloudSharpness: { value: 30.0 }, // Higher is sharper
+            uMaxDistance: { value: MAX_DISTANCE } // MODIFIED: Pass constant as uniform
         };
         const material = new THREE.ShaderMaterial({
             vertexShader,
@@ -121,7 +125,7 @@ export default class VolumetricClouds {
 
         this.mesh = new THREE.Mesh(geometry, material);
         // Scale the box to be huge and contain the camera
-        this.mesh.scale.set(MAX_DISTANCE * 2.0, 3000, MAX_DISTANCE * 2.0);
+        this.mesh.scale.set(MAX_DISTANCE * 2.0, 3000, MAX_DISTANCE * 2.0); // MODIFIED: Now works
         scene.add(this.mesh);
     }
 
