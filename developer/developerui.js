@@ -33,14 +33,14 @@ const DeveloperUI = {
         this.dom.bar.style.boxShadow = '0 4px 30px rgba(0, 0, 0, 0.1)';
         document.body.appendChild(this.dom.bar);
 
-        // Button types and SVGs (off-white fill)
+        // Button types and SVGs (specific colors)
         const types = ['grass', 'dirt', 'water', 'sand', 'stone'];
         const svgs = {
-            grass: '<svg viewBox="0 0 24 24" fill="#f5f5f5"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>',
-            dirt: '<svg viewBox="0 0 24 24" fill="#f5f5f5"><path d="M12 4c-4.41 0-8 3.59-8 8s3.59 8 8 8 8-3.59 8-8-3.59-8-8-8zm0 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z"/></svg>',
-            water: '<svg viewBox="0 0 24 24" fill="#f5f5f5"><path d="M3 9h18v2H3zm0 4h18v2H3zm0 4h18v2H3z"/></svg>',
-            sand: '<svg viewBox="0 0 24 24" fill="#f5f5f5"><path d="M4 12l4 4 4-4 4 4 4-4"/></svg>',
-            stone: '<svg viewBox="0 0 24 24" fill="#f5f5f5"><path d="M12 2L4 9v6l8 7 8-7V9z"/></svg>',
+            grass: '<svg viewBox="0 0 24 24" fill="#228b22"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>', // Green
+            dirt: '<svg viewBox="0 0 24 24" fill="#d2b48c"><path d="M12 4c-4.41 0-8 3.59-8 8s3.59 8 8 8 8-3.59 8-8-3.59-8-8-8zm0 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z"/></svg>', // Light brown
+            water: '<svg viewBox="0 0 24 24" fill="#0000ff"><path d="M3 9h18v2H3zm0 4h18v2H3zm0 4h18v2H3z"/></svg>', // Blue
+            sand: '<svg viewBox="0 0 24 24" fill="#f5f5dc"><path d="M4 12l4 4 4-4 4 4 4-4"/></svg>', // Beige
+            stone: '<svg viewBox="0 0 24 24" fill="#ffffff"><path d="M12 2L4 9v6l8 7 8-7V9z"/></svg>', // White
         };
 
         types.forEach(type => {
