@@ -10,6 +10,12 @@ import TileMap from '../world/TileMap.js';
 import Atmosphere from '../world/Atmosphere.js';
 import VolumetricClouds from '../world/VolumetricClouds.js';
 import { setupLighting } from '../world/Lighting.js';
+import SunRays from '../effects/SunRays.js';
+
+// Constants for day/night cycle
+const DAY_DURATION_SECONDS = 600; // 10 minutes
+const NIGHT_DURATION_SECONDS = 240; // 4 minutes
+const TOTAL_CYCLE_SECONDS = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS;
 
 export default class Game {
     constructor() {
@@ -23,22 +29,26 @@ export default class Game {
         this.character = new Character(this.scene);
         this.grid = new Grid(this.scene);
         this.tileMap = new TileMap(this.scene);
+        
         this.atmosphere = new Atmosphere(this.scene);
+        this.atmosphere.uniforms.uHorizonOffset.value = -0.1; // Set default horizon
+
         this.clouds = new VolumetricClouds(this.scene);
         this.movement = new Movement(this.character.mesh);
         this.input = new InputController(this.camera.threeCamera, this.grid.plane);
         this.devUI = new DeveloperUI();
         this.sunPosition = new THREE.Vector3();
 
-        // MODIFIED: Store the returned sun light object
         const { sun } = setupLighting(this.scene);
         this.sunLight = sun;
+
+        // Post-processing for sun rays
+        this.sunRays = new SunRays(this.renderer, this.scene, this.camera.threeCamera);
 
         this._setupEvents();
         this.character.mesh.castShadow = true;
     }
 
-    // ... (_createRenderer, _setupEvents, _handleSettingChange, start methods are unchanged)
     _createRenderer() {
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -47,11 +57,14 @@ export default class Game {
         document.body.appendChild(renderer.domElement);
         return renderer;
     }
+
     _setupEvents() {
         window.addEventListener('resize', () => {
             this.camera.handleResize();
             this.renderer.setSize(window.innerWidth, window.innerHeight);
+            this.sunRays.composer.setSize(window.innerWidth, window.innerHeight);
         });
+
         this.input.onTap = (worldPos, gridPos, buildMode) => {
             if (buildMode) {
                 this.tileMap.paintTile(gridPos, buildMode);
@@ -59,13 +72,16 @@ export default class Game {
                 this.movement.calculatePath(worldPos, gridPos);
             }
         };
+
         this.devUI.onBuildModeChange = (mode) => {
             this.input.setBuildMode(mode);
         };
+        
         this.devUI.onSettingChange = (change) => {
             this._handleSettingChange(change);
         };
     }
+    
     _handleSettingChange(change) {
         switch (change.setting) {
             case 'exposure':
@@ -88,6 +104,7 @@ export default class Game {
                 break;
         }
     }
+
     start() {
         console.log("Game Engine: World setup complete.");
         this.camera.setTarget(this.character.mesh);
@@ -100,16 +117,28 @@ export default class Game {
         const delta = this.clock.getDelta();
         const elapsed = this.clock.getElapsedTime();
 
-        const angle = elapsed * 0.1;
+        // Slowed down day/night cycle logic
+        const cycleProgress = (elapsed % TOTAL_CYCLE_SECONDS) / TOTAL_CYCLE_SECONDS;
+        let angle;
+
+        if (cycleProgress < (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) {
+            // Day part of the cycle (a half-circle)
+            const dayProgress = cycleProgress / (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
+            angle = dayProgress * Math.PI;
+        } else {
+            // Night part of the cycle (a faster half-circle)
+            const nightProgress = (cycleProgress - (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) / (NIGHT_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
+            angle = Math.PI + (nightProgress * Math.PI);
+        }
+        
         this.sunPosition.set(
             Math.cos(angle) * 8000,
-            Math.sin(angle) * 4000 - 1000,
-            Math.sin(angle * 0.5) * 2000 // Added some Z movement for more interesting shadows
+            Math.sin(angle) * 6000,
+            Math.sin(angle * 0.5) * 2000
         );
 
-        // MODIFIED: Update the actual light source to match the visual sun
+        // Update the actual light source to match the visual sun
         this.sunLight.position.copy(this.sunPosition);
-        // Point the light at the center of the world
         this.sunLight.target.position.set(0, 0, 0); 
         this.sunLight.target.updateMatrixWorld();
 
@@ -118,7 +147,9 @@ export default class Game {
         
         this.atmosphere.update(this.sunPosition);
         this.clouds.update(this.sunPosition, delta);
-
-        this.renderer.render(this.scene, this.camera.threeCamera);
+        
+        // Use the SunRays composer to render
+        this.sunRays.update(this.sunPosition);
+        this.sunRays.render(delta);
     }
 }
