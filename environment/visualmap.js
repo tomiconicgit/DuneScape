@@ -42,7 +42,7 @@ const VisualMap = {
                 geometry.rotateX(-Math.PI / 2);
 
                 const material = new THREE.MeshLambertMaterial({
-                    map: this.textures.grass.clone(),
+                    map: this.textures.grass.clone(), // default starting texture
                 });
 
                 const tile = new THREE.Mesh(geometry, material);
@@ -55,7 +55,7 @@ const VisualMap = {
     },
 
     paintTile(gridPos, type) {
-        const key = `${gridPos.x},${gridPos.z}`;
+        const key = `${gridPos.x},${gridPos.z}`; // <- corrected key usage
         const tile = this.tiles.get(key);
         if (!tile) return;
 
