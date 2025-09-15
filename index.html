@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DuneScape</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #000; }
+        body { margin: 0; overflow: hidden; background: #000; }
         canvas { display: block; }
     </style>
 </head>
@@ -13,8 +13,7 @@
     <script type="importmap">
     {
         "imports": {
-            "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
-            "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+            "three": "https://unpkg.com/three@0.158.0/build/three.module.js"
         }
     }
     </script>
@@ -25,6 +24,7 @@
         import Movement from './character/movement.js';
         import VisualMap from './environment/visualmap.js';
 
+        // Scene and Renderer
         const scene = new THREE.Scene();
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -32,16 +32,21 @@
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
 
+        // Clock
         const clock = new THREE.Clock();
 
+        // Start Game
         startGameEngine(scene, renderer.domElement);
 
+        // Animation loop
         function animate() {
             requestAnimationFrame(animate);
+
             const delta = clock.getDelta();
             RTSCamera.update();
             Movement.update(delta);
-            VisualMap.updateSky();
+            VisualMap.update();
+
             renderer.render(scene, RTSCamera.camera);
         }
 
