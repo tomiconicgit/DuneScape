@@ -10,31 +10,25 @@ import VisualMap from './environment/visualmap.js';
 export function startGameEngine(scene, renderer) {
     Debug.init();
 
-    console.log("Game Engine: Initializing game world...");
+    // Lighting
+    const ambient = new THREE.AmbientLight(0xffffff, 0.25);
+    scene.add(ambient);
 
-    // Enable shadows
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-    // Lights
     const sun = new THREE.DirectionalLight(0xffffff, 1);
     sun.position.set(50, 100, 50);
     sun.castShadow = true;
     sun.shadow.mapSize.width = 2048;
     sun.shadow.mapSize.height = 2048;
     sun.shadow.camera.near = 1;
-    sun.shadow.camera.far = 500;
-    sun.shadow.camera.left = -150;
-    sun.shadow.camera.right = 150;
-    sun.shadow.camera.top = 150;
-    sun.shadow.camera.bottom = -150;
+    sun.shadow.camera.far = 200;
+    sun.shadow.camera.left = -100;
+    sun.shadow.camera.right = 100;
+    sun.shadow.camera.top = 100;
+    sun.shadow.camera.bottom = -100;
     scene.add(sun);
 
-    const ambient = new THREE.AmbientLight(0xffffff, 0.3);
-    scene.add(ambient);
-
     // Grid & plane
-    const plane = createEnvironmentGrid(scene); // plane is dev grid
+    const plane = createEnvironmentGrid(scene);
 
     // Character
     const character = createCharacter(scene);
@@ -45,11 +39,9 @@ export function startGameEngine(scene, renderer) {
     // Movement
     Movement.init(character, scene, RTSCamera, plane);
 
-    // Visual Map (tiles + sky)
+    // VisualMap
     VisualMap.init(scene);
 
     // Developer UI
     DeveloperUI.init(Movement);
-
-    console.log("Game Engine: World setup complete.");
 }
