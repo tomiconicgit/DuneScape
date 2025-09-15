@@ -8,6 +8,7 @@ const VisualMap = {
     tileSize: 1,
     textures: {},
     sky: null,
+    clouds: null,
     clock: new THREE.Clock(),
 
     init(scene) {
@@ -15,6 +16,7 @@ const VisualMap = {
         this._loadTextures();
         this._createTiles();
         this._createSky();
+        this._createClouds();
     },
 
     _loadTextures() {
@@ -46,7 +48,7 @@ const VisualMap = {
 
                 const tile = new THREE.Mesh(geometry, material);
                 tile.position.set(x - half + 0.5, 0, z - half + 0.5);
-                tile.receiveShadow = false; // don't cast shadows on dev map
+                tile.receiveShadow = false;
 
                 this.scene.add(tile);
                 this.tiles.set(`${x},${z}`, tile);
@@ -83,21 +85,62 @@ const VisualMap = {
                 varying vec3 vPos;
                 void main() {
                     vec3 base = mix(vec3(0.3,0.5,0.8), vec3(0.6,0.85,1.0), smoothstep(-1.0,1.0,vPos.y/200.0));
-                    float clouds = sin(vPos.x*0.02 + time*0.15) * sin(vPos.z*0.02 + time*0.15) * 0.12;
-                    clouds = clamp(clouds,0.0,1.0);
-                    vec3 color = base + clouds;
-                    gl_FragColor = vec4(color,1.0);
+                    gl_FragColor = vec4(base,1.0);
                 }
             `
         });
 
         this.sky = new THREE.Mesh(skyGeo, skyMat);
-        this.sky.position.set(0, this.size / 2, 0); // bottom level aligned with grid
+        this.sky.position.set(0, this.size / 2, 0);
         this.scene.add(this.sky);
     },
 
+    _createClouds() {
+        // Plane above gridmap
+        const cloudGeo = new THREE.PlaneGeometry(this.size * 4, this.size * 4, 256, 256);
+
+        const cloudMat = new THREE.ShaderMaterial({
+            transparent: true,
+            side: THREE.DoubleSide,
+            uniforms: { time: { value: 0 } },
+            vertexShader: `
+                varying vec2 vUv;
+                varying float vHeight;
+                void main() {
+                    vUv = uv;
+                    vHeight = position.y;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform float time;
+                varying vec2 vUv;
+                varying float vHeight;
+
+                // Simple 2D noise
+                float noise(vec2 p){
+                    return fract(sin(dot(p, vec2(12.9898,78.233)))*43758.5453);
+                }
+
+                void main() {
+                    vec2 p = vUv * 10.0;
+                    float n = noise(p + time*0.05);
+                    float c = smoothstep(0.5,0.7,n); // cloud density
+                    gl_FragColor = vec4(vec3(1.0), c*0.6);
+                }
+            `
+        });
+
+        this.clouds = new THREE.Mesh(cloudGeo, cloudMat);
+        this.clouds.rotation.x = -Math.PI / 2;
+        this.clouds.position.y = this.size / 2 + 20; // above grid
+        this.scene.add(this.clouds);
+    },
+
     update() {
-        if (this.sky) this.sky.material.uniforms.time.value = this.clock.getElapsedTime();
+        const elapsed = this.clock.getElapsedTime();
+        if (this.sky) this.sky.material.uniforms.time.value = elapsed;
+        if (this.clouds) this.clouds.material.uniforms.time.value = elapsed;
     }
 };
 
