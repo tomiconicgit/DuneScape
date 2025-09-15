@@ -3,7 +3,8 @@ import RTSCamera from './utility/camera.js';
 import { createEnvironmentGrid } from './environment/gridmap.js';
 import { createCharacter } from './character/character.js';
 import Movement from './character/movement.js';
-import DeveloperUI from './developer/developerui.js'; // Added
+import DeveloperUI from './developer/developerui.js';
+import VisualMap from './environment/visualmap.js';
 
 /**
  * The main game engine director.
@@ -14,16 +15,20 @@ export function startGameEngine(scene, domElement) {
     Debug.init();
     console.log("Game Engine: Initializing game world...");
 
+    // Create the grid/plane
     const plane = createEnvironmentGrid(scene);
-    
-    // Create character and get a reference to it
+
+    // Create character
     const character = createCharacter(scene);
-    
-    // Initialize the camera and give it the character to follow
+
+    // Initialize camera
     RTSCamera.init(character, domElement);
 
     // Initialize movement
     Movement.init(character, scene, RTSCamera, plane);
+
+    // Initialize visual map painter
+    VisualMap.init(scene);
 
     // Initialize developer UI
     DeveloperUI.init(Movement);
