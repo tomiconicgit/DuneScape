@@ -1,4 +1,3 @@
-import * as THREE from 'three';
 import Debug from './debug.js';
 import RTSCamera from './utility/camera.js';
 import { createEnvironmentGrid } from './environment/gridmap.js';
@@ -6,31 +5,22 @@ import { createCharacter } from './character/character.js';
 import Movement from './character/movement.js';
 import DeveloperUI from './developer/developerui.js';
 import VisualMap from './environment/visualmap.js';
+import * as THREE from 'three';
 
-export function startGameEngine(scene, renderer) {
+export function startGameEngine(scene, rendererDom) {
     Debug.init();
 
-    // Lighting
-    const ambient = new THREE.AmbientLight(0xffffff, 0.25);
-    scene.add(ambient);
+    // Renderer & Shadows
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.appendChild(renderer.domElement);
 
-    const sun = new THREE.DirectionalLight(0xffffff, 1);
-    sun.position.set(50, 100, 50);
-    sun.castShadow = true;
-    sun.shadow.mapSize.width = 2048;
-    sun.shadow.mapSize.height = 2048;
-    sun.shadow.camera.near = 1;
-    sun.shadow.camera.far = 200;
-    sun.shadow.camera.left = -100;
-    sun.shadow.camera.right = 100;
-    sun.shadow.camera.top = 100;
-    sun.shadow.camera.bottom = -100;
-    scene.add(sun);
-
-    // Grid & plane
+    // Create Grid
     const plane = createEnvironmentGrid(scene);
 
-    // Character
+    // Create Character
     const character = createCharacter(scene);
 
     // Camera
@@ -44,4 +34,21 @@ export function startGameEngine(scene, renderer) {
 
     // Developer UI
     DeveloperUI.init(Movement);
+
+    // Animation loop
+    const clock = new THREE.Clock();
+    function animate() {
+        requestAnimationFrame(animate);
+        const delta = clock.getDelta();
+        RTSCamera.update();
+        Movement.update(delta);
+        VisualMap.update();
+        renderer.render(scene, RTSCamera.camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+        RTSCamera.handleResize();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
 }
