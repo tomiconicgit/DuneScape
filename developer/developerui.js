@@ -28,19 +28,37 @@ const DeveloperUI = {
         this.dom.bar.style.background = 'rgba(255, 255, 255, 0.1)';
         this.dom.bar.style.borderRadius = '16px';
         this.dom.bar.style.backdropFilter = 'blur(10px)';
-        this.dom.bar.style.webkitBackdropFilter = 'blur(10px)'; // Added for Safari
+        this.dom.bar.style.webkitBackdropFilter = 'blur(10px)';
         this.dom.bar.style.border = '1px solid rgba(255, 255, 255, 0.2)';
         this.dom.bar.style.boxShadow = '0 4px 30px rgba(0, 0, 0, 0.1)';
         document.body.appendChild(this.dom.bar);
 
-        // Button types and SVGs (off-white fill)
+        // Button types and SVGs (monochrome so themeable)
         const types = ['grass', 'dirt', 'water', 'sand', 'stone'];
         const svgs = {
-            grass: '<svg viewBox="0 0 24 24" fill="#f5f5f5"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>',
-            dirt: '<svg viewBox="0 0 24 24" fill="#f5f5f5"><path d="M12 4c-4.41 0-8 3.59-8 8s3.59 8 8 8 8-3.59 8-8-3.59-8-8-8zm0 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z"/></svg>',
-            water: '<svg viewBox="0 0 24 24" fill="#f5f5f5"><path d="M3 9h18v2H3zm0 4h18v2H3zm0 4h18v2H3z"/></svg>',
-            sand: '<svg viewBox="0 0 24 24" fill="#f5f5f5"><path d="M4 12l4 4 4-4 4 4 4-4"/></svg>',
-            stone: '<svg viewBox="0 0 24 24" fill="#f5f5f5"><path d="M12 2L4 9v6l8 7 8-7V9z"/></svg>',
+            grass: `
+              <svg viewBox="0 0 24 24" fill="none" stroke="#f5f5f5" stroke-width="2" stroke-linecap="round">
+                <path d="M4 20l2-6 2 6m2 0V10m2 10l2-6 2 6m2 0V8m2 12l2-6 2 6"/>
+              </svg>`,
+            dirt: `
+              <svg viewBox="0 0 24 24" fill="none" stroke="#f5f5f5" stroke-width="2">
+                <rect x="4" y="10" width="16" height="10" rx="2" />
+                <circle cx="9" cy="15" r="1"/>
+                <circle cx="13" cy="13" r="1"/>
+                <circle cx="16" cy="16" r="1"/>
+              </svg>`,
+            water: `
+              <svg viewBox="0 0 24 24" fill="none" stroke="#f5f5f5" stroke-width="2" stroke-linecap="round">
+                <path d="M12 3C12 3 5 11 5 15a7 7 0 0014 0c0-4-7-12-7-12z"/>
+              </svg>`,
+            sand: `
+              <svg viewBox="0 0 24 24" fill="none" stroke="#f5f5f5" stroke-width="2" stroke-linecap="round">
+                <path d="M4 18h16M6 14h12M8 10h8M10 6h4"/>
+              </svg>`,
+            stone: `
+              <svg viewBox="0 0 24 24" fill="none" stroke="#f5f5f5" stroke-width="2" stroke-linejoin="round">
+                <polygon points="6 22 2 12 12 2 22 12 18 22"/>
+              </svg>`,
         };
 
         types.forEach(type => {
@@ -57,7 +75,7 @@ const DeveloperUI = {
             button.style.alignItems = 'center';
             button.style.justifyContent = 'center';
             button.style.backdropFilter = 'blur(5px)';
-            button.style.webkitBackdropFilter = 'blur(5px)'; // Added for Safari
+            button.style.webkitBackdropFilter = 'blur(5px)';
             button.addEventListener('click', () => this._toggleType(type));
             this.dom.buttons[type] = button;
             this.dom.bar.appendChild(button);
