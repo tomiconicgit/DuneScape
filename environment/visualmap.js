@@ -68,44 +68,49 @@ const VisualMap = {
     },
 
     _createSky() {
-        const skyGeo = new THREE.PlaneGeometry(this.size * 3, this.size * 3, 1, 1);
+        const skySize = this.size * 6;
+        const skyGeo = new THREE.BoxGeometry(skySize, skySize, skySize);
+        // Invert normals to render inside
+        skyGeo.scale(1, 1, -1);
+
         const skyMat = new THREE.ShaderMaterial({
-            uniforms: {
-                uTime: { value: 0 }
-            },
+            uniforms: { uTime: { value: 0 } },
             vertexShader: `
-                varying vec2 vUv;
+                varying vec3 vPosition;
                 void main() {
-                    vUv = uv;
-                    vec3 pos = position;
-                    pos.y += 20.0;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos,1.0);
+                    vPosition = position;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                 }
             `,
             fragmentShader: `
-                varying vec2 vUv;
+                varying vec3 vPosition;
                 uniform float uTime;
-                
+
                 float rand(vec2 co){
                     return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
                 }
 
                 void main(){
-                    vec2 uv = vUv * 10.0;
-                    float cloud = rand(uv + uTime * 0.05);
-                    cloud = smoothstep(0.5, 0.8, cloud);
-                    vec3 skyColor = vec3(0.53,0.81,0.92);
-                    vec3 cloudColor = vec3(1.0);
-                    vec3 color = mix(skyColor, cloudColor, cloud);
+                    vec3 color = vec3(0.0);
+
+                    // Only show clouds above grid
+                    if(vPosition.y > 0.0){
+                        vec2 uv = vPosition.xz * 0.05 + vec2(uTime*0.02,0.0);
+                        float c = rand(uv);
+                        c = smoothstep(0.5,0.8,c);
+                        vec3 skyColor = vec3(0.53,0.81,0.92);
+                        vec3 cloudColor = vec3(1.0);
+                        color = mix(skyColor, cloudColor, c);
+                    }
+
                     gl_FragColor = vec4(color,1.0);
                 }
             `,
-            side: THREE.DoubleSide
+            side: THREE.BackSide,
         });
 
         this.sky = new THREE.Mesh(skyGeo, skyMat);
-        this.sky.rotation.x = -Math.PI / 2;
-        this.sky.position.y = 0;
+        this.sky.position.y = this.size / 2; // Raise sky so bottom is at y=0
         this.scene.add(this.sky);
     },
 
