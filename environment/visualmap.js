@@ -42,7 +42,7 @@ const VisualMap = {
                 geometry.rotateX(-Math.PI / 2);
 
                 const material = new THREE.MeshLambertMaterial({
-                    map: this.textures.grass.clone(), // default starting texture
+                    map: this.textures.grass.clone(),
                 });
 
                 const tile = new THREE.Mesh(geometry, material);
@@ -55,7 +55,7 @@ const VisualMap = {
     },
 
     paintTile(gridPos, type) {
-        const key = `${gridPos.x + this.divisions / 2},${gridPos.z + this.divisions / 2}`;
+        const key = `${gridPos.x},${gridPos.z}`;
         const tile = this.tiles.get(key);
         if (!tile) return;
 
@@ -65,7 +65,6 @@ const VisualMap = {
         tile.material.map = tex;
         tile.material.needsUpdate = true;
 
-        // Blend neighbors a little
         this._blendNeighbors(gridPos, type);
     },
 
@@ -78,10 +77,9 @@ const VisualMap = {
         ];
 
         for (const o of offsets) {
-            const key = `${gridPos.x + o.dx + this.divisions / 2},${gridPos.z + o.dz + this.divisions / 2}`;
+            const key = `${gridPos.x + o.dx},${gridPos.z + o.dz}`;
             const neighbor = this.tiles.get(key);
             if (neighbor && neighbor.material.map !== this.textures[type]) {
-                // Slight dimming for visual transition
                 neighbor.material.color = new THREE.Color(0.85, 0.85, 0.85);
                 neighbor.material.needsUpdate = true;
             }
