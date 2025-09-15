@@ -1,9 +1,6 @@
 import * as THREE from 'three';
 import VisualMap from '../environment/visualmap.js';
 
-/**
- * Handles grid-based movement for the character, including pathfinding and marker placement.
- */
 const Movement = {
     character: null,
     scene: null,
@@ -43,12 +40,12 @@ const Movement = {
 
             if (this.buildMode) {
                 // Paint the tile instead of moving
-                VisualMap.paintTile(targetGrid.x, targetGrid.z, this.buildMode);
+                VisualMap.paintTile(targetGrid, this.buildMode);
                 return;
             }
 
             // Normal movement mode
-            const targetPos = { x: targetGrid.x + 0.5, z: targetGrid.z + 0.5 };
+            const targetPos = { x: point.x, z: point.z };
             this.placeMarker(targetPos.x, 0.1, targetPos.z);
             this.calculatePath(targetGrid);
         }
@@ -69,9 +66,9 @@ const Movement = {
         const startGrid = this.getGridPos(this.character.position);
         const gridPath = this.findPath(startGrid, targetGrid);
         this.path = gridPath.map(g => ({
-            x: g.x + 0.5,
+            x: g.x - VisualMap.size / 2 + 0.5,
             y: this.character.position.y,
-            z: g.z + 0.5
+            z: g.z - VisualMap.size / 2 + 0.5
         }));
         this.currentPathIndex = 0;
         this.isMoving = this.path.length > 0;
@@ -103,7 +100,11 @@ const Movement = {
     },
 
     getGridPos(pos) {
-        return { x: Math.floor(pos.x), z: Math.floor(pos.z) };
+        const half = VisualMap.size / 2;
+        return { 
+            x: Math.floor(pos.x + half),
+            z: Math.floor(pos.z + half)
+        };
     },
 
     findPath(start, goal) {
