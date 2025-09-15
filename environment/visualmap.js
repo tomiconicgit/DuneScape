@@ -25,11 +25,11 @@ const VisualMap = {
         };
 
         this.textures = {
-            grass: wrap(loader.load('./textures/grass.jpg')),
-            dirt: wrap(loader.load('./textures/dirt.jpg')),
-            sand: wrap(loader.load('./textures/sand.jpg')),
-            water: wrap(loader.load('./textures/water.jpg')),
-            stone: wrap(loader.load('./textures/stone.jpg')),
+            grass: wrap(loader.load('./environment/assets/grass.jpeg')),
+            dirt: wrap(loader.load('./environment/assets/dirt.jpeg')),
+            sand: wrap(loader.load('./environment/assets/sand.jpeg')),
+            stone: wrap(loader.load('./environment/assets/stone.jpeg')),
+            // water: wrap(loader.load('./environment/assets/water.jpeg')), // not used yet
         };
     },
 
@@ -42,7 +42,7 @@ const VisualMap = {
                 geometry.rotateX(-Math.PI / 2);
 
                 const material = new THREE.MeshLambertMaterial({
-                    map: this.textures.grass.clone(),
+                    map: this.textures.grass.clone(), // default starting texture
                 });
 
                 const tile = new THREE.Mesh(geometry, material);
@@ -65,7 +65,7 @@ const VisualMap = {
         tile.material.map = tex;
         tile.material.needsUpdate = true;
 
-        // Simple neighbor blending — fade edge colors
+        // Blend neighbors a little
         this._blendNeighbors(gridPos, type);
     },
 
@@ -81,7 +81,8 @@ const VisualMap = {
             const key = `${gridPos.x + o.dx + this.divisions / 2},${gridPos.z + o.dz + this.divisions / 2}`;
             const neighbor = this.tiles.get(key);
             if (neighbor && neighbor.material.map !== this.textures[type]) {
-                neighbor.material.color = new THREE.Color(0.8, 0.8, 0.8); // dim neighbor slightly
+                // Slight dimming for visual transition
+                neighbor.material.color = new THREE.Color(0.85, 0.85, 0.85);
                 neighbor.material.needsUpdate = true;
             }
         }
