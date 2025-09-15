@@ -7,7 +7,7 @@ export default class Movement {
         this.currentPathIndex = 0;
         this.isMoving = false;
         this.moveSpeed = 2;
-        this.marker = null; // Can be managed here or in a separate UI class
+        this.marker = null;
     }
 
     calculatePath(targetWorldPos, targetGrid) {
@@ -55,7 +55,7 @@ export default class Movement {
             this.marker = new THREE.Mesh(geometry, material);
         }
         this.marker.position.set(x, y, z);
-        this.character.parent.add(this.marker); // Add marker to the scene
+        this.character.parent.add(this.marker);
     }
     
     _getGridPos(pos) {
@@ -76,7 +76,7 @@ export default class Movement {
         fScore.set(key(start), Math.abs(goal.x - start.x) + Math.abs(goal.z - start.z));
 
         while (openSet.length > 0) {
-            openSet.sort((a, b) => fScore.get(key(a)) - fScore.get(key(b)));
+            openSet.sort((a, b) => (fScore.get(key(a)) || Infinity) - (fScore.get(key(b)) || Infinity));
             const current = openSet.shift();
 
             if (current.x === goal.x && current.z === goal.z) {
@@ -95,9 +95,9 @@ export default class Movement {
             ];
 
             for (const neigh of neighbors) {
-                const tentG = gScore.get(key(current)) + 1;
+                const tentG = (gScore.get(key(current)) || Infinity) + 1;
                 const nkey = key(neigh);
-                if (!gScore.has(nkey) || tentG < gScore.get(nkey)) {
+                if (tentG < (gScore.get(nkey) || Infinity)) {
                     cameFrom.set(nkey, current);
                     gScore.set(nkey, tentG);
                     fScore.set(nkey, tentG + Math.abs(goal.x - neigh.x) + Math.abs(goal.z - neigh.z));
