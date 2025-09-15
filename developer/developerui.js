@@ -31,32 +31,33 @@ const DeveloperUI = {
         this.dom.bar.style.webkitBackdropFilter = 'blur(10px)';
         this.dom.bar.style.border = '1px solid rgba(255, 255, 255, 0.2)';
         this.dom.bar.style.boxShadow = '0 4px 30px rgba(0, 0, 0, 0.1)';
+        this.dom.bar.style.zIndex = '9999'; // Make sure bar is above everything
         document.body.appendChild(this.dom.bar);
 
         // Button types and SVGs (monochrome so themeable)
         const types = ['grass', 'dirt', 'water', 'sand', 'stone'];
         const svgs = {
             grass: `
-              <svg viewBox="0 0 24 24" fill="none" stroke="#f5f5f5" stroke-width="2" stroke-linecap="round">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#f5f5f5" stroke-width="2" stroke-linecap="round">
                 <path d="M4 20l2-6 2 6m2 0V10m2 10l2-6 2 6m2 0V8m2 12l2-6 2 6"/>
               </svg>`,
             dirt: `
-              <svg viewBox="0 0 24 24" fill="none" stroke="#f5f5f5" stroke-width="2">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#f5f5f5" stroke-width="2">
                 <rect x="4" y="10" width="16" height="10" rx="2" />
                 <circle cx="9" cy="15" r="1"/>
                 <circle cx="13" cy="13" r="1"/>
                 <circle cx="16" cy="16" r="1"/>
               </svg>`,
             water: `
-              <svg viewBox="0 0 24 24" fill="none" stroke="#f5f5f5" stroke-width="2" stroke-linecap="round">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#f5f5f5" stroke-width="2" stroke-linecap="round">
                 <path d="M12 3C12 3 5 11 5 15a7 7 0 0014 0c0-4-7-12-7-12z"/>
               </svg>`,
             sand: `
-              <svg viewBox="0 0 24 24" fill="none" stroke="#f5f5f5" stroke-width="2" stroke-linecap="round">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#f5f5f5" stroke-width="2" stroke-linecap="round">
                 <path d="M4 18h16M6 14h12M8 10h8M10 6h4"/>
               </svg>`,
             stone: `
-              <svg viewBox="0 0 24 24" fill="none" stroke="#f5f5f5" stroke-width="2" stroke-linejoin="round">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#f5f5f5" stroke-width="2" stroke-linejoin="round">
                 <polygon points="6 22 2 12 12 2 22 12 18 22"/>
               </svg>`,
         };
@@ -76,6 +77,8 @@ const DeveloperUI = {
             button.style.justifyContent = 'center';
             button.style.backdropFilter = 'blur(5px)';
             button.style.webkitBackdropFilter = 'blur(5px)';
+            button.style.zIndex = '10000'; // Ensure buttons are above canvas
+            button.querySelector('svg').style.zIndex = '10001'; // Ensure SVG visible
             button.addEventListener('click', () => this._toggleType(type));
             this.dom.buttons[type] = button;
             this.dom.bar.appendChild(button);
