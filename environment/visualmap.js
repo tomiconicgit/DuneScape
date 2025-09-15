@@ -67,7 +67,13 @@ const VisualMap = {
     },
 
     _createSky() {
-        const skyGeo = new THREE.SphereGeometry(this.size * 4, 64, 32);
+        // Sphere radius 4x size of grid
+        const radius = this.size * 4;
+        const skyGeo = new THREE.SphereGeometry(radius, 64, 32);
+
+        // Shift sky down so its bottom aligns with y = 0
+        const skyYPos = radius - (this.size / 2);
+        
         const skyMat = new THREE.ShaderMaterial({
             side: THREE.BackSide,
             uniforms: { time: { value: 0 } },
@@ -90,8 +96,9 @@ const VisualMap = {
                 }
             `
         });
+
         this.sky = new THREE.Mesh(skyGeo, skyMat);
-        this.sky.position.set(0, this.size / 2, 0);
+        this.sky.position.set(0, skyYPos, 0);
         this.scene.add(this.sky);
     },
 
