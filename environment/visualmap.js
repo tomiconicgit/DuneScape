@@ -64,30 +64,10 @@ const VisualMap = {
 
         tile.material.map = tex;
         tile.material.needsUpdate = true;
-
-        this._blendNeighbors(gridPos, type);
-    },
-
-    _blendNeighbors(gridPos, type) {
-        const offsets = [
-            { dx: 1, dz: 0 },
-            { dx: -1, dz: 0 },
-            { dx: 0, dz: 1 },
-            { dx: 0, dz: -1 },
-        ];
-
-        for (const o of offsets) {
-            const key = `${gridPos.x + o.dx},${gridPos.z + o.dz}`;
-            const neighbor = this.tiles.get(key);
-            if (neighbor && neighbor.material.map !== this.textures[type]) {
-                neighbor.material.color = new THREE.Color(0.85, 0.85, 0.85);
-                neighbor.material.needsUpdate = true;
-            }
-        }
     },
 
     _createSky() {
-        const skyGeo = new THREE.SphereGeometry(this.size * 4, 32, 16);
+        const skyGeo = new THREE.SphereGeometry(this.size * 4, 64, 32);
         const skyMat = new THREE.ShaderMaterial({
             side: THREE.BackSide,
             uniforms: { time: { value: 0 } },
@@ -102,21 +82,21 @@ const VisualMap = {
                 uniform float time;
                 varying vec3 vPos;
                 void main() {
-                    vec3 base = mix(vec3(0.2,0.4,0.7), vec3(0.6,0.8,1.0), smoothstep(-0.5,1.0,vPos.y));
-                    float clouds = sin(vPos.x*0.05 + time*0.2) * sin(vPos.z*0.05 + time*0.2) * 0.15;
+                    vec3 base = mix(vec3(0.3,0.5,0.8), vec3(0.6,0.85,1.0), smoothstep(-1.0,1.0,vPos.y/200.0));
+                    float clouds = sin(vPos.x*0.02 + time*0.15) * sin(vPos.z*0.02 + time*0.15) * 0.12;
                     clouds = clamp(clouds,0.0,1.0);
                     vec3 color = base + clouds;
-                    gl_FragColor = vec4(color,1.0);
+                    gl_FragColor = vec4(color, 1.0);
                 }
             `
         });
         this.sky = new THREE.Mesh(skyGeo, skyMat);
-        this.sky.position.y = this.size / 2;
+        this.sky.position.set(0, this.size / 2, 0);
         this.scene.add(this.sky);
     },
 
-    update(delta) {
-        if (this.sky) this.sky.material.uniforms.time.value += delta;
+    update() {
+        if (this.sky) this.sky.material.uniforms.time.value = this.clock.getElapsedTime();
     }
 };
 
