@@ -55,7 +55,6 @@ export default class Camera {
     }
     
     _addEventListeners() {
-        // These events are passed to the InputController, but camera rotation/zoom is handled here
         this.domElement.addEventListener('touchstart', this._onTouchStart.bind(this), { passive: false });
         this.domElement.addEventListener('touchmove', this._onTouchMove.bind(this), { passive: false });
         this.domElement.addEventListener('touchend', this._onTouchEnd.bind(this), { passive: false });
@@ -63,7 +62,6 @@ export default class Camera {
 
     _onTouchStart(event) {
         if (event.touches.length === 1) {
-            this.touchState.isDragging = false;
             this.touchState.lastDragX = event.touches[0].clientX;
         } else if (event.touches.length === 2) {
             this.touchState.isPinching = true;
@@ -72,23 +70,27 @@ export default class Camera {
     }
 
     _onTouchMove(event) {
+        event.preventDefault();
+
+        // Check for dragging (which is handled by InputController) vs. camera orbiting
+        const isTapAndDrag = event.target.isTapAndDrag;
+        if (isTapAndDrag) return;
+
         if (this.touchState.isPinching && event.touches.length === 2) {
              const currentPinchDist = this._getPinchDistance(event.touches);
             const delta = this.touchState.initialPinchDist - currentPinchDist;
             this.zoomLevel += delta * 0.001;
             this.zoomLevel = Math.max(0, Math.min(1, this.zoomLevel));
             this.touchState.initialPinchDist = currentPinchDist;
+
         } else if (!this.touchState.isPinching && event.touches.length === 1) {
              const deltaX = event.touches[0].clientX - this.touchState.lastDragX;
-             if (Math.abs(deltaX) > 2) this.touchState.isDragging = true; // Start dragging after a threshold
              this.orbitAngle -= deltaX * 0.01;
              this.touchState.lastDragX = event.touches[0].clientX;
         }
     }
     
-    _onTouchEnd(event) {
-        // The InputController handles the tap itself, this just resets camera state
-        this.touchState.isDragging = false;
+    _onTouchEnd() {
         this.touchState.isPinching = false;
     }
 
