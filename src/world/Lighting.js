@@ -14,8 +14,14 @@ export function setupLighting(scene) {
     sun.shadow.camera.top = 100;
     sun.shadow.camera.bottom = -100;
     scene.add(sun);
+    
+    // Also add its target to the scene
+    scene.add(sun.target);
 
     // Subtle ambient light
     const ambient = new THREE.AmbientLight(0xffffff, 0.4);
     scene.add(ambient);
+
+    // Return the sun object so we can animate it
+    return { sun };
 }
