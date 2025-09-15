@@ -6,7 +6,6 @@ const VisualMap = {
     size: 100,
     divisions: 100,
     tileSize: 1,
-
     textures: {},
 
     init(scene) {
@@ -24,12 +23,12 @@ const VisualMap = {
             return t;
         };
 
+        // Fixed paths (relative to index.html)
         this.textures = {
-            grass: wrap(loader.load('./environment/assets/grass.jpeg')),
-            dirt: wrap(loader.load('./environment/assets/dirt.jpeg')),
-            sand: wrap(loader.load('./environment/assets/sand.jpeg')),
-            stone: wrap(loader.load('./environment/assets/stone.jpeg')),
-            // water: wrap(loader.load('./environment/assets/water.jpeg')), // not used yet
+            grass: wrap(loader.load('environment/assets/grass.jpeg')),
+            dirt: wrap(loader.load('environment/assets/dirt.jpeg')),
+            sand: wrap(loader.load('environment/assets/sand.jpeg')),
+            stone: wrap(loader.load('environment/assets/stone.jpeg')),
         };
     },
 
@@ -42,11 +41,13 @@ const VisualMap = {
                 geometry.rotateX(-Math.PI / 2);
 
                 const material = new THREE.MeshLambertMaterial({
-                    map: this.textures.grass.clone(), // default starting texture
+                    map: this.textures.grass.clone(),
                 });
 
                 const tile = new THREE.Mesh(geometry, material);
-                tile.position.set(x - half + 0.5, 0, z - half + 0.5);
+
+                // Raised slightly to avoid z-fighting
+                tile.position.set(x - half + 0.5, 0.01, z - half + 0.5);
 
                 this.scene.add(tile);
                 this.tiles.set(`${x},${z}`, tile);
@@ -55,7 +56,7 @@ const VisualMap = {
     },
 
     paintTile(gridPos, type) {
-        const key = `${gridPos.x},${gridPos.z}`; // <- corrected key usage
+        const key = `${gridPos.x},${gridPos.z}`;
         const tile = this.tiles.get(key);
         if (!tile) return;
 
@@ -84,7 +85,7 @@ const VisualMap = {
                 neighbor.material.needsUpdate = true;
             }
         }
-    }
+    },
 };
 
 export default VisualMap;
