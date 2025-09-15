@@ -6,7 +6,7 @@ const Movement = {
     scene: null,
     path: [],
     currentPathIndex: 0,
-    moveSpeed: 2, // Units per second
+    moveSpeed: 2,
     marker: null,
     raycaster: new THREE.Raycaster(),
     plane: null,
@@ -39,13 +39,11 @@ const Movement = {
             const targetGrid = this.getGridPos(point);
 
             if (this.buildMode) {
-                // Paint the tile instead of moving
                 VisualMap.paintTile(targetGrid, this.buildMode);
                 return;
             }
 
-            // Normal movement mode
-            const targetPos = { x: point.x, z: point.z };
+            const targetPos = { x: targetGrid.x + 0.5, z: targetGrid.z + 0.5 };
             this.placeMarker(targetPos.x, 0.1, targetPos.z);
             this.calculatePath(targetGrid);
         }
@@ -66,9 +64,9 @@ const Movement = {
         const startGrid = this.getGridPos(this.character.position);
         const gridPath = this.findPath(startGrid, targetGrid);
         this.path = gridPath.map(g => ({
-            x: g.x - VisualMap.size / 2 + 0.5,
+            x: g.x + 0.5,
             y: this.character.position.y,
-            z: g.z - VisualMap.size / 2 + 0.5
+            z: g.z + 0.5
         }));
         this.currentPathIndex = 0;
         this.isMoving = this.path.length > 0;
@@ -100,10 +98,10 @@ const Movement = {
     },
 
     getGridPos(pos) {
-        const half = VisualMap.size / 2;
+        const half = 50; // size/2
         return { 
-            x: Math.floor(pos.x + half),
-            z: Math.floor(pos.z + half)
+            x: Math.floor(pos.x + half), 
+            z: Math.floor(pos.z + half) 
         };
     },
 
