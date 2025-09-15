@@ -15,22 +15,30 @@ export function startGameEngine(scene, domElement) {
     Debug.init();
     console.log("Game Engine: Initializing game world...");
 
-    // Create the grid/plane
+    // 1. Add lights (needed for MeshLambertMaterial)
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+    dirLight.position.set(50, 100, 50);
+    scene.add(dirLight);
+
+    const ambLight = new THREE.AmbientLight(0xffffff, 0.3);
+    scene.add(ambLight);
+
+    // 2. Create the grid/plane
     const plane = createEnvironmentGrid(scene);
 
-    // Create character
+    // 3. Create character
     const character = createCharacter(scene);
 
-    // Initialize camera
+    // 4. Initialize camera
     RTSCamera.init(character, domElement);
 
-    // Initialize movement
+    // 5. Initialize movement
     Movement.init(character, scene, RTSCamera, plane);
 
-    // Initialize visual map painter
+    // 6. Initialize visual map painter
     VisualMap.init(scene);
 
-    // Initialize developer UI
+    // 7. Initialize developer UI
     DeveloperUI.init(Movement);
 
     console.log("Game Engine: World setup complete.");
