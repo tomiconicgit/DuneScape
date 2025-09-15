@@ -8,10 +8,11 @@ const VisualMap = {
     tileSize: 1,
     textures: {},
     sky: null,
+    sun: null,
+    cloudGroup: null,
     clouds: [],
-    cloudGroup: new THREE.Group(),
     clock: new THREE.Clock(),
-    weatherFactor: 0.5, // 0 = clear, 1 = fully cloudy
+    weatherFactor: 0.6, // 0 = clear, 1 = overcast
 
     init(scene) {
         this.scene = scene;
@@ -19,8 +20,8 @@ const VisualMap = {
         this._createTiles();
         this._createSky();
         this._createSun();
+        this._createCloudGroup();
         this._createClouds();
-        scene.add(this.cloudGroup);
     },
 
     _loadTextures() {
@@ -52,8 +53,7 @@ const VisualMap = {
 
                 const tile = new THREE.Mesh(geometry, material);
                 tile.position.set(x - half + 0.5, 0, z - half + 0.5);
-                tile.receiveShadow = false; // gridmap is dev map
-
+                tile.receiveShadow = false; // grid tiles stay shadow-free
                 this.scene.add(tile);
                 this.tiles.set(`${x},${z}`, tile);
             }
@@ -73,12 +73,12 @@ const VisualMap = {
     },
 
     _createSky() {
-        const radius = this.size * 4;
+        // Sky as large sphere
+        const radius = this.size * 8;
         const skyGeo = new THREE.SphereGeometry(radius, 64, 32);
-
         const skyMat = new THREE.ShaderMaterial({
             side: THREE.BackSide,
-            uniforms: { sunPos: { value: new THREE.Vector3() } },
+            uniforms: { },
             vertexShader: `
                 varying vec3 vPos;
                 void main() {
@@ -88,15 +88,12 @@ const VisualMap = {
             `,
             fragmentShader: `
                 varying vec3 vPos;
-                uniform vec3 sunPos;
                 void main() {
-                    float h = normalize(vPos).y;
-                    vec3 horizonColor = vec3(1.0,0.6,0.3);
-                    vec3 midColor = vec3(0.5,0.7,1.0);
-                    vec3 zenithColor = vec3(0.1,0.2,0.5);
-                    vec3 base = mix(horizonColor, midColor, smoothstep(0.0,0.5,h));
-                    base = mix(base, zenithColor, smoothstep(0.5,1.0,h));
-                    gl_FragColor = vec4(base,1.0);
+                    vec3 top = vec3(0.53,0.81,0.92);
+                    vec3 horizon = vec3(0.87,0.93,0.98);
+                    float t = (vPos.y + ${radius.toFixed(1)}) / (${(radius*2).toFixed(1)});
+                    vec3 color = mix(horizon, top, t);
+                    gl_FragColor = vec4(color,1.0);
                 }
             `
         });
@@ -107,56 +104,68 @@ const VisualMap = {
     },
 
     _createSun() {
-        const sunColor = 0xffeeaa;
-        this.sunLight = new THREE.DirectionalLight(sunColor, 1.0);
-        this.sunLight.position.set(50, 50, 50);
-        this.sunLight.castShadow = true;
-        this.sunLight.shadow.mapSize.width = 2048;
-        this.sunLight.shadow.mapSize.height = 2048;
-        this.sunLight.shadow.camera.near = 0.5;
-        this.sunLight.shadow.camera.far = 500;
-        this.sunLight.shadow.camera.left = -100;
-        this.sunLight.shadow.camera.right = 100;
-        this.sunLight.shadow.camera.top = 100;
-        this.sunLight.shadow.camera.bottom = -100;
-        this.scene.add(this.sunLight);
+        this.sun = new THREE.DirectionalLight(0xffffff, 1.0);
+        this.sun.position.set(-50, 40, -50); // Horizon angle
+        this.sun.castShadow = true;
+        this.sun.shadow.mapSize.width = 2048;
+        this.sun.shadow.mapSize.height = 2048;
+        this.sun.shadow.camera.near = 1;
+        this.sun.shadow.camera.far = 200;
+        this.sun.shadow.camera.left = -100;
+        this.sun.shadow.camera.right = 100;
+        this.sun.shadow.camera.top = 100;
+        this.sun.shadow.camera.bottom = -100;
+        this.scene.add(this.sun);
 
-        // Visual sun
-        const sunGeo = new THREE.SphereGeometry(3, 32, 16);
-        const sunMat = new THREE.MeshBasicMaterial({ color: sunColor, transparent: true, opacity: 0.8 });
-        this.sunMesh = new THREE.Mesh(sunGeo, sunMat);
-        this.sunMesh.position.copy(this.sunLight.position);
-        this.scene.add(this.sunMesh);
+        // Subtle ambient light to soften shadows
+        const ambient = new THREE.AmbientLight(0xffffff, 0.3);
+        this.scene.add(ambient);
+    },
+
+    _createCloudGroup() {
+        this.cloudGroup = new THREE.Group();
+        this.scene.add(this.cloudGroup);
     },
 
     _createClouds() {
         const cloudCount = Math.floor(5 + 20 * this.weatherFactor);
         for (let i = 0; i < cloudCount; i++) {
             const cluster = new THREE.Group();
-            const puffCount = 3 + Math.floor(Math.random() * 7);
-            const spread = 10 + 20 * this.weatherFactor;
-            const yBase = 15 + Math.random() * 10;
+            const puffCount = 5 + Math.floor(Math.random() * 10);
+            const baseSpread = 10 + 15 * this.weatherFactor;
+            const yBase = 20 + Math.random() * 10;
 
             for (let j = 0; j < puffCount; j++) {
                 const radius = 1 + Math.random() * 2;
-                const puff = new THREE.Mesh(
-                    new THREE.SphereGeometry(radius, 16, 16),
-                    new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 })
-                );
+
+                const puffGeo = new THREE.SphereGeometry(radius, 16, 16);
+                const puffMat = new THREE.MeshPhongMaterial({
+                    color: 0xffffff,
+                    transparent: true,
+                    opacity: 0.6,
+                    shininess: 0,
+                    depthWrite: false
+                });
+
+                const puff = new THREE.Mesh(puffGeo, puffMat);
                 puff.position.set(
-                    (Math.random() - 0.5) * spread,
+                    (Math.random() - 0.5) * baseSpread,
                     yBase + Math.random() * 2,
-                    (Math.random() - 0.5) * spread
+                    (Math.random() - 0.5) * baseSpread
                 );
+
                 puff.castShadow = true;
+                puff.receiveShadow = false;
                 cluster.add(puff);
             }
-            cluster.userData = { speed: 0.01 + Math.random() * 0.02 };
+
+            cluster.userData = { speed: 0.002 + Math.random() * 0.004 };
             cluster.position.set(
                 (Math.random() - 0.5) * this.size,
                 0,
                 (Math.random() - 0.5) * this.size
             );
+
             this.clouds.push(cluster);
             this.cloudGroup.add(cluster);
         }
@@ -165,7 +174,7 @@ const VisualMap = {
     update() {
         const delta = this.clock.getDelta();
 
-        // Move clouds horizontally
+        // Clouds drift slowly
         this.clouds.forEach(c => {
             c.position.x += c.userData.speed * delta * 5;
             if (c.position.x > this.size / 2) c.position.x = -this.size / 2;
