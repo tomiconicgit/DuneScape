@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 export function setupLighting(scene) {
     // Main sun light
-    const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+    const sun = new THREE.DirectionalLight(0xffffff, 1.2);
     sun.position.set(-50, 40, -50);
     sun.castShadow = true;
     sun.shadow.mapSize.width = 2048;
@@ -16,6 +16,6 @@ export function setupLighting(scene) {
     scene.add(sun);
 
     // Subtle ambient light
-    const ambient = new THREE.AmbientLight(0xffffff, 0.3);
+    const ambient = new THREE.AmbientLight(0xffffff, 0.4);
     scene.add(ambient);
 }
