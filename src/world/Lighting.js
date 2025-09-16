@@ -2,10 +2,10 @@ import * as THREE from 'three';
 
 export function setupLighting(scene) {
     // HEMISPHERE LIGHT
-    // MODIFIED: Increased intensity from 2 to 3 for brighter ambient light
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 3);
-    hemiLight.color.setHSL(0.6, 1, 0.6); // Sky color
-    hemiLight.groundColor.setHSL(0.095, 1, 0.75); // Ground color
+    // MODIFIED: Drastically increased intensity from 3 to 5 for a much brighter world
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 5);
+    hemiLight.color.setHSL(0.6, 1, 0.6);
+    hemiLight.groundColor.setHSL(0.095, 1, 0.75);
     hemiLight.position.set(0, 50, 0);
     scene.add(hemiLight);
 
