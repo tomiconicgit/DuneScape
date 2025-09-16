@@ -52,13 +52,11 @@ export default class Terrain {
         }
         geometry.computeVertexNormals();
 
-        // MODIFIED: We no longer load a texture file
         const material = new THREE.MeshStandardMaterial({
             roughness: 0.8,
             metalness: 0.2
         });
 
-        // MODIFIED: This function injects our procedural code into the standard material
         material.onBeforeCompile = (shader) => {
             // Add custom uniforms for our sand colors
             shader.uniforms.uSandColor1 = { value: new THREE.Color(0xec9e5c) };
@@ -72,17 +70,18 @@ export default class Terrain {
             shader.fragmentShader = shader.fragmentShader.replace(
                 '#include <map_fragment>',
                 `
-                float noise = snoise(vUv * 20.0); // Use UV coordinates for the noise pattern
+                // MODIFIED: Added the missing variable declaration
+                vec4 diffuseColor = vec4( 1.0 );
+
+                float noise = snoise(vUv * 20.0);
                 vec3 sandColor = uSandColor1;
                 
-                // Mix in darker and lighter colors based on the noise
                 if (noise > 0.3) {
                     sandColor = mix(sandColor, uSandColor2, (noise - 0.3) * 0.5);
                 } else if (noise < -0.3) {
                     sandColor = mix(sandColor, uSandColor3, (-noise - 0.3) * 0.5);
                 }
 
-                // Apply the procedural color
                 diffuseColor.rgb = sandColor;
                 `
             );
