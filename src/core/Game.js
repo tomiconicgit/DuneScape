@@ -10,8 +10,8 @@ import GameSky from '../world/Sky.js';
 import Terrain from '../world/Terrain.js';
 
 // ... (Constants are unchanged)
-const DAY_DURATION_SECONDS = 600; 
-const NIGHT_DURATION_SECONDS = 300;
+const DAY_DURATION_SECONDS = 20; 
+const NIGHT_DURATION_SECONDS = 20;
 const TOTAL_CYCLE_SECONDS = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS;
 const SUN_COLOR_NOON = new THREE.Color().setHSL(0.1, 1, 0.95);
 const SUN_COLOR_SUNSET = new THREE.Color().setHSL(0.05, 1, 0.7);
