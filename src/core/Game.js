@@ -10,7 +10,6 @@ import TileMap from '../world/TileMap.js';
 import Atmosphere from '../world/Atmosphere.js';
 import VolumetricClouds from '../world/VolumetricClouds.js';
 import { setupLighting } from '../world/Lighting.js';
-import Fog from '../world/Fog.js';
 
 // Constants for day/night cycle
 const DAY_DURATION_SECONDS = 600; // 10 minutes
@@ -45,9 +44,6 @@ export default class Game {
 
         const { sun } = setupLighting(this.scene);
         this.sunLight = sun;
-        
-        this.fog = new Fog(this.scene);
-
         this.character.mesh.castShadow = true;
 
         this._setupEvents();
@@ -124,7 +120,6 @@ export default class Game {
         this.camera.update();
         this.atmosphere.update(this.sunPosition);
         this.clouds.update(this.sunPosition, delta);
-        this.fog.update(delta);
 
         this.renderer.render(this.scene, this.camera.threeCamera);
     }
