@@ -13,18 +13,12 @@ uniform vec3 uSunPosition;
 uniform float uExposure;
 uniform float uTimeOfDay; // 0.0 to 1.0
 
-// NEW: Gradient textures for sky colors
 uniform sampler2D uZenithGradient;
 uniform sampler2D uHorizonGradient;
 
 uniform vec3 uSunColor;
 
 varying vec3 vWorldPosition;
-
-// Simple pseudo-random function for stars
-float rand(vec2 n) { 
-	return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453);
-}
 
 void main() {
     vec3 rayDir = normalize(vWorldPosition - cameraPosition);
@@ -46,15 +40,7 @@ void main() {
     float sunDisk = smoothstep(0.998, 1.0, sunDot);
     finalColor += uSunColor * sunDisk * 2.0;
 
-    // --- Procedural Star Field ---
-    float nightFactor = 1.0 - smoothstep(-0.1, 0.15, sunDir.y);
-    if (nightFactor > 0.0) {
-        float starNoise = rand(rayDir.xy * 1500.0);
-        float starBrightness = step(0.9995, starNoise) * nightFactor;
-        // Twinkling effect
-        starBrightness *= 0.5 + 0.5 * sin(uTimeOfDay * 2000.0 + rayDir.x * 100.0);
-        finalColor += vec3(1.0) * starBrightness;
-    }
+    // MODIFIED: Star field logic has been removed.
     
     // Final color processing
     finalColor *= uExposure;
@@ -73,7 +59,6 @@ function createGradientTexture(stops) {
         const t = i / (size - 1); // Progress along the gradient (0 to 1)
         let color = new THREE.Color();
         
-        // Find the two stops to interpolate between
         if (t <= stops[0].stop) {
             color = colors[0];
         } else if (t >= stops[stops.length-1].stop) {
@@ -100,8 +85,6 @@ export default class Atmosphere {
     constructor(scene) {
         const geometry = new THREE.SphereGeometry(10000, 32, 32);
         
-        // --- Define the artistic color palettes for the entire day ---
-        // Times are based on a 0.0 to 1.0 scale (24 hours)
         const zenithStops = [
             { stop: 0, color: '#02040A' },      // Midnight
             { stop: 6/24, color: '#050814' },   // 6am Sunrise: Black-blue
