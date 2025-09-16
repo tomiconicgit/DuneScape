@@ -7,6 +7,7 @@ import Movement from '../mechanics/Movement.js';
 import DeveloperUI from '../ui/DeveloperUI.js';
 import { setupLighting } from '../world/Lighting.js';
 import GameSky from '../world/Sky.js';
+import Grid from '../world/Grid.js'; // MODIFIED: Import the new Grid
 
 // Constants for day/night cycle
 const DAY_DURATION_SECONDS = 600; 
@@ -26,21 +27,16 @@ export default class Game {
 
         this.camera = new Camera(this.renderer.domElement);
         this.character = new Character(this.scene);
-
-        const groundGeometry = new THREE.PlaneGeometry(200, 200);
-        const groundMaterial = new THREE.ShadowMaterial({ opacity: 0.3 });
-        const groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
-        groundMesh.rotation.x = -Math.PI / 2;
-        groundMesh.receiveShadow = true;
-        this.scene.add(groundMesh);
-
         this.sky = new GameSky(this.scene);
 
+        // MODIFIED: Replaced manual plane creation with the new Grid module
+        const grid = new Grid(this.scene);
+
         this.movement = new Movement(this.character.mesh);
-        this.input = new InputController(this.camera.threeCamera, groundMesh);
+        // MODIFIED: The InputController now targets the mesh from the Grid module
+        this.input = new InputController(this.camera.threeCamera, grid.mesh);
         this.devUI = new DeveloperUI();
 
-        // MODIFIED: Use the correct variable name 'dirLight'
         const { dirLight } = setupLighting(this.scene);
         this.sunLight = dirLight;
         this.character.mesh.castShadow = true;
