@@ -10,8 +10,8 @@ import GameSky from '../world/Sky.js';
 import Terrain from '../world/Terrain.js';
 
 // Constants for day/night cycle
-const DAY_DURATION_SECONDS = 600; 
-const NIGHT_DURATION_SECONDS = 300;
+const DAY_DURATION_SECONDS = 60; 
+const NIGHT_DURATION_SECONDS = 60;
 const TOTAL_CYCLE_SECONDS = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS;
 
 // Color constants for dynamic lighting
