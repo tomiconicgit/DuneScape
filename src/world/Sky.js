@@ -30,7 +30,7 @@ export default class Sky {
             uniforms: {
                 'topColor': { value: topColor },
                 'bottomColor': { value: bottomColor },
-                'offset': { value: 33 },
+                'offset': { value: 0 }, // MODIFIED: Set to 0 because our ground is at y=0
                 'exponent': { value: 0.6 }
             },
             vertexShader: vertexShader,
