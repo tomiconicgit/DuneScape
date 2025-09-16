@@ -4,8 +4,8 @@ import Debug from '../ui/Debug.js';
 import GameSky from '../world/Sky.js';
 import Terrain from '../world/Terrain.js';
 
-const DAY_DURATION_SECONDS = 600; 
-const NIGHT_DURATION_SECONDS = 300;
+const DAY_DURATION_SECONDS = 20; 
+const NIGHT_DURATION_SECONDS = 20;
 const TOTAL_CYCLE_SECONDS = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS;
 
 export default class Game {
