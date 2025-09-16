@@ -10,9 +10,9 @@ import TileMap from '../world/TileMap.js';
 import Atmosphere from '../world/Atmosphere.js';
 import { setupLighting } from '../world/Lighting.js';
 
-// Constants for day/night cycle
-const DAY_DURATION_SECONDS = 600; // 10 minutes
-const NIGHT_DURATION_SECONDS = 240; // 4 minutes
+// MODIFIED: Updated day/night cycle durations
+const DAY_DURATION_SECONDS = 600; // 10 minutes (9am to 6pm)
+const NIGHT_DURATION_SECONDS = 300; // 5 minutes (6pm to 9am)
 const TOTAL_CYCLE_SECONDS = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS;
 
 export default class Game {
@@ -25,10 +25,6 @@ export default class Game {
         this.renderer = this._createRenderer();
         this.clock = new THREE.Clock();
         
-        const startHourOffset = 1;
-        const hoursInDay = 12;
-        this.timeOffset = (startHourOffset / hoursInDay) * DAY_DURATION_SECONDS;
-
         this.camera = new Camera(this.renderer.domElement);
         this.character = new Character(this.scene);
         this.grid = new Grid(this.scene);
@@ -76,7 +72,6 @@ export default class Game {
     }
 
     _handleSettingChange(change) {
-        // Only settings for Atmosphere are left
         switch (change.setting) {
             case 'exposure': this.atmosphere.uniforms.uExposure.value = change.value; break;
         }
@@ -92,17 +87,22 @@ export default class Game {
         requestAnimationFrame(() => this._animate());
 
         const delta = this.clock.getDelta();
-        const elapsed = this.clock.getElapsedTime() + this.timeOffset;
+        // MODIFIED: Removed the time offset to start the cycle at 9 AM
+        const elapsed = this.clock.getElapsedTime();
 
         const cycleProgress = (elapsed % TOTAL_CYCLE_SECONDS) / TOTAL_CYCLE_SECONDS;
         let angle;
+        
         if (cycleProgress < (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) {
+            // Day part of the cycle
             const dayProgress = cycleProgress / (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
             angle = dayProgress * Math.PI;
         } else {
+            // Night part of the cycle
             const nightProgress = (cycleProgress - (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) / (NIGHT_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
             angle = Math.PI + (nightProgress * Math.PI);
         }
+        
         this.sunPosition.set(Math.cos(angle) * 8000, Math.sin(angle) * 6000, Math.sin(angle * 0.5) * 2000);
         
         this.sunLight.position.copy(this.sunPosition);
