@@ -7,12 +7,19 @@ import Movement from '../mechanics/Movement.js';
 import DeveloperUI from '../ui/DeveloperUI.js';
 import { setupLighting } from '../world/Lighting.js';
 import GameSky from '../world/Sky.js';
-import Terrain from '../world/Terrain.js'; // MODIFIED: Import Terrain
+import Terrain from '../world/Terrain.js';
 
-// ... (Constants are the same)
-const DAY_DURATION_SECONDS = 600;
+// Constants for day/night cycle
+const DAY_DURATION_SECONDS = 600; 
 const NIGHT_DURATION_SECONDS = 300;
 const TOTAL_CYCLE_SECONDS = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS;
+
+// NEW: Color constants for dynamic lighting
+const SUN_COLOR_NOON = new THREE.Color().setHSL(0.1, 1, 0.95);
+const SUN_COLOR_SUNSET = new THREE.Color().setHSL(0.05, 1, 0.6);
+const HEMI_SKY_COLOR_NOON = new THREE.Color().setHSL(0.6, 1, 0.6);
+const HEMI_GROUND_COLOR_NOON = new THREE.Color().setHSL(0.095, 1, 0.75);
+const HEMI_COLOR_SUNSET = new THREE.Color().setHSL(0.05, 0.5, 0.6);
 
 export default class Game {
     constructor() {
@@ -29,17 +36,20 @@ export default class Game {
         this.character = new Character(this.scene);
         this.sky = new GameSky(this.scene);
 
-        // MODIFIED: Replaced Grid with the new Terrain module
         this.terrain = new Terrain(this.scene);
 
         this.movement = new Movement(this.character.mesh);
-        // MODIFIED: The InputController now targets the new terrain mesh
         this.input = new InputController(this.camera.threeCamera, this.terrain.mesh);
         this.devUI = new DeveloperUI();
 
-        const { dirLight } = setupLighting(this.scene);
+        // MODIFIED: Store both the hemiLight and dirLight
+        const { hemiLight, dirLight } = setupLighting(this.scene);
         this.sunLight = dirLight;
+        this.hemiLight = hemiLight;
         this.character.mesh.castShadow = true;
+
+        // Set up scene fog
+        this.scene.fog = new THREE.Fog(this.hemiLight.groundColor, 200, 2000);
 
         this._setupEvents();
     }
@@ -49,10 +59,8 @@ export default class Game {
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 0.4;
-
+        renderer.toneMappingExposure = 0.6;
         document.body.appendChild(renderer.domElement);
         return renderer;
     }
@@ -62,16 +70,11 @@ export default class Game {
             this.camera.handleResize();
             this.renderer.setSize(window.innerWidth, window.innerHeight);
         });
-
         this.input.onTap = (worldPos) => {
-            // MODIFIED: Use the new pathfinding method for 3D terrain
             this.movement.calculatePathOnTerrain(worldPos, this.terrain.mesh);
         };
-        
         this.devUI.onSettingChange = (change) => {
-            if (change.setting === 'exposure') {
-                this.renderer.toneMappingExposure = change.value;
-            }
+            if (change.setting === 'exposure') { this.renderer.toneMappingExposure = change.value; }
         };
     }
 
@@ -91,9 +94,10 @@ export default class Game {
         
         let elevation = 0;
         let azimuth = 180;
+        let dayProgress = 0;
 
         if (cycleProgress < (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) {
-            const dayProgress = cycleProgress / (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
+            dayProgress = cycleProgress / (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
             elevation = Math.sin(dayProgress * Math.PI) * 90;
             azimuth = 180 - (dayProgress * 360);
         } else {
@@ -104,6 +108,22 @@ export default class Game {
 
         this.sky.setParameters({ elevation, azimuth });
         this.sunLight.position.copy(this.sky.sun);
+        
+        // --- MODIFIED: Update Lighting Dynamically ---
+        const sunHeightFactor = Math.max(0, elevation) / 90; // 0 (horizon) to 1 (peak)
+        
+        // Update directional light (sun) color and intensity
+        this.sunLight.color.lerpColors(SUN_COLOR_SUNSET, SUN_COLOR_NOON, sunHeightFactor);
+        this.sunLight.intensity = sunHeightFactor * 3 + 0.2; // Keep some light at sunset
+
+        // Update hemisphere light (ambient) color and intensity
+        this.hemiLight.color.lerpColors(HEMI_COLOR_SUNSET, HEMI_SKY_COLOR_NOON, sunHeightFactor);
+        this.hemiLight.groundColor.lerpColors(HEMI_COLOR_SUNSET, HEMI_GROUND_COLOR_NOON, sunHeightFactor);
+        this.hemiLight.intensity = sunHeightFactor * 2 + 0.5; // Keep some ambient at sunset
+        
+        // Update fog color to match the ground
+        this.scene.fog.color.copy(this.hemiLight.groundColor);
+        this.renderer.setClearColor(this.scene.fog.color); // Sync background with fog
         
         this.movement.update(delta);
         this.camera.update();
