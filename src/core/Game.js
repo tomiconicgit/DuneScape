@@ -16,10 +16,10 @@ const TOTAL_CYCLE_SECONDS = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS;
 
 // Color constants for dynamic lighting
 const SUN_COLOR_NOON = new THREE.Color().setHSL(0.1, 1, 0.95);
-const SUN_COLOR_SUNSET = new THREE.Color().setHSL(0.05, 1, 0.6);
+const SUN_COLOR_SUNSET = new THREE.Color().setHSL(0.05, 1, 0.7);
 const HEMI_SKY_COLOR_NOON = new THREE.Color().setHSL(0.6, 1, 0.6);
 const HEMI_GROUND_COLOR_NOON = new THREE.Color().setHSL(0.095, 1, 0.75);
-const HEMI_COLOR_SUNSET = new THREE.Color().setHSL(0.05, 0.5, 0.6);
+const HEMI_COLOR_SUNSET = new THREE.Color().setHSL(0.05, 0.5, 0.7);
 const HEMI_SKY_COLOR_NIGHT = new THREE.Color().setHSL(0.6, 0.1, 0.05);
 const HEMI_GROUND_COLOR_NIGHT = new THREE.Color().setHSL(0.6, 0.1, 0.05);
 
@@ -36,21 +36,24 @@ export default class Game {
         this.camera = new Camera(this.renderer.domElement);
         this.character = new Character(this.scene);
         this.sky = new GameSky(this.scene);
-        this.terrain = new Terrain(this.scene);
 
-        this.movement = new Movement(this.character.mesh);
-        this.input = new InputController(this.camera.threeCamera, this.terrain.mesh);
-        this.devUI = new DeveloperUI();
-
+        // MODIFIED: Create lights first to get their colors
         const { hemiLight, dirLight } = setupLighting(this.scene);
         this.sunLight = dirLight;
         this.hemiLight = hemiLight;
         this.character.mesh.castShadow = true;
 
-        // The user's repo dump has a Grid.js file, let's remove references if they deleted it.
-        // It seems the terrain now handles the grid, so we don't need a separate grid object.
-        // Also removing the fog, as the sky + lighting handles the ambience.
-        
+        // MODIFIED: Create the terrain using the light's ground color
+        this.terrain = new Terrain(this.scene, this.hemiLight.groundColor);
+
+        // MODIFIED: Create the fog using the light's ground color
+        this.scene.fog = new THREE.Fog(this.hemiLight.groundColor, 100, 300);
+        this.renderer.setClearColor(this.scene.fog.color);
+
+        this.movement = new Movement(this.character.mesh);
+        this.input = new InputController(this.camera.threeCamera, this.terrain.mesh);
+        this.devUI = new DeveloperUI();
+
         this._setupEvents();
     }
 
@@ -60,7 +63,7 @@ export default class Game {
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 0.7;
+        renderer.toneMappingExposure = 0.8;
         document.body.appendChild(renderer.domElement);
         return renderer;
     }
@@ -107,30 +110,23 @@ export default class Game {
         this.sunLight.position.copy(this.sky.sun).multiplyScalar(1000);
         
         const sunHeightFactor = Math.max(0, elevation) / 90;
-        
-        // MODIFIED: This is the critical fix.
-        // Calculate the nightFactor based on the sun's actual height (elevation),
-        // not the old 'dayProgress' variable.
         const nightFactor = 1.0 - sunHeightFactor;
 
         // Update directional light (sun)
+        this.sunLight.intensity = sunHeightFactor > 0 ? 3.0 : 0; // On during day, off at night
         this.sunLight.color.lerpColors(SUN_COLOR_SUNSET, SUN_COLOR_NOON, sunHeightFactor);
-        this.sunLight.intensity = sunHeightFactor * 4.0;
 
         // Update hemisphere light (ambient)
+        this.hemiLight.intensity = 0.2 + sunHeightFactor * 1.8; // Fades to a dim moonlight
         const dayHemiColor = HEMI_SKY_COLOR_NOON.clone().lerp(HEMI_COLOR_SUNSET, nightFactor * 2.0);
         this.hemiLight.color.lerpColors(dayHemiColor, HEMI_SKY_COLOR_NIGHT, nightFactor);
-        
         const dayGroundColor = HEMI_GROUND_COLOR_NOON.clone().lerp(HEMI_COLOR_SUNSET, nightFactor * 2.0);
         this.hemiLight.groundColor.lerpColors(dayGroundColor, HEMI_GROUND_COLOR_NIGHT, nightFactor);
-        this.hemiLight.intensity = 0.1 + sunHeightFactor * 4.9;
         
-        // This was missing in the user's provided repo dump but present in my last one.
-        // It's not strictly necessary if the skybox is working well, but good to have.
-        if (this.scene.fog) {
-            this.scene.fog.color.copy(this.hemiLight.groundColor);
-            this.renderer.setClearColor(this.scene.fog.color);
-        }
+        // Update terrain and fog to match the changing ground color
+        this.terrain.mesh.material.color.copy(this.hemiLight.groundColor);
+        this.scene.fog.color.copy(this.hemiLight.groundColor);
+        this.renderer.setClearColor(this.scene.fog.color);
         
         this.movement.update(delta);
         this.camera.update();
