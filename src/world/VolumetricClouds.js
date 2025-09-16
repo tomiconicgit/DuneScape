@@ -2,7 +2,6 @@ import * as THREE from 'three';
 
 const MAX_DISTANCE = 4000.0;
 
-// GLSL code for the cloud shader
 const vertexShader = `
 varying vec3 vWorldPosition;
 void main() {
@@ -23,7 +22,7 @@ const int STEPS = 64;
 
 // Pseudo-random number generator
 float rand(vec2 n) { 
-	return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453); // MODIFIED: Removed extra parenthesis
+	return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453);
 }
 
 // 3D noise function (using a 2D texture lookup for performance)
@@ -45,7 +44,9 @@ float fbm(vec3 p) {
 
 // Calculates cloud density at a given point in space
 float getCloudDensity(vec3 pos) {
-    pos.y -= 1000.0; // Raise the cloud layer
+    // MODIFIED: Lowered the cloud layer to a visible height
+    pos.y -= 150.0;
+    
     pos.x += uTime * 100.0; // Animate cloud movement
     float base_fbm = fbm(pos * 0.001);
     
@@ -65,17 +66,12 @@ vec4 raymarch(vec3 rayOrigin, vec3 rayDir) {
     for(int i = 0; i < STEPS; i++) {
         vec3 pos = rayOrigin + rayDir * (float(i) + rand(rayDir.xy)) * step_size;
 
-        if(pos.y > 2500.0) continue; // Don't render clouds above a certain height
+        if(pos.y > 2500.0) continue;
 
         float density = getCloudDensity(pos);
         if(density > 0.01) {
-            // Lighting calculation
             float light_absorption = exp(-density * uCloudSharpness);
-            
-            // Simple sunlight color
             vec3 lightColor = vec3(1.0, 0.9, 0.75); 
-            
-            // Add light color based on density and blend it
             vec3 cloud_color = mix(vec3(0.8, 0.85, 1.0), lightColor, light_absorption);
             color.rgb += (1.0 - color.a) * cloud_color * density;
             color.a += (1.0 - color.a) * density;
@@ -92,7 +88,7 @@ void main() {
     vec4 cloudColor = raymarch(rayOrigin, rayDir);
     
     if (cloudColor.a < 0.01) {
-        discard; // If no cloud, make the pixel transparent to see the atmosphere behind
+        discard;
     }
 
     gl_FragColor = cloudColor;
@@ -101,7 +97,6 @@ void main() {
 
 export default class VolumetricClouds {
     constructor(scene) {
-        // Create a noise texture for the clouds
         const noiseTexture = new THREE.TextureLoader().load('https://unpkg.com/three@0.158.0/examples/textures/cloud.png');
         noiseTexture.wrapS = noiseTexture.wrapT = THREE.RepeatWrapping;
 
@@ -110,8 +105,8 @@ export default class VolumetricClouds {
             uSunPosition: { value: new THREE.Vector3() },
             uNoise: { value: noiseTexture },
             uTime: { value: 0 },
-            uCloudCover: { value: 0.55 }, // 0.0 to 1.0
-            uCloudSharpness: { value: 30.0 }, // Higher is sharper
+            uCloudCover: { value: 0.55 },
+            uCloudSharpness: { value: 30.0 },
             uMaxDistance: { value: MAX_DISTANCE }
         };
         const material = new THREE.ShaderMaterial({
@@ -123,7 +118,6 @@ export default class VolumetricClouds {
         });
 
         this.mesh = new THREE.Mesh(geometry, material);
-        // Scale the box to be huge and contain the camera
         this.mesh.scale.set(MAX_DISTANCE * 2.0, 3000, MAX_DISTANCE * 2.0);
         scene.add(this.mesh);
     }
