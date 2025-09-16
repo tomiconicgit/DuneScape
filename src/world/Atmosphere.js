@@ -16,6 +16,7 @@ uniform float uExposure;
 // Sky Color uniforms
 uniform vec3 uZenithMorning;
 uniform vec3 uHorizonMorning;
+// ... (rest of sky color uniforms)
 uniform vec3 uZenithDay;
 uniform vec3 uHorizonDay;
 uniform vec3 uZenithEvening;
@@ -24,7 +25,7 @@ uniform vec3 uZenithNight;
 uniform vec3 uHorizonNight;
 uniform vec3 uSunColor;
 
-// NEW: Fog uniforms
+// Fog uniforms
 uniform vec3 uFogColor;
 uniform float uFogNear;
 uniform float uFogFar;
@@ -38,10 +39,10 @@ void main() {
     vec3 sunDir = normalize(uSunPosition);
 
     // --- Time of Day Blending for Sky Colors ---
+    // ... (This logic is unchanged)
     float dayMix = smoothstep(0.15, 0.4, sunDir.y);
     float eveningMix = smoothstep(0.15, 0.0, sunDir.y);
     float nightMix = smoothstep(0.0, -0.15, sunDir.y);
-
     vec3 zenithColor = mix(uZenithMorning, uZenithDay, dayMix);
     vec3 horizonColor = mix(uHorizonMorning, uHorizonDay, dayMix);
     zenithColor = mix(zenithColor, uZenithEvening, eveningMix);
@@ -49,7 +50,8 @@ void main() {
     zenithColor = mix(zenithColor, uZenithNight, nightMix);
     horizonColor = mix(horizonColor, uHorizonNight, nightMix);
 
-    // --- Final Sky Calculation ---
+    // --- Sky Calculation ---
+    // ... (This logic is unchanged)
     float zenithFactor = smoothstep(0.0, 1.0, rayDir.y);
     vec3 skyGradient = mix(horizonColor, zenithColor, zenithFactor);
     float sunDot = dot(rayDir, sunDir);
@@ -60,25 +62,24 @@ void main() {
     float dayNightFade = smoothstep(-0.2, 0.1, sunDir.y);
     finalColor *= dayNightFade;
 
-    // --- NEW: Integrated Fog Calculation ---
-    // Only calculate fog for pixels at or below the horizon
-    if (rayDir.y < 0.02 + uHorizonOffset) {
-        // Find where the view ray intersects the ground plane (y=0)
+    // --- MODIFIED: Integrated Fog and Horizon Blending ---
+    // Calculate the color of the fog on the ground plane
+    vec3 groundPos = vec3(0.0);
+    // Only calculate intersection if the ray is pointing downwards
+    if (rayDir.y < 0.0) {
         float t = -cameraPosition.y / rayDir.y;
-        vec3 groundPos = cameraPosition + rayDir * t;
-
-        // Fog based on distance from camera
-        float dist = distance(groundPos, cameraPosition);
-        float distFactor = smoothstep(uFogNear, uFogFar, dist);
-
-        // Fog based on distance from map center
-        float edgeDist = length(groundPos.xz);
-        float edgeFactor = smoothstep(uEdgeStart, uEdgeEnd, edgeDist);
-        
-        // Combine factors and mix with the fog color
-        float fogFactor = clamp(max(distFactor, edgeFactor), 0.0, 1.0);
-        finalColor = mix(finalColor, uFogColor, fogFactor);
+        groundPos = cameraPosition + rayDir * t;
     }
+    float dist = distance(groundPos, cameraPosition);
+    float distFactor = smoothstep(uFogNear, uFogFar, dist);
+    float edgeDist = length(groundPos.xz);
+    float edgeFactor = smoothstep(uEdgeStart, uEdgeEnd, edgeDist);
+    float fogFactor = clamp(max(distFactor, edgeFactor), 0.0, 1.0);
+    vec3 foggedColor = mix(finalColor, uFogColor, fogFactor);
+
+    // Blend between the sky color and the fogged ground color at the horizon line
+    float horizonBlend = smoothstep(0.01 + uHorizonOffset, -0.01 + uHorizonOffset, rayDir.y);
+    finalColor = mix(finalColor, foggedColor, horizonBlend);
     
     // Final color processing
     finalColor *= uExposure;
@@ -93,7 +94,7 @@ export default class Atmosphere {
         
         this.uniforms = {
             uSunPosition: { value: new THREE.Vector3() },
-            uHorizonOffset: { value: 0.0 },
+            uHorizonOffset: { value: 0.0 }, // MODIFIED: Default is now 0
             uExposure: { value: 1.5 },
             
             uZenithMorning: { value: new THREE.Color('#3A506B') },
@@ -106,7 +107,6 @@ export default class Atmosphere {
             uHorizonNight: { value: new THREE.Color('#030A14') },
             uSunColor: { value: new THREE.Color('#FFFFFF') },
 
-            // NEW: Add fog uniforms
             uFogColor: { value: new THREE.Color('#030A14') },
             uFogNear: { value: 50.0 },
             uFogFar: { value: 150.0 },
