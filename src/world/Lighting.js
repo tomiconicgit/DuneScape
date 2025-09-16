@@ -1,17 +1,8 @@
 import * as THREE from 'three';
 
 export function setupLighting(scene) {
-    // HEMISPHERE LIGHT
-    // Using the exact intensity from the example
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 2);
-    hemiLight.color.setHSL(0.6, 1, 0.6); // Sky color
-    hemiLight.groundColor.setHSL(0.095, 1, 0.75); // Ground color (this is the key brownish color)
-    hemiLight.position.set(0, 50, 0);
-    scene.add(hemiLight);
-
-    // DIRECTIONAL LIGHT (SUN)
-    // Using the exact intensity from the example
-    const dirLight = new THREE.DirectionalLight(0xffffff, 3);
+    // We only need a single DirectionalLight for the sun's shadows and direct light
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.0); // Start with lower intensity
     dirLight.color.setHSL(0.1, 1, 0.95);
     dirLight.position.set(-1, 1.75, 1);
     dirLight.position.multiplyScalar(50);
@@ -30,5 +21,6 @@ export function setupLighting(scene) {
     dirLight.shadow.camera.far = 500;
     dirLight.shadow.bias = -0.0001;
 
-    return { hemiLight, dirLight };
+    // Return just the directional light
+    return { dirLight };
 }
