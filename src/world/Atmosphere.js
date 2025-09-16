@@ -84,7 +84,7 @@ export default class Atmosphere {
         this.uniforms = {
             uSunPosition: { value: new THREE.Vector3() },
             uHorizonOffset: { value: 0.0 },
-            uExposure: { value: 1.5 }, // Increased default brightness a bit
+            uExposure: { value: 1.5 },
             
             // Define the color palettes for each time of day
             uZenithMorning: { value: new THREE.Color('#3A506B') },   // Slate Blue
