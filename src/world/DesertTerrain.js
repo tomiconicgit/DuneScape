@@ -1,13 +1,7 @@
 import * as THREE from 'three';
 
-/**
- * Creates an endless procedural desert terrain around the town.
- * Based on Perlin noise for natural-looking dunes and terrain features.
- */
-
 // A simple Perlin noise implementation for terrain generation
 class PerlinNoise {
-    // ... (paste the entire PerlinNoise class code here) ...
     constructor(seed = Math.random()) {
         this.seed = seed;
         this.perm = new Array(512);
@@ -34,7 +28,6 @@ class PerlinNoise {
 }
 
 export class DesertTerrain {
-    // ... (paste the entire DesertTerrain class code here) ...
     constructor(scene, townDimensions) {
         this.scene = scene;
         this.townDimensions = townDimensions;
@@ -87,7 +80,6 @@ export class DesertTerrain {
     }
     generateTerrain() {
         const normalMapTexture = this.createSandNormalMap();
-        const roughnessTexture = this.createSandRoughnessMap();
         const geometry = new THREE.PlaneGeometry(this.config.size, this.config.size, this.config.resolution, this.config.resolution);
         geometry.rotateX(-Math.PI / 2);
         const vertices = geometry.attributes.position.array;
