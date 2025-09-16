@@ -2,18 +2,20 @@ import * as THREE from 'three';
 
 export default class Grid {
     constructor(scene) {
-        const size = 200;
-        const divisions = 200;
+        // The visible grid for object placement reference
+        const gridSize = 100;
+        const gridDivisions = 100;
+        const gridColor = 0x888888; // Grey
 
-        // Visual grid helper
-        const gridHelper = new THREE.GridHelper(size, divisions, 0x0000ff, 0x0000ff);
-        gridHelper.position.y = 0.01; // Lift it slightly to prevent fighting with the plane
+        const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, gridColor, gridColor);
+        // Lift the grid slightly to prevent graphical glitches with the plane below
+        gridHelper.position.y = 0.01; 
         scene.add(gridHelper);
 
-        // Invisible plane for receiving shadows and raycasting
-        const planeGeometry = new THREE.PlaneGeometry(size, size);
-        // ShadowMaterial is a special material that is transparent but can receive shadows
-        const planeMaterial = new THREE.ShadowMaterial({ opacity: 0.2 });
+        // A larger, invisible plane for receiving shadows and for mouse clicks
+        const planeSize = 200;
+        const planeGeometry = new THREE.PlaneGeometry(planeSize, planeSize);
+        const planeMaterial = new THREE.ShadowMaterial({ opacity: 0.3 });
         
         this.mesh = new THREE.Mesh(planeGeometry, planeMaterial);
         this.mesh.rotation.x = -Math.PI / 2;
