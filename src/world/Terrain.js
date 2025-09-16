@@ -1,15 +1,14 @@
 import * as THREE from 'three';
 
 export default class Terrain {
-    constructor(scene, groundColor) {
+    constructor(scene) {
         const size = 200;
 
-        // A simple, flat plane for the ground
         const geometry = new THREE.PlaneGeometry(size, size);
         
-        // A MeshLambertMaterial responds well to HemisphereLight, just like the example
+        // MODIFIED: Give the terrain its own, independent base color
         const material = new THREE.MeshLambertMaterial({
-            color: groundColor
+            color: 0xdbb480 // A neutral sand color
         });
 
         this.mesh = new THREE.Mesh(geometry, material);
