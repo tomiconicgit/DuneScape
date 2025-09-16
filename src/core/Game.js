@@ -10,10 +10,11 @@ import TileMap from '../world/TileMap.js';
 import Atmosphere from '../world/Atmosphere.js';
 import VolumetricClouds from '../world/VolumetricClouds.js';
 import { setupLighting } from '../world/Lighting.js';
+import Boundary from '../world/Boundary.js'; // NEW: Import the Boundary
 
-// Constants for day/night cycle
-const DAY_DURATION_SECONDS = 600; // 10 minutes
-const NIGHT_DURATION_SECONDS = 240; // 4 minutes
+// ... (Constants are the same)
+const DAY_DURATION_SECONDS = 600;
+const NIGHT_DURATION_SECONDS = 240;
 const TOTAL_CYCLE_SECONDS = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS;
 
 export default class Game {
@@ -22,12 +23,19 @@ export default class Game {
         console.log("Game Engine: Initializing...");
 
         this.scene = new THREE.Scene();
+        
+        // NEW: Add global scene fog
+        const fogColor = new THREE.Color('#030A14');
+        this.scene.fog = new THREE.Fog(fogColor, 60, 120);
+
         this.renderer = this._createRenderer();
+        // Set the renderer's clear color to match the fog for a seamless blend
+        this.renderer.setClearColor(fogColor);
+
         this.clock = new THREE.Clock();
         
-        // Set a start time of 7 AM
-        // Our 10-minute day represents 12 hours (6 AM to 6 PM). 7 AM is 1 hour in.
-        const startHourOffset = 1; // 1 hour after sunrise (6 AM)
+        // ... (timeOffset is the same)
+        const startHourOffset = 1;
         const hoursInDay = 12;
         this.timeOffset = (startHourOffset / hoursInDay) * DAY_DURATION_SECONDS;
 
@@ -46,9 +54,12 @@ export default class Game {
         this.sunLight = sun;
         this.character.mesh.castShadow = true;
 
+        new Boundary(this.scene); // NEW: Create the boundary hills
+
         this._setupEvents();
     }
 
+    // ... (All other methods remain the same)
     _createRenderer() {
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -57,13 +68,11 @@ export default class Game {
         document.body.appendChild(renderer.domElement);
         return renderer;
     }
-
     _setupEvents() {
         window.addEventListener('resize', () => {
             this.camera.handleResize();
             this.renderer.setSize(window.innerWidth, window.innerHeight);
         });
-
         this.input.onTap = (worldPos, gridPos, buildMode) => {
             if (buildMode) {
                 this.tileMap.paintTile(gridPos, buildMode);
@@ -71,31 +80,25 @@ export default class Game {
                 this.movement.calculatePath(worldPos, gridPos);
             }
         };
-
         this.devUI.onBuildModeChange = (mode) => {
             this.input.setBuildMode(mode);
         };
-        
         this.devUI.onSettingChange = (change) => {
             this._handleSettingChange(change);
         };
     }
-
     _handleSettingChange(change) {
         switch (change.setting) {
             case 'exposure': this.atmosphere.uniforms.uExposure.value = change.value; break;
             case 'cloudCover': this.clouds.uniforms.uCloudCover.value = change.value; break;
             case 'cloudSharpness': this.clouds.uniforms.uCloudSharpness.value = change.value; break;
-            // Add other cases back if you re-add the sliders
         }
     }
-
     start() {
         console.log("Game Engine: World setup complete.");
         this.camera.setTarget(this.character.mesh);
         this._animate();
     }
-
     _animate() {
         requestAnimationFrame(() => this._animate());
 
