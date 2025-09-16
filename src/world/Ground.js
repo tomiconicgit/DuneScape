@@ -5,10 +5,12 @@ export default class Ground {
         const groundGeo = new THREE.PlaneGeometry(10000, 10000);
         const groundMat = new THREE.MeshLambertMaterial({ color: groundColor });
         
-        const ground = new THREE.Mesh(groundGeo, groundMat);
-        ground.position.y = -33; // Position it lower to give a sense of space
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = true;
-        scene.add(ground);
+        // MODIFIED: Store the mesh as a public property
+        this.mesh = new THREE.Mesh(groundGeo, groundMat);
+        
+        this.mesh.position.y = -33;
+        this.mesh.rotation.x = -Math.PI / 2;
+        this.mesh.receiveShadow = true;
+        scene.add(this.mesh);
     }
 }
