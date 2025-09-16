@@ -45,7 +45,7 @@ float fbm(vec3 p) {
 // Calculates cloud density at a given point in space
 float getCloudDensity(vec3 pos) {
     // MODIFIED: Lowered the cloud layer to a visible height
-    pos.y -= 20;
+    pos.y -= 0.20;
     
     pos.x += uTime * 100.0; // Animate cloud movement
     float base_fbm = fbm(pos * 0.001);
