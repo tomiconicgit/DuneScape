@@ -18,16 +18,36 @@ export default class Boundary {
             const heightFactor = y > 0 ? 1 : 0.2;
             positions.setY(i, y + noise * heightFactor);
         }
-        geometry.computeVertexNormals(); // Recalculate normals for correct lighting
+        geometry.computeVertexNormals();
 
-        // A dark, hazy material for the distant hills
-        const material = new THREE.MeshLambertMaterial({
-            color: 0x080a18,
-            side: THREE.DoubleSide
+        // --- MODIFIED: Texture Loading and Advanced Material ---
+
+        const textureLoader = new THREE.TextureLoader();
+
+        // Load the color texture
+        const colorMap = textureLoader.load('https://threejs.org/examples/textures/terrain/sand/sand_diffuse.jpg');
+        colorMap.wrapS = THREE.RepeatWrapping;
+        colorMap.wrapT = THREE.RepeatWrapping;
+        colorMap.repeat.set(30, 2); // Tile the texture 30 times around, 2 times vertically
+
+        // Load the normal map for 3D detail
+        const normalMap = textureLoader.load('https://threejs.org/examples/textures/terrain/sand/sand_normal.jpg');
+        normalMap.wrapS = THREE.RepeatWrapping;
+        normalMap.wrapT = THREE.RepeatWrapping;
+        normalMap.repeat.set(30, 2);
+
+        // A physically-based material that reacts to light realistically
+        const material = new THREE.MeshStandardMaterial({
+            map: colorMap,
+            normalMap: normalMap,
+            roughness: 0.9, // Make it look like dry, non-reflective sand/rock
+            metalness: 0.1
         });
 
         const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.y = -5; // Lower the hills slightly
+        mesh.position.y = -5;
+        // Allow the hills to receive shadows from things like clouds (if you add them later)
+        mesh.receiveShadow = true; 
         scene.add(mesh);
     }
 }
