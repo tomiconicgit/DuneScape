@@ -5,14 +5,13 @@ import Camera from './Camera.js';
 import InputController from './InputController.js';
 import Movement from '../mechanics/Movement.js';
 import DeveloperUI from '../ui/DeveloperUI.js';
-import Grid from '../world/Grid.js';
-import TileMap from '../world/TileMap.js';
 import Atmosphere from '../world/Atmosphere.js';
 import { setupLighting } from '../world/Lighting.js';
+import { DesertTerrain } from '../world/DesertTerrain.js'; // MODIFIED
 
-// MODIFIED: Re-instated the 10-minute day, 5-minute night cycle
-const DAY_DURATION_SECONDS = 600; // 10 minutes
-const NIGHT_DURATION_SECONDS = 300; // 5 minutes
+// MODIFIED: Simplified constants
+const DAY_DURATION_SECONDS = 600; 
+const NIGHT_DURATION_SECONDS = 300;
 const TOTAL_CYCLE_SECONDS = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS;
 
 export default class Game {
@@ -21,16 +20,27 @@ export default class Game {
         console.log("Game Engine: Initializing...");
 
         this.scene = new THREE.Scene();
+        
+        // Add global scene fog. The DesertTerrain code uses this.
+        const fogColor = new THREE.Color(0xaad6f5);
+        this.scene.fog = new THREE.Fog(fogColor, 200, 2000);
+
         this.renderer = this._createRenderer();
+        this.renderer.setClearColor(fogColor); // Match fog for seamless blend
+
         this.clock = new THREE.Clock();
         
         this.camera = new Camera(this.renderer.domElement);
         this.character = new Character(this.scene);
-        this.grid = new Grid(this.scene);
-        this.tileMap = new TileMap(this.scene);
+
+        // MODIFIED: Replace TileMap, Grid, Boundary with DesertTerrain
+        const desert = new DesertTerrain(this.scene, { width: 100, length: 100 });
+        const terrainMesh = desert.generate(); // Generate the terrain and get the mesh
+
         this.atmosphere = new Atmosphere(this.scene);
         this.movement = new Movement(this.character.mesh);
-        this.input = new InputController(this.camera.threeCamera, this.grid.plane);
+        // MODIFIED: The InputController now uses the terrain mesh for raycasting
+        this.input = new InputController(this.camera.threeCamera, terrainMesh);
         this.devUI = new DeveloperUI();
         this.sunPosition = new THREE.Vector3();
 
@@ -55,16 +65,13 @@ export default class Game {
             this.camera.handleResize();
             this.renderer.setSize(window.innerWidth, window.innerHeight);
         });
-        this.input.onTap = (worldPos, gridPos, buildMode) => {
-            if (buildMode) {
-                this.tileMap.paintTile(gridPos, buildMode);
-            } else {
-                this.movement.calculatePath(worldPos, gridPos);
-            }
+
+        // MODIFIED: Simplified onTap logic, removed tile painting
+        this.input.onTap = (worldPos, gridPos) => {
+            this.movement.calculatePath(worldPos, gridPos);
         };
-        this.devUI.onBuildModeChange = (mode) => {
-            this.input.setBuildMode(mode);
-        };
+        
+        // MODIFIED: Removed onBuildModeChange as it's no longer used
         this.devUI.onSettingChange = (change) => {
             this._handleSettingChange(change);
         };
@@ -88,21 +95,15 @@ export default class Game {
         const delta = this.clock.getDelta();
         const elapsed = this.clock.getElapsedTime();
 
-        // MODIFIED: Logic for the 10/5 minute day/night cycle
         const cycleProgress = (elapsed % TOTAL_CYCLE_SECONDS) / TOTAL_CYCLE_SECONDS;
         let angle;
-        let timeOfDay; // A 0.0 to 1.0 value representing 24 hours
-
+        
         if (cycleProgress < (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) {
-            // Day part of the cycle (10 minutes)
             const dayProgress = cycleProgress / (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
-            angle = dayProgress * Math.PI; // Sun moves 180 degrees
-            timeOfDay = 0.25 + (dayProgress * 0.5); // Maps to 6am -> 6pm
+            angle = dayProgress * Math.PI;
         } else {
-            // Night part of the cycle (5 minutes)
             const nightProgress = (cycleProgress - (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) / (NIGHT_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
-            angle = Math.PI + (nightProgress * Math.PI); // Sun moves the other 180 degrees
-            timeOfDay = (0.75 + (nightProgress * 0.5)) % 1.0; // Maps to 6pm -> 6am
+            angle = Math.PI + (nightProgress * Math.PI);
         }
         
         this.sunPosition.set(Math.cos(angle) * 8000, Math.sin(angle) * 6000, Math.sin(angle * 0.5) * 2000);
@@ -113,7 +114,7 @@ export default class Game {
         this.movement.update(delta);
         this.camera.update();
         
-        // Pass the calculated time of day to the atmosphere shader
+        let timeOfDay = (elapsed / TOTAL_CYCLE_SECONDS) % 1.0;
         this.atmosphere.update(this.sunPosition, timeOfDay);
 
         this.renderer.render(this.scene, this.camera.threeCamera);
