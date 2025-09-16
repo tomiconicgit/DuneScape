@@ -2,14 +2,15 @@ import * as THREE from 'three';
 
 export function setupLighting(scene) {
     // HEMISPHERE LIGHT
-    // MODIFIED: Drastically increased intensity from 3 to 5 for a much brighter world
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 5);
-    hemiLight.color.setHSL(0.6, 1, 0.6);
-    hemiLight.groundColor.setHSL(0.095, 1, 0.75);
+    // Using the exact intensity from the example
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 2);
+    hemiLight.color.setHSL(0.6, 1, 0.6); // Sky color
+    hemiLight.groundColor.setHSL(0.095, 1, 0.75); // Ground color (this is the key brownish color)
     hemiLight.position.set(0, 50, 0);
     scene.add(hemiLight);
 
     // DIRECTIONAL LIGHT (SUN)
+    // Using the exact intensity from the example
     const dirLight = new THREE.DirectionalLight(0xffffff, 3);
     dirLight.color.setHSL(0.1, 1, 0.95);
     dirLight.position.set(-1, 1.75, 1);
