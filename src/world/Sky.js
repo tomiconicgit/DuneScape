@@ -1,44 +1,55 @@
 import * as THREE from 'three';
+import { Sky } from 'three/addons/objects/Sky.js';
 
-const vertexShader = `
-    varying vec3 vWorldPosition;
-    void main() {
-        vec4 worldPosition = modelMatrix * vec4( position, 1.0 );
-        vWorldPosition = worldPosition.xyz;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
-    }
-`;
+export default class GameSky {
+    constructor(scene) {
+        this.sky = new Sky();
+        this.sky.scale.setScalar(450000);
+        scene.add(this.sky);
 
-const fragmentShader = `
-    uniform vec3 topColor;
-    uniform vec3 bottomColor;
-    uniform float offset;
-    uniform float exponent;
-    varying vec3 vWorldPosition;
+        this.sun = new THREE.Vector3();
+        this.uniforms = this.sky.material.uniforms;
 
-    void main() {
-        float h = normalize( vWorldPosition + vec3(0.0, -offset, 0.0) ).y;
-        gl_FragColor = vec4( mix( bottomColor, topColor, max( pow( max( h , 0.0), exponent ), 0.0 ) ), 1.0 );
-    }
-`;
-
-export default class Sky {
-    constructor(scene, topColor, bottomColor) {
-        const skyGeo = new THREE.SphereGeometry(4000, 32, 15);
-        
-        const skyMat = new THREE.ShaderMaterial({
-            uniforms: {
-                'topColor': { value: topColor },
-                'bottomColor': { value: bottomColor },
-                'offset': { value: 0 }, // MODIFIED: Set to 0 because our ground is at y=0
-                'exponent': { value: 0.6 }
-            },
-            vertexShader: vertexShader,
-            fragmentShader: fragmentShader,
-            side: THREE.BackSide
+        // Set initial default values
+        this.setParameters({
+            turbidity: 10,
+            rayleigh: 3,
+            mieCoefficient: 0.005,
+            mieDirectionalG: 0.7,
+            elevation: 2,
+            azimuth: 180,
         });
+    }
 
-        const sky = new THREE.Mesh(skyGeo, skyMat);
-        scene.add(sky);
+    /**
+     * Updates the sky's appearance based on a set of parameters.
+     * @param {object} params - The parameters to update.
+     */
+    setParameters(params) {
+        if (!params) return;
+
+        const effectController = {
+            turbidity: params.turbidity !== undefined ? params.turbidity : this.uniforms['turbidity'].value,
+            rayleigh: params.rayleigh !== undefined ? params.rayleigh : this.uniforms['rayleigh'].value,
+            mieCoefficient: params.mieCoefficient !== undefined ? params.mieCoefficient : this.uniforms['mieCoefficient'].value,
+            mieDirectionalG: params.mieDirectionalG !== undefined ? params.mieDirectionalG : this.uniforms['mieDirectionalG'].value,
+            elevation: params.elevation !== undefined ? params.elevation : this.elevation,
+            azimuth: params.azimuth !== undefined ? params.azimuth : this.azimuth,
+        };
+
+        this.uniforms['turbidity'].value = effectController.turbidity;
+        this.uniforms['rayleigh'].value = effectController.rayleigh;
+        this.uniforms['mieCoefficient'].value = effectController.mieCoefficient;
+        this.uniforms['mieDirectionalG'].value = effectController.mieDirectionalG;
+        
+        // Store these for reference
+        this.elevation = effectController.elevation;
+        this.azimuth = effectController.azimuth;
+
+        const phi = THREE.MathUtils.degToRad(90 - this.elevation);
+        const theta = THREE.MathUtils.degToRad(this.azimuth);
+
+        this.sun.setFromSphericalCoords(1, phi, theta);
+        this.uniforms['sunPosition'].value.copy(this.sun);
     }
 }
