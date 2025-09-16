@@ -6,8 +6,13 @@ import InputController from './InputController.js';
 import Movement from '../mechanics/Movement.js';
 import DeveloperUI from '../ui/DeveloperUI.js';
 import { setupLighting } from '../world/Lighting.js';
-import Grid from '../world/Grid.js';
-import Sky from '../world/Sky.js';
+import { DesertTerrain } from '../world/DesertTerrain.js';
+import GameSky from '../world/Sky.js'; // MODIFIED: Import the new sky
+
+// Constants for day/night cycle
+const DAY_DURATION_SECONDS = 600; 
+const NIGHT_DURATION_SECONDS = 300;
+const TOTAL_CYCLE_SECONDS = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS;
 
 export default class Game {
     constructor() {
@@ -15,31 +20,25 @@ export default class Game {
         console.log("Game Engine: Initializing...");
 
         this.scene = new THREE.Scene();
-        this.clock = new THREE.Clock();
-
-        // 1. SETUP LIGHTING
-        const { hemiLight, dirLight } = setupLighting(this.scene);
-
-        // 2. SETUP SCENE FOG
-        // The fog color is linked to the ground color from the light for a seamless blend
-        this.scene.fog = new THREE.Fog(hemiLight.groundColor, 100, 400);
-        
         this.renderer = this._createRenderer();
-        // The renderer background is also linked to the fog color
-        this.renderer.setClearColor(this.scene.fog.color);
-
+        this.clock = new THREE.Clock();
+        
         this.camera = new Camera(this.renderer.domElement);
         this.character = new Character(this.scene);
-        this.character.mesh.castShadow = true;
 
-        // 3. CREATE THE WORLD
-        const grid = new Grid(this.scene); // Creates the visual grid and invisible shadow plane
-        new Sky(this.scene, hemiLight.color, this.scene.fog.color); // Creates the sky
+        const desert = new DesertTerrain(this.scene);
+        const terrainMesh = desert.generate();
+
+        // MODIFIED: Create an instance of the new sky
+        this.sky = new GameSky(this.scene);
 
         this.movement = new Movement(this.character.mesh);
-        // The input controller now targets the invisible shadow plane
-        this.input = new InputController(this.camera.threeCamera, grid.mesh);
+        this.input = new InputController(this.camera.threeCamera, terrainMesh);
         this.devUI = new DeveloperUI();
+
+        const { sun } = setupLighting(this.scene);
+        this.sunLight = sun;
+        this.character.mesh.castShadow = true;
 
         this._setupEvents();
     }
@@ -48,7 +47,12 @@ export default class Game {
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Softer shadows
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        // MODIFIED: Added Tone Mapping for realistic lighting
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 0.5;
+
         document.body.appendChild(renderer.domElement);
         return renderer;
     }
@@ -58,15 +62,15 @@ export default class Game {
             this.camera.handleResize();
             this.renderer.setSize(window.innerWidth, window.innerHeight);
         });
-        
+
         this.input.onTap = (worldPos) => {
-            // Simplified movement for now, pathfinding would need updating for a non-tile world
             const targetGrid = { x: Math.round(worldPos.x), z: Math.round(worldPos.z) };
-            this.movement.calculatePath(worldPos, targetGrid);
+            this.movement.calculatePathOnTerrain(targetGrid, this.input.raycaster, this.scene);
         };
         
-        // DeveloperUI is kept for debugging, but has no active controls for this scene
-        this.devUI.onSettingChange = (change) => {};
+        this.devUI.onSettingChange = (change) => {
+            this.renderer.toneMappingExposure = change.value;
+        };
     }
 
     start() {
@@ -76,9 +80,36 @@ export default class Game {
     }
 
     animate() {
+        requestAnimationFrame(() => this.animate());
+
         const delta = this.clock.getDelta();
+        const elapsed = this.clock.getElapsedTime();
+
+        const cycleProgress = (elapsed % TOTAL_CYCLE_SECONDS) / TOTAL_CYCLE_SECONDS;
+        
+        // Convert the cycle progress into elevation and azimuth for the sky
+        let elevation = 0;
+        let azimuth = 180;
+
+        if (cycleProgress < (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) {
+            const dayProgress = cycleProgress / (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
+            elevation = Math.sin(dayProgress * Math.PI) * 90; // 0 -> 90 -> 0
+            azimuth = 180 - (dayProgress * 360); // East to West
+        } else {
+            const nightProgress = (cycleProgress - (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) / (NIGHT_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
+            elevation = Math.sin(Math.PI + nightProgress * Math.PI) * 90; // Below horizon
+            azimuth = -180 + (nightProgress * 360); // West to East
+        }
+
+        // Update the sky using the new parameters
+        this.sky.setParameters({ elevation, azimuth });
+        
+        // Sync the main directional light with the sky's sun position
+        this.sunLight.position.copy(this.sky.sun);
+        
         this.movement.update(delta);
         this.camera.update();
+
         this.renderer.render(this.scene, this.camera.threeCamera);
     }
 }
