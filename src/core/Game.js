@@ -17,30 +17,23 @@ export default class Game {
         this.scene = new THREE.Scene();
         this.clock = new THREE.Clock();
 
-        // 1. SETUP LIGHTING
-        // This is the most important step. The hemiLight provides the base colors.
         const { hemiLight, dirLight } = setupLighting(this.scene);
 
-        // 2. SETUP THE REST OF THE SCENE
-        // We use the hemiLight's colors to keep everything consistent.
         this.scene.background = hemiLight.color;
         this.scene.fog = new THREE.Fog(hemiLight.groundColor, 1, 5000);
         
         this.renderer = this._createRenderer();
         this.camera = new Camera(this.renderer.domElement);
         this.character = new Character(this.scene);
-        this.character.mesh.castShadow = true; // Make the character cast shadows
+        this.character.mesh.castShadow = true;
 
-        // 3. CREATE THE WORLD using colors from the lighting setup
-        new Ground(this.scene, hemiLight.groundColor);
+        // MODIFIED: Create an instance of the Ground and get the mesh directly
+        const ground = new Ground(this.scene, hemiLight.groundColor);
         new Sky(this.scene, hemiLight.color, hemiLight.groundColor);
 
-        // Movement requires an object to click on. We'll use the ground for this.
-        // NOTE: Ground.js doesn't return the mesh, so we find it in the scene.
-        const groundMesh = this.scene.children.find(c => c.geometry.type === 'PlaneGeometry');
-        
+        // MODIFIED: Pass the direct mesh reference to the input controller
         this.movement = new Movement(this.character.mesh);
-        this.input = new InputController(this.camera.threeCamera, groundMesh);
+        this.input = new InputController(this.camera.threeCamera, ground.mesh); 
         this.devUI = new DeveloperUI();
 
         this._setupEvents();
@@ -49,7 +42,7 @@ export default class Game {
     _createRenderer() {
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true; // Enable shadows in the renderer
+        renderer.shadowMap.enabled = true;
         document.body.appendChild(renderer.domElement);
         return renderer;
     }
@@ -60,11 +53,7 @@ export default class Game {
             this.renderer.setSize(window.innerWidth, window.innerHeight);
         });
         
-        // This will no longer work as there's no grid system, but we keep the hook.
-        // To make movement work, we'd need to update the pathfinding logic.
         this.input.onTap = (worldPos) => {
-            // Pathfinding logic would need to be updated for a non-grid world.
-            // For now, we can just log the click position.
             console.log("Clicked at:", worldPos);
         };
         
@@ -79,7 +68,7 @@ export default class Game {
 
     animate() {
         const delta = this.clock.getDelta();
-        this.movement.update(delta); // Movement won't do anything until pathfinding is updated
+        this.movement.update(delta);
         this.camera.update();
         this.renderer.render(this.scene, this.camera.threeCamera);
     }
