@@ -9,17 +9,9 @@ import { setupLighting } from '../world/Lighting.js';
 import GameSky from '../world/Sky.js';
 import Terrain from '../world/Terrain.js';
 
-// ... (Constants are unchanged)
-const DAY_DURATION_SECONDS = 20; 
-const NIGHT_DURATION_SECONDS = 20;
+const DAY_DURATION_SECONDS = 600; 
+const NIGHT_DURATION_SECONDS = 300;
 const TOTAL_CYCLE_SECONDS = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS;
-const SUN_COLOR_NOON = new THREE.Color().setHSL(0.1, 1, 0.95);
-const SUN_COLOR_SUNSET = new THREE.Color().setHSL(0.05, 1, 0.7);
-const HEMI_SKY_COLOR_NOON = new THREE.Color().setHSL(0.6, 1, 0.6);
-const HEMI_GROUND_COLOR_NOON = new THREE.Color().setHSL(0.095, 1, 0.75);
-const HEMI_COLOR_SUNSET = new THREE.Color().setHSL(0.05, 0.5, 0.7);
-const HEMI_SKY_COLOR_NIGHT = new THREE.Color().setHSL(0.6, 0.1, 0.05);
-const HEMI_GROUND_COLOR_NIGHT = new THREE.Color().setHSL(0.6, 0.1, 0.05);
 
 export default class Game {
     constructor() {
@@ -31,11 +23,13 @@ export default class Game {
         this.clock = new THREE.Clock();
         this.timeOffset = DAY_DURATION_SECONDS * 0.1;
 
+        // NEW: Pause state and custom elapsed time
+        this.isPaused = false;
+        this.elapsedTime = 0;
+
         this.camera = new Camera(this.renderer.domElement);
         this.character = new Character(this.scene);
         this.sky = new GameSky(this.scene);
-
-        // MODIFIED: The terrain now manages its own color
         this.terrain = new Terrain(this.scene);
 
         this.movement = new Movement(this.character.mesh);
@@ -46,14 +40,12 @@ export default class Game {
         this.sunLight = dirLight;
         this.hemiLight = hemiLight;
         this.character.mesh.castShadow = true;
-
-        this.scene.fog = new THREE.Fog(this.hemiLight.groundColor, 100, 300);
-        this.renderer.setClearColor(this.scene.fog.color);
-
+        
         this._setupEvents();
     }
 
     _createRenderer() {
+        // ... (this method is unchanged)
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
@@ -73,8 +65,28 @@ export default class Game {
             this.movement.calculatePathOnTerrain(worldPos, this.terrain.mesh);
         };
         this.devUI.onSettingChange = (change) => {
-            if (change.setting === 'exposure') { this.renderer.toneMappingExposure = change.value; }
+            this._handleSettingChange(change);
         };
+        // NEW: Connect the pause button
+        this.devUI.onPauseToggle = () => {
+            this.isPaused = !this.isPaused;
+        };
+    }
+
+    // MODIFIED: Expanded to handle all the new sliders
+    _handleSettingChange(change) {
+        switch (change.setting) {
+            // Renderer
+            case 'exposure': this.renderer.toneMappingExposure = change.value; break;
+            // Sky
+            case 'turbidity': this.sky.uniforms['turbidity'].value = change.value; break;
+            case 'rayleigh': this.sky.uniforms['rayleigh'].value = change.value; break;
+            case 'mieCoefficient': this.sky.uniforms['mieCoefficient'].value = change.value; break;
+            case 'mieDirectionalG': this.sky.uniforms['mieDirectionalG'].value = change.value; break;
+            // Lights
+            case 'sunIntensity': this.sunLight.intensity = change.value; break;
+            case 'hemiIntensity': this.hemiLight.intensity = change.value; break;
+        }
     }
 
     start() {
@@ -87,45 +99,45 @@ export default class Game {
         requestAnimationFrame(() => this._animate());
 
         const delta = this.clock.getDelta();
-        const elapsed = this.clock.getElapsedTime() + this.timeOffset;
-        const cycleProgress = (elapsed % TOTAL_CYCLE_SECONDS) / TOTAL_CYCLE_SECONDS;
-        
-        let elevation = 0;
-        let dayProgress = 0;
-
-        if (cycleProgress < (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) {
-            dayProgress = cycleProgress / (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
-            elevation = Math.sin(dayProgress * Math.PI) * 90;
-        } else {
-            const nightProgress = (cycleProgress - (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) / (NIGHT_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
-            elevation = Math.sin(Math.PI + nightProgress * Math.PI) * 90;
+        // MODIFIED: Only advance time if not paused
+        if (!this.isPaused) {
+            this.elapsedTime += delta;
         }
         
-        const azimuth = 180 - (dayProgress * 360);
-        this.sky.setParameters({ elevation, azimuth });
-        this.sunLight.position.copy(this.sky.sun).multiplyScalar(1000);
+        const elapsedWithOffset = this.elapsedTime + this.timeOffset;
+        const cycleProgress = (elapsedWithOffset % TOTAL_CYCLE_SECONDS) / TOTAL_CYCLE_SECONDS;
         
-        const sunHeightFactor = Math.max(0, elevation) / 90;
-        const nightFactor = 1.0 - sunHeightFactor;
+        // --- Time Display Logic ---
+        let dayProgress = 0;
+        let timeOfDayHours = 0;
+        if (cycleProgress < (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) {
+            dayProgress = cycleProgress / (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
+            timeOfDayHours = 6 + dayProgress * 12; // Day is 6am to 6pm
+        } else {
+            const nightProgress = (cycleProgress - (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) / (NIGHT_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
+            timeOfDayHours = 18 + nightProgress * 12; // Night is 6pm to 6am
+            if (timeOfDayHours >= 24) timeOfDayHours -= 24;
+        }
+        const hours = Math.floor(timeOfDayHours);
+        const minutes = Math.floor((timeOfDayHours - hours) * 60);
+        this.devUI.updateTime(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`);
 
-        this.sunLight.intensity = sunHeightFactor > 0 ? 3.0 : 0;
-        this.sunLight.color.lerpColors(SUN_COLOR_SUNSET, SUN_COLOR_NOON, sunHeightFactor);
+        // --- Sky and Light Update Logic (only if not paused) ---
+        if (!this.isPaused) {
+            let elevation = 0;
+            if (cycleProgress < (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) {
+                elevation = Math.sin(dayProgress * Math.PI) * 90;
+            } else {
+                const nightProgress = (cycleProgress - (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) / (NIGHT_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
+                elevation = Math.sin(Math.PI + nightProgress * Math.PI) * 90;
+            }
+            const azimuth = 180 - (dayProgress * 360);
+            this.sky.setParameters({ elevation, azimuth });
+            this.sunLight.position.copy(this.sky.sun).multiplyScalar(1000);
+        }
 
-        this.hemiLight.intensity = 0.2 + sunHeightFactor * 1.8;
-        const dayHemiColor = HEMI_SKY_COLOR_NOON.clone().lerp(HEMI_COLOR_SUNSET, nightFactor * 2.0);
-        this.hemiLight.color.lerpColors(dayHemiColor, HEMI_SKY_COLOR_NIGHT, nightFactor);
-        const dayGroundColor = HEMI_GROUND_COLOR_NOON.clone().lerp(HEMI_COLOR_SUNSET, nightFactor * 2.0);
-        this.hemiLight.groundColor.lerpColors(dayGroundColor, HEMI_GROUND_COLOR_NIGHT, nightFactor);
-        
-        // MODIFIED: This problematic line has been removed
-        // this.terrain.mesh.material.color.copy(this.hemiLight.groundColor);
-        
-        this.scene.fog.color.copy(this.hemiLight.groundColor);
-        this.renderer.setClearColor(this.scene.fog.color);
-        
         this.movement.update(delta);
         this.camera.update();
-
         this.renderer.render(this.scene, this.camera.threeCamera);
     }
 }
