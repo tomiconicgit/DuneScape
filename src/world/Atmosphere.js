@@ -10,13 +10,11 @@ void main() {
 
 const fragmentShader = `
 uniform vec3 uSunPosition;
-uniform float uHorizonOffset;
 uniform float uExposure;
 
 // Sky Color uniforms
 uniform vec3 uZenithMorning;
 uniform vec3 uHorizonMorning;
-// ... (rest of sky color uniforms)
 uniform vec3 uZenithDay;
 uniform vec3 uHorizonDay;
 uniform vec3 uZenithEvening;
@@ -25,21 +23,13 @@ uniform vec3 uZenithNight;
 uniform vec3 uHorizonNight;
 uniform vec3 uSunColor;
 
-// Fog uniforms
-uniform vec3 uFogColor;
-uniform float uFogNear;
-uniform float uFogFar;
-uniform float uEdgeStart;
-uniform float uEdgeEnd;
-
 varying vec3 vWorldPosition;
 
 void main() {
     vec3 rayDir = normalize(vWorldPosition - cameraPosition);
     vec3 sunDir = normalize(uSunPosition);
 
-    // --- Time of Day Blending for Sky Colors ---
-    // ... (This logic is unchanged)
+    // Time of Day Blending for Sky Colors
     float dayMix = smoothstep(0.15, 0.4, sunDir.y);
     float eveningMix = smoothstep(0.15, 0.0, sunDir.y);
     float nightMix = smoothstep(0.0, -0.15, sunDir.y);
@@ -50,36 +40,20 @@ void main() {
     zenithColor = mix(zenithColor, uZenithNight, nightMix);
     horizonColor = mix(horizonColor, uHorizonNight, nightMix);
 
-    // --- Sky Calculation ---
-    // ... (This logic is unchanged)
+    // Final Sky Gradient Calculation
     float zenithFactor = smoothstep(0.0, 1.0, rayDir.y);
     vec3 skyGradient = mix(horizonColor, zenithColor, zenithFactor);
+
+    // Sun haze/glow and disk
     float sunDot = dot(rayDir, sunDir);
     float sunHaze = smoothstep(0.9, 1.0, sunDot);
     vec3 finalColor = mix(skyGradient, uSunColor, sunHaze * sunHaze);
     float sunDisk = smoothstep(0.998, 1.0, sunDot);
     finalColor += uSunColor * sunDisk * 2.0;
+
+    // Day/Night brightness fade
     float dayNightFade = smoothstep(-0.2, 0.1, sunDir.y);
     finalColor *= dayNightFade;
-
-    // --- MODIFIED: Integrated Fog and Horizon Blending ---
-    // Calculate the color of the fog on the ground plane
-    vec3 groundPos = vec3(0.0);
-    // Only calculate intersection if the ray is pointing downwards
-    if (rayDir.y < 0.0) {
-        float t = -cameraPosition.y / rayDir.y;
-        groundPos = cameraPosition + rayDir * t;
-    }
-    float dist = distance(groundPos, cameraPosition);
-    float distFactor = smoothstep(uFogNear, uFogFar, dist);
-    float edgeDist = length(groundPos.xz);
-    float edgeFactor = smoothstep(uEdgeStart, uEdgeEnd, edgeDist);
-    float fogFactor = clamp(max(distFactor, edgeFactor), 0.0, 1.0);
-    vec3 foggedColor = mix(finalColor, uFogColor, fogFactor);
-
-    // Blend between the sky color and the fogged ground color at the horizon line
-    float horizonBlend = smoothstep(0.01 + uHorizonOffset, -0.01 + uHorizonOffset, rayDir.y);
-    finalColor = mix(finalColor, foggedColor, horizonBlend);
     
     // Final color processing
     finalColor *= uExposure;
@@ -91,12 +65,9 @@ void main() {
 export default class Atmosphere {
     constructor(scene) {
         const geometry = new THREE.SphereGeometry(10000, 32, 32);
-        
         this.uniforms = {
             uSunPosition: { value: new THREE.Vector3() },
-            uHorizonOffset: { value: 0.0 }, // MODIFIED: Default is now 0
             uExposure: { value: 1.5 },
-            
             uZenithMorning: { value: new THREE.Color('#3A506B') },
             uHorizonMorning: { value: new THREE.Color('#F08A5D') },
             uZenithDay: { value: new THREE.Color('#0077FF') },
@@ -105,15 +76,8 @@ export default class Atmosphere {
             uHorizonEvening: { value: new THREE.Color('#FF4E50') },
             uZenithNight: { value: new THREE.Color('#02040A') },
             uHorizonNight: { value: new THREE.Color('#030A14') },
-            uSunColor: { value: new THREE.Color('#FFFFFF') },
-
-            uFogColor: { value: new THREE.Color('#030A14') },
-            uFogNear: { value: 50.0 },
-            uFogFar: { value: 150.0 },
-            uEdgeStart: { value: 45.0 },
-            uEdgeEnd: { value: 60.0 }
+            uSunColor: { value: new THREE.Color('#FFFFFF') }
         };
-
         const material = new THREE.ShaderMaterial({
             vertexShader,
             fragmentShader,
@@ -121,11 +85,11 @@ export default class Atmosphere {
             side: THREE.BackSide,
             depthWrite: false
         });
-
         this.mesh = new THREE.Mesh(geometry, material);
+        // Render this behind everything else
+        this.mesh.renderOrder = -1000;
         scene.add(this.mesh);
     }
-
     update(sunPosition) {
         this.uniforms.uSunPosition.value.copy(sunPosition);
     }
