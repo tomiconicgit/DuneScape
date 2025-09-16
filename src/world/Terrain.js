@@ -16,21 +16,18 @@ export default class Terrain {
         for (let i = 0; i < positions.count; i++) {
             const x = positions.getX(i);
             const z = positions.getZ(i);
-
-            // Multiple layers of noise (octaves) for detail
             const largeDunes = simplex.noise(x * 0.01, z * 0.01) * 2.5;
             const mediumDunes = simplex.noise(x * 0.05, z * 0.05) * 0.5;
             const ripples = simplex.noise(x * 0.2, z * 0.2) * 0.25;
-
             positions.setY(i, largeDunes + mediumDunes + ripples);
         }
-        geometry.computeVertexNormals(); // Recalculate normals for correct lighting
+        geometry.computeVertexNormals();
 
         const textureLoader = new THREE.TextureLoader();
         const sandTexture = textureLoader.load('https://threejs.org/examples/textures/terrain/sand/sand_diffuse.jpg');
         sandTexture.wrapS = THREE.RepeatWrapping;
         sandTexture.wrapT = THREE.RepeatWrapping;
-        sandTexture.repeat.set(20, 20); // Tile the texture
+        sandTexture.repeat.set(20, 20);
 
         const material = new THREE.MeshStandardMaterial({
             map: sandTexture,
@@ -41,5 +38,10 @@ export default class Terrain {
         this.mesh = new THREE.Mesh(geometry, material);
         this.mesh.receiveShadow = true;
         scene.add(this.mesh);
+
+        // MODIFIED: Add the visual grid helper here
+        const gridHelper = new THREE.GridHelper(100, 100, 0x888888, 0x888888);
+        gridHelper.position.y = -1; // Position it slightly below the average terrain height
+        scene.add(gridHelper);
     }
 }
