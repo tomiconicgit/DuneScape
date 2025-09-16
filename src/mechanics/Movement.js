@@ -8,22 +8,40 @@ export default class Movement {
         this.isMoving = false;
         this.moveSpeed = 2;
         this.marker = null;
+        this.raycaster = new THREE.Raycaster();
     }
 
-    calculatePath(targetWorldPos, targetGrid) {
-        const startGrid = this._getGridPos(this.character.position);
-        const gridPath = this._findPath(startGrid, targetGrid);
+    /**
+     * Calculates a path on a 3D terrain mesh.
+     * @param {THREE.Vector3} targetWorldPos - The 3D point clicked on the terrain.
+     * @param {THREE.Mesh} terrainMesh - The terrain to pathfind on.
+     */
+    calculatePathOnTerrain(targetWorldPos, terrainMesh) {
+        // Pathfinding in 2D (x, z) remains the same
+        const startPos = { x: this.character.position.x, z: this.character.position.z };
+        const endPos = { x: targetWorldPos.x, z: targetWorldPos.z };
+        const flatPath = this._findPath(startPos, endPos);
 
-        if (gridPath.length > 0) {
-            this.path = gridPath.map(g => new THREE.Vector3(
-                g.x - 50 + 0.5,
-                this.character.position.y,
-                g.z - 50 + 0.5
-            ));
-            this.currentPathIndex = 0;
-            this.isMoving = true;
-            this._placeMarker(targetWorldPos.x, 0.05, targetWorldPos.z);
+        if (flatPath.length === 0) return;
+
+        // Now, find the correct Y for each point in the path
+        const finalPath = [];
+        const down = new THREE.Vector3(0, -1, 0);
+
+        for (const point of flatPath) {
+            this.raycaster.set(new THREE.Vector3(point.x, 50, point.z), down); // Raycast from high up
+            const intersects = this.raycaster.intersectObject(terrainMesh);
+            if (intersects.length > 0) {
+                // Add the 3D point with the correct height
+                finalPath.push(intersects[0].point);
+            }
         }
+
+        // Adjust character height for path
+        this.path = finalPath.map(p => new THREE.Vector3(p.x, p.y + this.character.geometry.parameters.height / 2, p.z));
+        this.currentPathIndex = 0;
+        this.isMoving = true;
+        this._placeMarker(targetWorldPos.x, targetWorldPos.y + 0.05, targetWorldPos.z);
     }
 
     update(delta) {
@@ -31,9 +49,11 @@ export default class Movement {
 
         const target = this.path[this.currentPathIndex];
         const direction = new THREE.Vector3().subVectors(target, this.character.position);
-        const distance = direction.length();
+        
+        // Only consider horizontal distance for path progression
+        const flatDistance = new THREE.Vector2(direction.x, direction.z).length();
 
-        if (distance < 0.01) {
+        if (flatDistance < 0.1) {
             this.currentPathIndex++;
             if (this.currentPathIndex >= this.path.length) {
                 this.isMoving = false;
@@ -44,7 +64,7 @@ export default class Movement {
         }
 
         direction.normalize();
-        const moveDist = Math.min(this.moveSpeed * delta, distance);
+        const moveDist = Math.min(this.moveSpeed * delta, flatDistance);
         this.character.position.add(direction.multiplyScalar(moveDist));
     }
 
@@ -58,55 +78,21 @@ export default class Movement {
         this.character.parent.add(this.marker);
     }
     
-    _getGridPos(pos) {
-        return { 
-            x: Math.floor(pos.x + 50), 
-            z: Math.floor(pos.z + 50) 
-        };
-    }
-
+    // A* Pathfinding (simplified for non-grid)
     _findPath(start, goal) {
-        const openSet = [start];
-        const cameFrom = new Map();
-        const gScore = new Map();
-        const fScore = new Map();
-        const key = p => `${p.x},${p.z}`;
+        // For a non-grid world, A* is very complex. We'll use a simple straight line path.
+        // You could later implement a more advanced pathfinder using a navigation mesh.
+        const path = [];
+        const distance = Math.hypot(goal.x - start.x, goal.z - start.z);
+        const segments = Math.ceil(distance / 0.5); // Waypoint every 0.5 units
 
-        gScore.set(key(start), 0);
-        fScore.set(key(start), Math.abs(goal.x - start.x) + Math.abs(goal.z - start.z));
-
-        while (openSet.length > 0) {
-            openSet.sort((a, b) => (fScore.get(key(a)) || Infinity) - (fScore.get(key(b)) || Infinity));
-            const current = openSet.shift();
-
-            if (current.x === goal.x && current.z === goal.z) {
-                let path = [];
-                let curr = current;
-                while (curr) {
-                    path.unshift(curr);
-                    curr = cameFrom.get(key(curr));
-                }
-                return path;
-            }
-
-            const neighbors = [
-                { x: current.x + 1, z: current.z }, { x: current.x - 1, z: current.z },
-                { x: current.x, z: current.z + 1 }, { x: current.x, z: current.z - 1 },
-            ];
-
-            for (const neigh of neighbors) {
-                const tentG = (gScore.get(key(current)) || Infinity) + 1;
-                const nkey = key(neigh);
-                if (tentG < (gScore.get(nkey) || Infinity)) {
-                    cameFrom.set(nkey, current);
-                    gScore.set(nkey, tentG);
-                    fScore.set(nkey, tentG + Math.abs(goal.x - neigh.x) + Math.abs(goal.z - neigh.z));
-                    if (!openSet.some(p => p.x === neigh.x && p.z === neigh.z)) {
-                        openSet.push(neigh);
-                    }
-                }
-            }
+        for (let i = 0; i <= segments; i++) {
+            const t = i / segments;
+            path.push({
+                x: (1 - t) * start.x + t * goal.x,
+                z: (1 - t) * start.z + t * goal.z
+            });
         }
-        return [];
+        return path;
     }
 }
