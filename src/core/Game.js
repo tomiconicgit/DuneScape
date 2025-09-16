@@ -1,6 +1,3 @@
-Right i’m reverting game.js back to this 
-
-
 import * as THREE from 'three';
 import Debug from '../ui/Debug.js';
 import Character from '../components/Character.js';
@@ -141,8 +138,3 @@ export default class Game {
         this.renderer.render(this.scene, this.camera.threeCamera);
     }
 }
-
-
-
-
-now check how far the global lighting covers? you set the map size to 200x200 tiles
