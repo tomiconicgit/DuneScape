@@ -1,9 +1,4 @@
 import * as THREE from 'three';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { GodRaysCombineShader, GodRaysGenerateShader } from 'three/addons/shaders/GodRaysShader.js';
-
 import Debug from '../ui/Debug.js';
 import Character from '../components/Character.js';
 import Camera from './Camera.js';
@@ -45,8 +40,6 @@ export default class Game {
         this.sunLight = sun;
         this.character.mesh.castShadow = true;
 
-        // All post-processing objects are initialized here to ensure they exist
-        this._setupPostProcessing();
         this._setupEvents();
     }
 
@@ -59,37 +52,10 @@ export default class Game {
         return renderer;
     }
 
-    _setupPostProcessing() {
-        // Create a fake sun mesh for the god rays effect
-        const sunGeometry = new THREE.SphereGeometry(200, 32, 32);
-        const sunMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-        this.sunMesh = new THREE.Mesh(sunGeometry, sunMaterial);
-        this.sunMesh.layers.set(1); // Put it on a separate layer
-        this.scene.add(this.sunMesh);
-
-        // Render target for the god rays mask
-        this.godRaysRenderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight);
-        
-        // The two shader passes we need for the effect
-        this.godraysPass = new ShaderPass(GodRaysGenerateShader);
-        this.combinePass = new ShaderPass(GodRaysCombineShader);
-        this.combinePass.uniforms['fGodRayIntensity'].value = 0.6;
-        this.combinePass.uniforms['tGodRays'].value = this.godRaysRenderTarget.texture;
-
-        // The main composer that blends everything together
-        this.composer = new EffectComposer(this.renderer);
-        this.composer.addPass(new RenderPass(this.scene, this.camera.threeCamera));
-        this.composer.addPass(this.combinePass);
-    }
-
     _setupEvents() {
         window.addEventListener('resize', () => {
-            const width = window.innerWidth;
-            const height = window.innerHeight;
             this.camera.handleResize();
-            this.renderer.setSize(width, height);
-            this.composer.setSize(width, height);
-            this.godRaysRenderTarget.setSize(width, height);
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
         this.input.onTap = (worldPos, gridPos, buildMode) => {
@@ -148,31 +114,8 @@ export default class Game {
         this.camera.update();
         this.atmosphere.update(this.sunPosition);
         this.clouds.update(this.sunPosition, delta);
-        this.sunMesh.position.copy(this.sunPosition);
 
-        // --- God Rays Rendering Pipeline ---
-        // 1. Update the sun position uniform for the god rays shader
-        const screenSpaceSun = this.sunPosition.clone().project(this.camera.threeCamera);
-        this.godraysPass.uniforms['vSunPositionScreen'].value.set((screenSpaceSun.x + 1) / 2, (screenSpaceSun.y + 1) / 2, screenSpaceSun.z);
-
-        // 2. Render a mask of the sun to our special render target
-        const oldClearColor = this.renderer.getClearColor(new THREE.Color());
-        const oldClearAlpha = this.renderer.getClearAlpha();
-        const oldLayer = this.camera.threeCamera.layers.mask;
-
-        this.renderer.setRenderTarget(this.godRaysRenderTarget);
-        this.renderer.setClearColor(0x000000, 0);
-        this.renderer.clear();
-        this.camera.threeCamera.layers.set(1); // See only the sun
+        // Restore the direct renderer call
         this.renderer.render(this.scene, this.camera.threeCamera);
-
-        // 3. Manually render the god rays generation pass
-        this.godraysPass.render(this.renderer, this.godRaysRenderTarget, this.godRaysRenderTarget);
-
-        // 4. Restore renderer state and render the final scene through the composer
-        this.camera.threeCamera.layers.set(oldLayer); // Restore layers
-        this.renderer.setRenderTarget(null);
-        this.renderer.setClearColor(oldClearColor, oldClearAlpha);
-        this.composer.render(delta);
     }
 }
