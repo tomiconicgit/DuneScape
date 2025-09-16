@@ -10,7 +10,7 @@ import TileMap from '../world/TileMap.js';
 import Atmosphere from '../world/Atmosphere.js';
 import VolumetricClouds from '../world/VolumetricClouds.js';
 import { setupLighting } from '../world/Lighting.js';
-import Boundary from '../world/Boundary.js'; // NEW: Import the Boundary
+import Boundary from '../world/Boundary.js';
 
 // ... (Constants are the same)
 const DAY_DURATION_SECONDS = 600;
@@ -24,9 +24,10 @@ export default class Game {
 
         this.scene = new THREE.Scene();
         
-        // NEW: Add global scene fog
+        // Add global scene fog
         const fogColor = new THREE.Color('#030A14');
-        this.scene.fog = new THREE.Fog(fogColor, 60, 120);
+        // MODIFIED: Adjusted fog distances to cover the boundary hills
+        this.scene.fog = new THREE.Fog(fogColor, 40, 100);
 
         this.renderer = this._createRenderer();
         // Set the renderer's clear color to match the fog for a seamless blend
@@ -34,7 +35,6 @@ export default class Game {
 
         this.clock = new THREE.Clock();
         
-        // ... (timeOffset is the same)
         const startHourOffset = 1;
         const hoursInDay = 12;
         this.timeOffset = (startHourOffset / hoursInDay) * DAY_DURATION_SECONDS;
@@ -54,12 +54,11 @@ export default class Game {
         this.sunLight = sun;
         this.character.mesh.castShadow = true;
 
-        new Boundary(this.scene); // NEW: Create the boundary hills
+        new Boundary(this.scene);
 
         this._setupEvents();
     }
 
-    // ... (All other methods remain the same)
     _createRenderer() {
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -68,6 +67,7 @@ export default class Game {
         document.body.appendChild(renderer.domElement);
         return renderer;
     }
+
     _setupEvents() {
         window.addEventListener('resize', () => {
             this.camera.handleResize();
@@ -87,6 +87,7 @@ export default class Game {
             this._handleSettingChange(change);
         };
     }
+
     _handleSettingChange(change) {
         switch (change.setting) {
             case 'exposure': this.atmosphere.uniforms.uExposure.value = change.value; break;
@@ -94,11 +95,13 @@ export default class Game {
             case 'cloudSharpness': this.clouds.uniforms.uCloudSharpness.value = change.value; break;
         }
     }
+
     start() {
         console.log("Game Engine: World setup complete.");
         this.camera.setTarget(this.character.mesh);
         this._animate();
     }
+
     _animate() {
         requestAnimationFrame(() => this._animate());
 
