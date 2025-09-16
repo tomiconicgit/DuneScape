@@ -1,18 +1,19 @@
 import * as THREE from 'three';
 
 export function setupLighting(scene) {
-    // HEMISPHERE LIGHT (For overall ambient color and bounce light)
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 2);
+    // HEMISPHERE LIGHT
+    // MODIFIED: Increased intensity from 2 to 3 for brighter ambient light
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 3);
     hemiLight.color.setHSL(0.6, 1, 0.6); // Sky color
     hemiLight.groundColor.setHSL(0.095, 1, 0.75); // Ground color
     hemiLight.position.set(0, 50, 0);
     scene.add(hemiLight);
 
-    // DIRECTIONAL LIGHT (The Sun, for sharp shadows)
+    // DIRECTIONAL LIGHT (SUN)
     const dirLight = new THREE.DirectionalLight(0xffffff, 3);
     dirLight.color.setHSL(0.1, 1, 0.95);
     dirLight.position.set(-1, 1.75, 1);
-    dirLight.position.multiplyScalar(50); // Position it closer for our scene scale
+    dirLight.position.multiplyScalar(50);
     scene.add(dirLight);
 
     // Shadow configuration
@@ -20,7 +21,6 @@ export function setupLighting(scene) {
     dirLight.shadow.mapSize.width = 2048;
     dirLight.shadow.mapSize.height = 2048;
     
-    // MODIFIED: Focus the shadow camera on our 200x200 world for crisp shadows
     const d = 120; 
     dirLight.shadow.camera.left = -d;
     dirLight.shadow.camera.right = d;
