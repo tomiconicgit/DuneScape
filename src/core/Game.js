@@ -10,10 +10,8 @@ import TileMap from '../world/TileMap.js';
 import Atmosphere from '../world/Atmosphere.js';
 import { setupLighting } from '../world/Lighting.js';
 
-// MODIFIED: Updated day/night cycle durations
-const DAY_DURATION_SECONDS = 600; // 10 minutes (9am to 6pm)
-const NIGHT_DURATION_SECONDS = 300; // 5 minutes (6pm to 9am)
-const TOTAL_CYCLE_SECONDS = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS;
+// NEW: A simpler time model. Total seconds for one 24-hour cycle.
+const SECONDS_IN_A_DAY = 900; // 15 minutes for a full 24h cycle
 
 export default class Game {
     constructor() {
@@ -21,7 +19,6 @@ export default class Game {
         console.log("Game Engine: Initializing...");
 
         this.scene = new THREE.Scene();
-        
         this.renderer = this._createRenderer();
         this.clock = new THREE.Clock();
         
@@ -87,21 +84,15 @@ export default class Game {
         requestAnimationFrame(() => this._animate());
 
         const delta = this.clock.getDelta();
-        // MODIFIED: Removed the time offset to start the cycle at 9 AM
         const elapsed = this.clock.getElapsedTime();
 
-        const cycleProgress = (elapsed % TOTAL_CYCLE_SECONDS) / TOTAL_CYCLE_SECONDS;
-        let angle;
-        
-        if (cycleProgress < (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) {
-            // Day part of the cycle
-            const dayProgress = cycleProgress / (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
-            angle = dayProgress * Math.PI;
-        } else {
-            // Night part of the cycle
-            const nightProgress = (cycleProgress - (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) / (NIGHT_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
-            angle = Math.PI + (nightProgress * Math.PI);
-        }
+        // MODIFIED: Simplified time calculation
+        // timeOfDay goes from 0.0 (midnight) to 1.0 (next midnight)
+        const timeOfDay = (elapsed / SECONDS_IN_A_DAY) % 1.0;
+
+        // Sun moves in a circle based on a 24-hour day (sunrise at 6am, noon at 12pm)
+        // 0.25 represents 6 AM.
+        const angle = (timeOfDay - 0.25) * 2.0 * Math.PI;
         
         this.sunPosition.set(Math.cos(angle) * 8000, Math.sin(angle) * 6000, Math.sin(angle * 0.5) * 2000);
         
@@ -110,7 +101,9 @@ export default class Game {
         this.sunLight.target.updateMatrixWorld();
         this.movement.update(delta);
         this.camera.update();
-        this.atmosphere.update(this.sunPosition);
+        
+        // Pass the time of day to the atmosphere so it knows which colors to use
+        this.atmosphere.update(this.sunPosition, timeOfDay);
 
         this.renderer.render(this.scene, this.camera.threeCamera);
     }
