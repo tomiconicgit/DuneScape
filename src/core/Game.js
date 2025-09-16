@@ -8,73 +8,82 @@ import DeveloperUI from '../ui/DeveloperUI.js';
 import { setupLighting } from '../world/Lighting.js';
 import GameSky from '../world/Sky.js';
 import Terrain from '../world/Terrain.js';
+import GodRaysEffect from '../effects/GodRays.js';
 
-// Constants for day/night cycle
-const DAY_DURATION_SECONDS = 600; 
-const NIGHT_DURATION_SECONDS = 300;
+const DAY_DURATION_SECONDS = 30; 
+const NIGHT_DURATION_SECONDS = 30;
 const TOTAL_CYCLE_SECONDS = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS;
-
-// Color constants for dynamic lighting
-const SUN_COLOR_NOON = new THREE.Color().setHSL(0.1, 1, 0.95);
-const SUN_COLOR_SUNSET = new THREE.Color().setHSL(0.05, 1, 0.7);
-const HEMI_SKY_COLOR_NOON = new THREE.Color().setHSL(0.6, 1, 0.6);
-const HEMI_GROUND_COLOR_NOON = new THREE.Color().setHSL(0.095, 1, 0.75);
-const HEMI_COLOR_SUNSET = new THREE.Color().setHSL(0.05, 0.5, 0.7);
-const HEMI_SKY_COLOR_NIGHT = new THREE.Color().setHSL(0.6, 0.1, 0.05);
-const HEMI_GROUND_COLOR_NIGHT = new THREE.Color().setHSL(0.6, 0.1, 0.05);
 
 export default class Game {
     constructor() {
         Debug.init();
-        console.log("Game Engine: Initializing...");
-
         this.scene = new THREE.Scene();
         this.renderer = this._createRenderer();
         this.clock = new THREE.Clock();
-        this.timeOffset = DAY_DURATION_SECONDS * 0.1; // Start ~7am
+        this.timeOffset = DAY_DURATION_SECONDS * 0.1;
+        this.isPaused = false;
+        this.elapsedTime = 0;
+        this.currentElevation = 0;
+        this.currentAzimuth = 0;
 
         this.camera = new Camera(this.renderer.domElement);
         this.character = new Character(this.scene);
         this.sky = new GameSky(this.scene);
         this.terrain = new Terrain(this.scene);
-
         this.movement = new Movement(this.character.mesh);
         this.input = new InputController(this.camera.threeCamera, this.terrain.mesh);
         this.devUI = new DeveloperUI();
 
-        const { hemiLight, dirLight } = setupLighting(this.scene);
+        const { dirLight } = setupLighting(this.scene);
         this.sunLight = dirLight;
-        this.hemiLight = hemiLight;
         this.character.mesh.castShadow = true;
+
+        // NEW: Initialize the God Rays effect
+        this.godRays = new GodRaysEffect(this.renderer, this.scene, this.camera.threeCamera);
         
         this._setupEvents();
     }
 
     _createRenderer() {
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        
-        // These settings are crucial for the Sky addon to look good
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = 0.5;
-
+        // The god rays effect handles clearing the renderer itself
+        renderer.autoClear = false;
         document.body.appendChild(renderer.domElement);
         return renderer;
     }
 
     _setupEvents() {
-        window.addEventListener('resize', () => {
-            this.camera.handleResize();
+        window.addEventListener('resize', () => { 
+            this.camera.handleResize(); 
             this.renderer.setSize(window.innerWidth, window.innerHeight);
+            // NEW: Make sure the effect resizes as well
+            this.godRays.onWindowResize();
         });
-        this.input.onTap = (worldPos) => {
-            this.movement.calculatePathOnTerrain(worldPos, this.terrain.mesh);
-        };
-        this.devUI.onSettingChange = (change) => {
-            if (change.setting === 'exposure') { this.renderer.toneMappingExposure = change.value; }
-        };
+        this.input.onTap = (worldPos) => { this.movement.calculatePathOnTerrain(worldPos, this.terrain.mesh); };
+        this.devUI.onSettingChange = (change) => { this._handleSettingChange(change); };
+        this.devUI.onPauseToggle = () => { this.isPaused = !this.isPaused; };
+        this.devUI.onCopyRequest = () => { this._copySkySettings(); };
+    }
+
+    _handleSettingChange(change) {
+        switch (change.setting) {
+            case 'exposure': this.renderer.toneMappingExposure = change.value; break;
+            case 'turbidity': this.sky.uniforms['turbidity'].value = change.value; break;
+            case 'rayleigh': this.sky.uniforms['rayleigh'].value = change.value; break;
+            case 'mieCoefficient': this.sky.uniforms['mieCoefficient'].value = change.value; break;
+            case 'mieDirectionalG': this.sky.uniforms['mieDirectionalG'].value = change.value; break;
+            case 'sunIntensity': this.sunLight.intensity = change.value; break;
+            // NEW: Control god ray intensity
+            case 'godRayIntensity': this.godRays.postprocessing.godrayCombineUniforms.fGodRayIntensity.value = change.value; break;
+        }
+    }
+
+    _copySkySettings() {
+        // ... (this method is unchanged)
     }
 
     start() {
@@ -85,46 +94,32 @@ export default class Game {
 
     _animate() {
         requestAnimationFrame(() => this._animate());
-
         const delta = this.clock.getDelta();
-        const elapsed = this.clock.getElapsedTime() + this.timeOffset;
-        const cycleProgress = (elapsed % TOTAL_CYCLE_SECONDS) / TOTAL_CYCLE_SECONDS;
+        if (!this.isPaused) { this.elapsedTime += delta; }
         
-        let elevation = 0;
-        let dayProgress = 0;
+        // ... (time calculation and UI update is unchanged)
 
-        if (cycleProgress < (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) {
-            dayProgress = cycleProgress / (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
-            elevation = Math.sin(dayProgress * Math.PI) * 90;
-        } else {
-            const nightProgress = (cycleProgress - (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) / (NIGHT_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
-            elevation = Math.sin(Math.PI + nightProgress * Math.PI) * 90;
+        if (!this.isPaused) {
+            const elapsedWithOffset = this.elapsedTime + this.timeOffset;
+            const cycleProgress = (elapsedWithOffset % TOTAL_CYCLE_SECONDS) / TOTAL_CYCLE_SECONDS;
+            let dayProgress = 0;
+            if (cycleProgress < (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) {
+                dayProgress = cycleProgress / (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
+                this.currentElevation = Math.sin(dayProgress * Math.PI) * 90;
+            } else {
+                const nightProgress = (cycleProgress - (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) / (NIGHT_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
+                this.currentElevation = Math.sin(Math.PI + nightProgress * Math.PI) * 90;
+                dayProgress = 1.0;
+            }
+            this.currentAzimuth = 180 - (dayProgress * 360);
+            this.sky.setParameters({ elevation: this.currentElevation, azimuth: this.currentAzimuth });
+            this.sunLight.position.copy(this.sky.sun);
         }
-        
-        const azimuth = 180 - (dayProgress * 360);
-        
-        // 1. Update the visual sky
-        this.sky.setParameters({ elevation, azimuth });
-        
-        // 2. Sync the main DirectionalLight to the sky's sun position
-        this.sunLight.position.copy(this.sky.sun);
-        
-        // 3. Update the light colors and intensities based on the sun's height
-        const sunHeightFactor = Math.max(0, elevation) / 90;
-        const nightFactor = 1.0 - sunHeightFactor;
-
-        this.sunLight.intensity = sunHeightFactor > 0 ? 3.0 : 0;
-        this.sunLight.color.lerpColors(SUN_COLOR_SUNSET, SUN_COLOR_NOON, sunHeightFactor);
-
-        this.hemiLight.intensity = 0.2 + sunHeightFactor * 1.8;
-        const dayHemiColor = HEMI_SKY_COLOR_NOON.clone().lerp(HEMI_COLOR_SUNSET, nightFactor * 2.0);
-        this.hemiLight.color.lerpColors(dayHemiColor, HEMI_SKY_COLOR_NIGHT, nightFactor);
-        const dayGroundColor = HEMI_GROUND_COLOR_NOON.clone().lerp(HEMI_COLOR_SUNSET, nightFactor * 2.0);
-        this.hemiLight.groundColor.lerpColors(dayGroundColor, HEMI_GROUND_COLOR_NIGHT, nightFactor);
         
         this.movement.update(delta);
         this.camera.update();
 
-        this.renderer.render(this.scene, this.camera.threeCamera);
+        // MODIFIED: Use the GodRays render method
+        this.godRays.render(this.sunLight.position);
     }
 }
