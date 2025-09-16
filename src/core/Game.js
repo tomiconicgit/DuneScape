@@ -9,17 +9,10 @@ import { setupLighting } from '../world/Lighting.js';
 import GameSky from '../world/Sky.js';
 import Terrain from '../world/Terrain.js';
 
-// Constants for day/night cycle
-const DAY_DURATION_SECONDS = 600; 
+// ... (Constants are unchanged)
+const DAY_DURATION_SECONDS = 600;
 const NIGHT_DURATION_SECONDS = 300;
 const TOTAL_CYCLE_SECONDS = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS;
-
-// NEW: Color constants for dynamic lighting
-const SUN_COLOR_NOON = new THREE.Color().setHSL(0.1, 1, 0.95);
-const SUN_COLOR_SUNSET = new THREE.Color().setHSL(0.05, 1, 0.6);
-const HEMI_SKY_COLOR_NOON = new THREE.Color().setHSL(0.6, 1, 0.6);
-const HEMI_GROUND_COLOR_NOON = new THREE.Color().setHSL(0.095, 1, 0.75);
-const HEMI_COLOR_SUNSET = new THREE.Color().setHSL(0.05, 0.5, 0.6);
 
 export default class Game {
     constructor() {
@@ -42,13 +35,11 @@ export default class Game {
         this.input = new InputController(this.camera.threeCamera, this.terrain.mesh);
         this.devUI = new DeveloperUI();
 
-        // MODIFIED: Store both the hemiLight and dirLight
         const { hemiLight, dirLight } = setupLighting(this.scene);
         this.sunLight = dirLight;
         this.hemiLight = hemiLight;
         this.character.mesh.castShadow = true;
 
-        // Set up scene fog
         this.scene.fog = new THREE.Fog(this.hemiLight.groundColor, 200, 2000);
 
         this._setupEvents();
@@ -60,7 +51,7 @@ export default class Game {
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 0.6;
+        renderer.toneMappingExposure = 0.7; // Slightly increased exposure
         document.body.appendChild(renderer.domElement);
         return renderer;
     }
@@ -93,37 +84,38 @@ export default class Game {
         const cycleProgress = (elapsed % TOTAL_CYCLE_SECONDS) / TOTAL_CYCLE_SECONDS;
         
         let elevation = 0;
-        let azimuth = 180;
         let dayProgress = 0;
 
         if (cycleProgress < (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) {
             dayProgress = cycleProgress / (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
             elevation = Math.sin(dayProgress * Math.PI) * 90;
-            azimuth = 180 - (dayProgress * 360);
         } else {
             const nightProgress = (cycleProgress - (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) / (NIGHT_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
             elevation = Math.sin(Math.PI + nightProgress * Math.PI) * 90;
-            azimuth = -180 + (nightProgress * 360);
         }
-
+        
+        const azimuth = 180 - (dayProgress * 360);
         this.sky.setParameters({ elevation, azimuth });
         this.sunLight.position.copy(this.sky.sun);
         
-        // --- MODIFIED: Update Lighting Dynamically ---
+        // --- MODIFIED: Improved dynamic lighting formula ---
         const sunHeightFactor = Math.max(0, elevation) / 90; // 0 (horizon) to 1 (peak)
-        
-        // Update directional light (sun) color and intensity
-        this.sunLight.color.lerpColors(SUN_COLOR_SUNSET, SUN_COLOR_NOON, sunHeightFactor);
-        this.sunLight.intensity = sunHeightFactor * 3 + 0.2; // Keep some light at sunset
+        const nightFactor = 1.0 - sunHeightFactor;
 
-        // Update hemisphere light (ambient) color and intensity
+        // Update directional light (sun)
+        this.sunLight.color.lerpColors(SUN_COLOR_SUNSET, SUN_COLOR_NOON, sunHeightFactor);
+        // Ensure the sun is still reasonably bright even at sunset
+        this.sunLight.intensity = 0.5 + sunHeightFactor * 2.5;
+
+        // Update hemisphere light (ambient)
         this.hemiLight.color.lerpColors(HEMI_COLOR_SUNSET, HEMI_SKY_COLOR_NOON, sunHeightFactor);
         this.hemiLight.groundColor.lerpColors(HEMI_COLOR_SUNSET, HEMI_GROUND_COLOR_NOON, sunHeightFactor);
-        this.hemiLight.intensity = sunHeightFactor * 2 + 0.5; // Keep some ambient at sunset
+        // Ensure ambient light has a strong base intensity and doesn't go to zero
+        this.hemiLight.intensity = 1.5 + sunHeightFactor * 3.5;
         
         // Update fog color to match the ground
         this.scene.fog.color.copy(this.hemiLight.groundColor);
-        this.renderer.setClearColor(this.scene.fog.color); // Sync background with fog
+        this.renderer.setClearColor(this.scene.fog.color);
         
         this.movement.update(delta);
         this.camera.update();
@@ -131,3 +123,10 @@ export default class Game {
         this.renderer.render(this.scene, this.camera.threeCamera);
     }
 }
+
+// Color constants defined outside the class for clarity
+const SUN_COLOR_NOON = new THREE.Color().setHSL(0.1, 1, 0.95);
+const SUN_COLOR_SUNSET = new THREE.Color().setHSL(0.05, 1, 0.6);
+const HEMI_SKY_COLOR_NOON = new THREE.Color().setHSL(0.6, 1, 0.6);
+const HEMI_GROUND_COLOR_NOON = new THREE.Color().setHSL(0.095, 1, 0.75);
+const HEMI_COLOR_SUNSET = new THREE.Color().setHSL(0.05, 0.5, 0.6);
