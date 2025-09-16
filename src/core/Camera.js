@@ -15,9 +15,9 @@ export default class Camera {
 
         // Config
         this.minDistance = 8;
-        this.maxDistance = 30;
+        this.maxDistance = 10;
         this.minHeight = 1.5;
-        this.maxHeight = 25;
+        this.maxHeight = 12;
         this.smoothing = 0.05;
 
         // Touch State
