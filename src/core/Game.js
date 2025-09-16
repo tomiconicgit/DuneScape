@@ -1,96 +1,107 @@
-export default class DeveloperUI {
+import * as THREE from 'three';
+import Debug from '../ui/Debug.js';
+// ... other imports
+import GameSky from '../world/Sky.js';
+import Terrain from '../world/Terrain.js';
+
+const DAY_DURATION_SECONDS = 600; 
+const NIGHT_DURATION_SECONDS = 300;
+const TOTAL_CYCLE_SECONDS = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS;
+
+export default class Game {
     constructor() {
-        this.dom = { bar: null, panel: null, timeDisplay: null, pauseButton: null, copyButton: null };
-        this.onSettingChange = null;
-        this.onPauseToggle = null;
-        this.onCopyRequest = null; // NEW: Callback for the copy button
-        this._createDOM();
+        // ... (constructor setup is the same until the end)
+        
+        // NEW: Properties to store current sun angles
+        this.currentElevation = 0;
+        this.currentAzimuth = 0;
+        
+        this._setupEvents();
     }
 
-    updateTime(timeString) {
-        if (this.dom.timeDisplay) {
-            this.dom.timeDisplay.textContent = timeString;
+    // ... (_createRenderer is unchanged)
+    
+    _setupEvents() {
+        // ... (resize and onTap listeners are unchanged)
+
+        this.devUI.onSettingChange = (change) => {
+            this._handleSettingChange(change);
+        };
+        this.devUI.onPauseToggle = () => {
+            this.isPaused = !this.isPaused;
+        };
+        // NEW: Connect the copy button request
+        this.devUI.onCopyRequest = () => {
+            this._copySkySettings();
+        };
+    }
+
+    // MODIFIED: Expanded to handle all the new sliders
+    _handleSettingChange(change) {
+        switch (change.setting) {
+            // Renderer
+            case 'exposure': this.renderer.toneMappingExposure = change.value; break;
+            // Sky
+            case 'turbidity': this.sky.uniforms['turbidity'].value = change.value; break;
+            case 'rayleigh': this.sky.uniforms['rayleigh'].value = change.value; break;
+            case 'mieCoefficient': this.sky.uniforms['mieCoefficient'].value = change.value; break;
+            case 'mieDirectionalG': this.sky.uniforms['mieDirectionalG'].value = change.value; break;
+            // Lights
+            case 'sunIntensity': this.sunLight.intensity = change.value; break;
+            case 'hemiIntensity': this.hemiLight.intensity = change.value; break;
         }
     }
-    
-    // NEW: A method for Game.js to call after settings are copied
-    showCopiedFeedback() {
-        if (this.dom.copyButton) {
-            this.dom.copyButton.textContent = 'Copied!';
-            setTimeout(() => {
-                this.dom.copyButton.textContent = 'Copy Settings';
-            }, 2000);
+
+    // NEW: Method to gather and copy all settings
+    _copySkySettings() {
+        const settings = {
+            // Sky Parameters
+            turbidity: this.sky.uniforms['turbidity'].value,
+            rayleigh: this.sky.uniforms['rayleigh'].value,
+            mieCoefficient: this.sky.uniforms['mieCoefficient'].value,
+            mieDirectionalG: this.sky.uniforms['mieDirectionalG'].value,
+            // Sun Position
+            elevation: this.currentElevation,
+            azimuth: this.currentAzimuth,
+            // Lights & Renderer
+            sunIntensity: this.sunLight.intensity,
+            hemiIntensity: this.hemiLight.intensity,
+            exposure: this.renderer.toneMappingExposure
+        };
+
+        const settingsString = `const timeSettings = ${JSON.stringify(settings, null, 2)};`;
+
+        navigator.clipboard.writeText(settingsString).then(() => {
+            this.devUI.showCopiedFeedback();
+        }).catch(err => {
+            console.error('Failed to copy settings: ', err);
+        });
+    }
+
+    // ... (start method is unchanged)
+
+    _animate() {
+        // ... (time calculation logic is the same)
+        
+        // MODIFIED: Store the current elevation and azimuth so we can copy them
+        this.currentElevation = 0;
+        this.currentAzimuth = 180;
+        let dayProgress = 0;
+
+        if (cycleProgress < (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) {
+            dayProgress = cycleProgress / (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
+            this.currentElevation = Math.sin(dayProgress * Math.PI) * 90;
+        } else {
+            const nightProgress = (cycleProgress - (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) / (NIGHT_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
+            this.currentElevation = Math.sin(Math.PI + nightProgress * Math.PI) * 90;
         }
-    }
-
-    _createDOM() {
-        const uiContainer = document.createElement('div');
-        uiContainer.style.cssText = `position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 999; display: flex; flex-direction: column; align-items: center; font-family: sans-serif;`;
-        document.body.appendChild(uiContainer);
-
-        this.dom.panel = document.createElement('div');
-        this.dom.panel.style.cssText = `background: rgba(25, 25, 30, 0.8); backdrop-filter: blur(10px); border-radius: 16px; padding: 15px; margin-bottom: 10px; width: 320px; box-sizing: border-box; max-height: 0; overflow: hidden; transition: all 0.3s ease-out; border: 1px solid rgba(255, 255, 255, 0.2); color: white;`;
-
-        // Time Controls
-        const timeGroup = this._createGroup('Time Controls');
-        this.dom.timeDisplay = document.createElement('span');
-        this.dom.timeDisplay.textContent = '00:00';
-        this.dom.timeDisplay.style.fontWeight = 'bold';
-        this.dom.pauseButton = this._createButton('Pause');
-        this.dom.pauseButton.addEventListener('click', () => {
-            const isPaused = this.dom.pauseButton.textContent === 'Play';
-            this.dom.pauseButton.textContent = isPaused ? 'Pause' : 'Play';
-            if (this.onPauseToggle) this.onPauseToggle();
-        });
-        timeGroup.appendChild(this.dom.timeDisplay);
-        timeGroup.appendChild(this.dom.pauseButton);
-        this.dom.panel.appendChild(timeGroup);
+        this.currentAzimuth = 180 - (dayProgress * 360);
         
-        // Sky Settings
-        const skyGroup = this._createGroup('Sky Parameters');
-        skyGroup.appendChild(this._createSlider('turbidity', 'Turbidity', 0.0, 20.0, 0.1, 10));
-        skyGroup.appendChild(this._createSlider('rayleigh', 'Rayleigh', 0.0, 4, 0.001, 3));
-        skyGroup.appendChild(this._createSlider('mieCoefficient', 'Mie Coeff', 0.0, 0.1, 0.001, 0.005));
-        skyGroup.appendChild(this._createSlider('mieDirectionalG', 'Mie Direction', 0.0, 1, 0.001, 0.7));
-        this.dom.panel.appendChild(skyGroup);
-
-        // Lighting & Renderer Settings
-        const lightGroup = this._createGroup('Lighting');
-        lightGroup.appendChild(this._createSlider('sunIntensity', 'Sun Intensity', 0, 5, 0.1, 3.0));
-        lightGroup.appendChild(this._createSlider('hemiIntensity', 'Ambient Intensity', 0, 5, 0.1, 2.0));
-        lightGroup.appendChild(this._createSlider('exposure', 'Exposure', 0, 1.5, 0.01, 0.8));
-        this.dom.panel.appendChild(lightGroup);
-
-        // NEW: Copy Button
-        this.dom.copyButton = this._createButton('Copy Settings');
-        this.dom.copyButton.style.marginTop = '10px';
-        this.dom.copyButton.addEventListener('click', () => {
-            if(this.onCopyRequest) this.onCopyRequest();
-        });
-        this.dom.panel.appendChild(this.dom.copyButton);
-
-
-        // Bottom Bar
-        this.dom.bar = document.createElement('div');
-        this.dom.bar.style.cssText = `display: flex; gap: 10px; padding: 10px; height: 40px; background: rgba(255, 255, 255, 0.1); border-radius: 16px; backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);`;
-        const skyButton = this._createButton('Sky Settings');
-        skyButton.style.background = 'none';
-        skyButton.addEventListener('click', () => {
-            if (this.dom.panel.style.maxHeight === '0px' || this.dom.panel.style.maxHeight === '') {
-                this.dom.panel.style.maxHeight = '500px';
-                this.dom.panel.style.padding = '15px';
-            } else {
-                this.dom.panel.style.maxHeight = '0px';
-                this.dom.panel.style.padding = '0 15px';
-            }
-        });
-        this.dom.bar.appendChild(skyButton);
+        if (!this.isPaused) {
+            this.sky.setParameters({ elevation: this.currentElevation, azimuth: this.currentAzimuth });
+            this.sunLight.position.copy(this.sky.sun).multiplyScalar(1000);
+        }
         
-        uiContainer.appendChild(this.dom.panel);
-        uiContainer.appendChild(this.dom.bar);
+        // ... (rest of animate loop is the same)
     }
-    
-    _createGroup(title) { const group = document.createElement('div'); group.style.marginBottom = '15px'; const p = document.createElement('p'); p.textContent = title; p.style.margin = '0 0 8px 0'; p.style.fontWeight = 'bold'; p.style.borderBottom = '1px solid rgba(255,255,255,0.2)'; p.style.paddingBottom = '5px'; group.appendChild(p); return group; }
-    _createButton(text) { const button = document.createElement('button'); button.textContent = text; button.style.cssText = 'border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: white; border-radius: 5px; padding: 5px 10px; cursor: pointer;'; return button; }
-    _createSlider(setting, label, min, max, step, value) { const container = document.createElement('div'); container.style.cssText = 'margin-bottom: 8px; font-size: 13px; display: flex; justify-content: space-between; align-items: center;'; const labelEl = document.createElement('label'); labelEl.textContent = label; const valueEl = document.createElement('span'); valueEl.textContent = value.toFixed(4); const input = document.createElement('input'); input.type = 'range'; input.min = min; input.max = max; input.step = step; input.value = value; input.style.width = '120px'; input.addEventListener('input', () => { const newValue = parseFloat(input.value); valueEl.textContent = newValue.toFixed(4); if (this.onSettingChange) { this.onSettingChange({ setting, value: newValue }); } }); container.appendChild(labelEl); container.appendChild(valueEl); container.appendChild(input); return container; }
 }
