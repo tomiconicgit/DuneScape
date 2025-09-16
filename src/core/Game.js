@@ -6,7 +6,6 @@ import InputController from './InputController.js';
 import Movement from '../mechanics/Movement.js';
 import DeveloperUI from '../ui/DeveloperUI.js';
 import { setupLighting } from '../world/Lighting.js';
-import { DesertTerrain } from '../world/DesertTerrain.js';
 import GameSky from '../world/Sky.js';
 
 // Constants for day/night cycle
@@ -23,19 +22,24 @@ export default class Game {
         this.renderer = this._createRenderer();
         this.clock = new THREE.Clock();
         
-        // MODIFIED: Add a time offset to start the day slightly after sunrise
-        this.timeOffset = DAY_DURATION_SECONDS * 0.1; // Start 10% into the day
+        this.timeOffset = DAY_DURATION_SECONDS * 0.1;
 
         this.camera = new Camera(this.renderer.domElement);
         this.character = new Character(this.scene);
 
-        const desert = new DesertTerrain(this.scene);
-        const terrainMesh = desert.generate();
+        // MODIFIED: Removed DesertTerrain and added a simple shadow plane
+        const groundGeometry = new THREE.PlaneGeometry(200, 200);
+        const groundMaterial = new THREE.ShadowMaterial({ opacity: 0.3 });
+        const groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
+        groundMesh.rotation.x = -Math.PI / 2;
+        groundMesh.receiveShadow = true;
+        this.scene.add(groundMesh);
 
         this.sky = new GameSky(this.scene);
 
         this.movement = new Movement(this.character.mesh);
-        this.input = new InputController(this.camera.threeCamera, terrainMesh);
+        // MODIFIED: The InputController now targets the new ground mesh
+        this.input = new InputController(this.camera.threeCamera, groundMesh);
         this.devUI = new DeveloperUI();
 
         const { sun } = setupLighting(this.scene);
@@ -52,7 +56,6 @@ export default class Game {
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        // MODIFIED: Lowered the default exposure to prevent white screen
         renderer.toneMappingExposure = 0.4;
 
         document.body.appendChild(renderer.domElement);
@@ -67,12 +70,9 @@ export default class Game {
 
         this.input.onTap = (worldPos) => {
             const targetGrid = { x: Math.round(worldPos.x), z: Math.round(worldPos.z) };
-            // Pathfinding logic for terrain needs to be more advanced
-            // For now, let's keep movement simple
             this.movement.calculatePath(worldPos, targetGrid);
         };
         
-        // Allow the UI to control the exposure
         this.devUI.onSettingChange = (change) => {
             if (change.setting === 'exposure') {
                 this.renderer.toneMappingExposure = change.value;
@@ -83,12 +83,12 @@ export default class Game {
     start() {
         console.log("Game Engine: World setup complete.");
         this.camera.setTarget(this.character.mesh);
-        // MODIFIED: Removed the direct setAnimationLoop to use requestAnimationFrame
+        // MODIFIED: Correctly start the animation loop
         this._animate();
     }
 
-    // MODIFIED: Switched back to requestAnimationFrame for clarity
     _animate() {
+        // This is the animation loop that will now run correctly
         requestAnimationFrame(() => this._animate());
 
         const delta = this.clock.getDelta();
