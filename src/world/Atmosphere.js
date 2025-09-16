@@ -13,7 +13,7 @@ uniform vec3 uSunPosition;
 uniform float uHorizonOffset;
 uniform float uExposure;
 
-// NEW: Color uniforms for different times of day
+// Sky Color uniforms
 uniform vec3 uZenithMorning;
 uniform vec3 uHorizonMorning;
 uniform vec3 uZenithDay;
@@ -24,53 +24,63 @@ uniform vec3 uZenithNight;
 uniform vec3 uHorizonNight;
 uniform vec3 uSunColor;
 
+// NEW: Fog uniforms
+uniform vec3 uFogColor;
+uniform float uFogNear;
+uniform float uFogFar;
+uniform float uEdgeStart;
+uniform float uEdgeEnd;
+
 varying vec3 vWorldPosition;
 
 void main() {
     vec3 rayDir = normalize(vWorldPosition - cameraPosition);
     vec3 sunDir = normalize(uSunPosition);
 
-    // --- Time of Day Blending ---
-    // Calculate mix factors based on sun's height (sunDir.y)
-    float dayMix = smoothstep(0.15, 0.4, sunDir.y); // Transition from morning to day
-    float eveningMix = smoothstep(0.15, 0.0, sunDir.y); // Transition from day to evening
-    float nightMix = smoothstep(0.0, -0.15, sunDir.y); // Transition from evening to night
+    // --- Time of Day Blending for Sky Colors ---
+    float dayMix = smoothstep(0.15, 0.4, sunDir.y);
+    float eveningMix = smoothstep(0.15, 0.0, sunDir.y);
+    float nightMix = smoothstep(0.0, -0.15, sunDir.y);
 
-    // Blend Zenith and Horizon colors through the day
     vec3 zenithColor = mix(uZenithMorning, uZenithDay, dayMix);
     vec3 horizonColor = mix(uHorizonMorning, uHorizonDay, dayMix);
-    
-    // Blend in evening colors as sun sets
     zenithColor = mix(zenithColor, uZenithEvening, eveningMix);
     horizonColor = mix(horizonColor, uHorizonEvening, eveningMix);
-
-    // Blend in night colors when sun is below horizon
     zenithColor = mix(zenithColor, uZenithNight, nightMix);
     horizonColor = mix(horizonColor, uHorizonNight, nightMix);
 
-    // --- Final Sky Gradient Calculation ---
+    // --- Final Sky Calculation ---
     float zenithFactor = smoothstep(0.0, 1.0, rayDir.y);
     vec3 skyGradient = mix(horizonColor, zenithColor, zenithFactor);
-
-    // Sun haze/glow
     float sunDot = dot(rayDir, sunDir);
     float sunHaze = smoothstep(0.9, 1.0, sunDot);
     vec3 finalColor = mix(skyGradient, uSunColor, sunHaze * sunHaze);
-
-    // Sun disk
     float sunDisk = smoothstep(0.998, 1.0, sunDot);
     finalColor += uSunColor * sunDisk * 2.0;
-
-    // Day/Night brightness fade
     float dayNightFade = smoothstep(-0.2, 0.1, sunDir.y);
     finalColor *= dayNightFade;
 
-    // Horizon line blend
-    vec3 groundColor = vec3(0.0, 0.0, 0.0); // Black ground
-    float horizonBlend = smoothstep(-0.02 + uHorizonOffset, 0.02 + uHorizonOffset, rayDir.y);
-    finalColor = mix(groundColor, finalColor, horizonBlend);
+    // --- NEW: Integrated Fog Calculation ---
+    // Only calculate fog for pixels at or below the horizon
+    if (rayDir.y < 0.02 + uHorizonOffset) {
+        // Find where the view ray intersects the ground plane (y=0)
+        float t = -cameraPosition.y / rayDir.y;
+        vec3 groundPos = cameraPosition + rayDir * t;
 
-    // Exposure and tone mapping
+        // Fog based on distance from camera
+        float dist = distance(groundPos, cameraPosition);
+        float distFactor = smoothstep(uFogNear, uFogFar, dist);
+
+        // Fog based on distance from map center
+        float edgeDist = length(groundPos.xz);
+        float edgeFactor = smoothstep(uEdgeStart, uEdgeEnd, edgeDist);
+        
+        // Combine factors and mix with the fog color
+        float fogFactor = clamp(max(distFactor, edgeFactor), 0.0, 1.0);
+        finalColor = mix(finalColor, uFogColor, fogFactor);
+    }
+    
+    // Final color processing
     finalColor *= uExposure;
     finalColor = finalColor / (finalColor + vec3(1.0));
 
@@ -86,20 +96,22 @@ export default class Atmosphere {
             uHorizonOffset: { value: 0.0 },
             uExposure: { value: 1.5 },
             
-            // Define the color palettes for each time of day
-            uZenithMorning: { value: new THREE.Color('#3A506B') },   // Slate Blue
-            uHorizonMorning: { value: new THREE.Color('#F08A5D') }, // Orange-Peach
-            
-            uZenithDay: { value: new THREE.Color('#0077FF') },       // Bright Blue
-            uHorizonDay: { value: new THREE.Color('#87CEEB') },     // Sky Blue
-            
-            uZenithEvening: { value: new THREE.Color('#1C0B19') },   // Deep Purple
-            uHorizonEvening: { value: new THREE.Color('#FF4E50') }, // Fiery Red
-            
-            uZenithNight: { value: new THREE.Color('#02040A') },     // Almost Black
-            uHorizonNight: { value: new THREE.Color('#030A14') },    // Very Dark Blue
+            uZenithMorning: { value: new THREE.Color('#3A506B') },
+            uHorizonMorning: { value: new THREE.Color('#F08A5D') },
+            uZenithDay: { value: new THREE.Color('#0077FF') },
+            uHorizonDay: { value: new THREE.Color('#87CEEB') },
+            uZenithEvening: { value: new THREE.Color('#1C0B19') },
+            uHorizonEvening: { value: new THREE.Color('#FF4E50') },
+            uZenithNight: { value: new THREE.Color('#02040A') },
+            uHorizonNight: { value: new THREE.Color('#030A14') },
+            uSunColor: { value: new THREE.Color('#FFFFFF') },
 
-            uSunColor: { value: new THREE.Color('#FFFFFF') }
+            // NEW: Add fog uniforms
+            uFogColor: { value: new THREE.Color('#030A14') },
+            uFogNear: { value: 50.0 },
+            uFogFar: { value: 150.0 },
+            uEdgeStart: { value: 45.0 },
+            uEdgeEnd: { value: 60.0 }
         };
 
         const material = new THREE.ShaderMaterial({
