@@ -10,8 +10,8 @@ import GameSky from '../world/Sky.js';
 import Terrain from '../world/Terrain.js';
 
 // Constants for day/night cycle
-const DAY_DURATION_SECONDS = 60; 
-const NIGHT_DURATION_SECONDS = 60;
+const DAY_DURATION_SECONDS = 20; 
+const NIGHT_DURATION_SECONDS = 20;
 const TOTAL_CYCLE_SECONDS = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS;
 
 // Color constants for dynamic lighting
@@ -22,6 +22,12 @@ const HEMI_GROUND_COLOR_NOON = new THREE.Color().setHSL(0.095, 1, 0.75);
 const HEMI_COLOR_SUNSET = new THREE.Color().setHSL(0.05, 0.5, 0.7);
 const HEMI_SKY_COLOR_NIGHT = new THREE.Color().setHSL(0.6, 0.1, 0.05);
 const HEMI_GROUND_COLOR_NIGHT = new THREE.Color().setHSL(0.6, 0.1, 0.05);
+
+// JS implementation of GLSL's smoothstep
+function smoothstep(min, max, value) {
+    const x = Math.max(0, Math.min(1, (value - min) / (max - min)));
+    return x * x * (3 - 2 * x);
+}
 
 export default class Game {
     constructor() {
@@ -36,23 +42,18 @@ export default class Game {
         this.camera = new Camera(this.renderer.domElement);
         this.character = new Character(this.scene);
         this.sky = new GameSky(this.scene);
+        this.terrain = new Terrain(this.scene);
 
-        // MODIFIED: Create lights first to get their colors
+        this.movement = new Movement(this.character.mesh);
+        this.input = new InputController(this.camera.threeCamera, this.terrain.mesh);
+        this.devUI = new DeveloperUI();
+
         const { hemiLight, dirLight } = setupLighting(this.scene);
         this.sunLight = dirLight;
         this.hemiLight = hemiLight;
         this.character.mesh.castShadow = true;
 
-        // MODIFIED: Create the terrain using the light's ground color
-        this.terrain = new Terrain(this.scene, this.hemiLight.groundColor);
-
-        // MODIFIED: Create the fog using the light's ground color
-        this.scene.fog = new THREE.Fog(this.hemiLight.groundColor, 100, 300);
-        this.renderer.setClearColor(this.scene.fog.color);
-
-        this.movement = new Movement(this.character.mesh);
-        this.input = new InputController(this.camera.threeCamera, this.terrain.mesh);
-        this.devUI = new DeveloperUI();
+        this.scene.fog = new THREE.Fog(this.hemiLight.groundColor, 200, 1000);
 
         this._setupEvents();
     }
@@ -109,24 +110,35 @@ export default class Game {
         this.sky.setParameters({ elevation, azimuth });
         this.sunLight.position.copy(this.sky.sun).multiplyScalar(1000);
         
+        // --- MODIFIED: More artistic and synchronized lighting logic ---
         const sunHeightFactor = Math.max(0, elevation) / 90;
-        const nightFactor = 1.0 - sunHeightFactor;
+
+        // Create a "sunset" factor that only kicks in when the sun is low (40% height and below)
+        const sunsetFactor = smoothstep(0.4, 0.0, sunHeightFactor);
+
+        // Create a "night" factor that only kicks in when the sun is below the horizon
+        const nightFactor = smoothstep(0.0, -0.2, elevation / 90.0);
 
         // Update directional light (sun)
-        this.sunLight.intensity = sunHeightFactor > 0 ? 3.0 : 0; // On during day, off at night
-        this.sunLight.color.lerpColors(SUN_COLOR_SUNSET, SUN_COLOR_NOON, sunHeightFactor);
+        this.sunLight.intensity = (1.0 - nightFactor) * 3.0;
+        this.sunLight.color.lerpColors(SUN_COLOR_NOON, SUN_COLOR_SUNSET, sunsetFactor);
 
         // Update hemisphere light (ambient)
-        this.hemiLight.intensity = 0.2 + sunHeightFactor * 1.8; // Fades to a dim moonlight
-        const dayHemiColor = HEMI_SKY_COLOR_NOON.clone().lerp(HEMI_COLOR_SUNSET, nightFactor * 2.0);
-        this.hemiLight.color.lerpColors(dayHemiColor, HEMI_SKY_COLOR_NIGHT, nightFactor);
-        const dayGroundColor = HEMI_GROUND_COLOR_NOON.clone().lerp(HEMI_COLOR_SUNSET, nightFactor * 2.0);
-        this.hemiLight.groundColor.lerpColors(dayGroundColor, HEMI_GROUND_COLOR_NIGHT, nightFactor);
+        this.hemiLight.intensity = (0.2 + sunHeightFactor * 2.0) * (1.0 - nightFactor * 0.5);
         
-        // Update terrain and fog to match the changing ground color
-        this.terrain.mesh.material.color.copy(this.hemiLight.groundColor);
-        this.scene.fog.color.copy(this.hemiLight.groundColor);
-        this.renderer.setClearColor(this.scene.fog.color);
+        // Blend from day colors to sunset colors using the new sunsetFactor
+        const daySkyHemi = HEMI_SKY_COLOR_NOON.clone().lerp(HEMI_COLOR_SUNSET, sunsetFactor);
+        const dayGroundHemi = HEMI_GROUND_COLOR_NOON.clone().lerp(HEMI_COLOR_SUNSET, sunsetFactor);
+
+        // Then blend the result into night colors using the new nightFactor
+        this.hemiLight.color.lerpColors(daySkyHemi, HEMI_SKY_COLOR_NIGHT, nightFactor);
+        this.hemiLight.groundColor.lerpColors(dayGroundHemi, HEMI_GROUND_COLOR_NIGHT, nightFactor);
+        
+        // Update fog color to match the ground
+        if (this.scene.fog) {
+            this.scene.fog.color.copy(this.hemiLight.groundColor);
+            this.renderer.setClearColor(this.scene.fog.color);
+        }
         
         this.movement.update(delta);
         this.camera.update();
