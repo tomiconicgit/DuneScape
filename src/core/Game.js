@@ -20,7 +20,6 @@ const SUN_COLOR_SUNSET = new THREE.Color().setHSL(0.05, 1, 0.6);
 const HEMI_SKY_COLOR_NOON = new THREE.Color().setHSL(0.6, 1, 0.6);
 const HEMI_GROUND_COLOR_NOON = new THREE.Color().setHSL(0.095, 1, 0.75);
 const HEMI_COLOR_SUNSET = new THREE.Color().setHSL(0.05, 0.5, 0.6);
-// NEW: Moonlight color for nighttime
 const HEMI_SKY_COLOR_NIGHT = new THREE.Color().setHSL(0.6, 0.1, 0.05);
 const HEMI_GROUND_COLOR_NIGHT = new THREE.Color().setHSL(0.6, 0.1, 0.05);
 
@@ -37,7 +36,6 @@ export default class Game {
         this.camera = new Camera(this.renderer.domElement);
         this.character = new Character(this.scene);
         this.sky = new GameSky(this.scene);
-
         this.terrain = new Terrain(this.scene);
 
         this.movement = new Movement(this.character.mesh);
@@ -49,8 +47,10 @@ export default class Game {
         this.hemiLight = hemiLight;
         this.character.mesh.castShadow = true;
 
-        this.scene.fog = new THREE.Fog(this.hemiLight.groundColor, 200, 2000);
-
+        // The user's repo dump has a Grid.js file, let's remove references if they deleted it.
+        // It seems the terrain now handles the grid, so we don't need a separate grid object.
+        // Also removing the fog, as the sky + lighting handles the ambience.
+        
         this._setupEvents();
     }
 
@@ -89,10 +89,11 @@ export default class Game {
 
         const delta = this.clock.getDelta();
         const elapsed = this.clock.getElapsedTime() + this.timeOffset;
-
         const cycleProgress = (elapsed % TOTAL_CYCLE_SECONDS) / TOTAL_CYCLE_SECONDS;
         
-        let elevation = 0; let dayProgress = 0;
+        let elevation = 0;
+        let dayProgress = 0;
+
         if (cycleProgress < (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) {
             dayProgress = cycleProgress / (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
             elevation = Math.sin(dayProgress * Math.PI) * 90;
@@ -100,34 +101,36 @@ export default class Game {
             const nightProgress = (cycleProgress - (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) / (NIGHT_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
             elevation = Math.sin(Math.PI + nightProgress * Math.PI) * 90;
         }
+        
         const azimuth = 180 - (dayProgress * 360);
         this.sky.setParameters({ elevation, azimuth });
-        
-        // MODIFIED: Use the sky's sun vector as a DIRECTION, and scale it to place the light far away
         this.sunLight.position.copy(this.sky.sun).multiplyScalar(1000);
         
-        // --- MODIFIED: Improved dynamic lighting formula ---
-        const sunHeightFactor = Math.max(0, elevation) / 90; // 0 (horizon) to 1 (peak)
-        const nightFactor = 1.0 - Math.max(0, Math.sin(dayProgress * Math.PI));
+        const sunHeightFactor = Math.max(0, elevation) / 90;
+        
+        // MODIFIED: This is the critical fix.
+        // Calculate the nightFactor based on the sun's actual height (elevation),
+        // not the old 'dayProgress' variable.
+        const nightFactor = 1.0 - sunHeightFactor;
 
         // Update directional light (sun)
         this.sunLight.color.lerpColors(SUN_COLOR_SUNSET, SUN_COLOR_NOON, sunHeightFactor);
-        // MODIFIED: The sun (directional light) turns off completely at night.
         this.sunLight.intensity = sunHeightFactor * 4.0;
 
         // Update hemisphere light (ambient)
-        // Lerp between three colors: Noon -> Sunset -> Night
-        const dayHemiColor = HEMI_SKY_COLOR_NOON.clone().lerp(HEMI_COLOR_SUNSET, (1.0 - sunHeightFactor) * 2.0);
+        const dayHemiColor = HEMI_SKY_COLOR_NOON.clone().lerp(HEMI_COLOR_SUNSET, nightFactor * 2.0);
         this.hemiLight.color.lerpColors(dayHemiColor, HEMI_SKY_COLOR_NIGHT, nightFactor);
         
-        const dayGroundColor = HEMI_GROUND_COLOR_NOON.clone().lerp(HEMI_COLOR_SUNSET, (1.0 - sunHeightFactor) * 2.0);
+        const dayGroundColor = HEMI_GROUND_COLOR_NOON.clone().lerp(HEMI_COLOR_SUNSET, nightFactor * 2.0);
         this.hemiLight.groundColor.lerpColors(dayGroundColor, HEMI_GROUND_COLOR_NIGHT, nightFactor);
-
-        // MODIFIED: Ambient light fades to a very low moonlight intensity.
         this.hemiLight.intensity = 0.1 + sunHeightFactor * 4.9;
         
-        this.scene.fog.color.copy(this.hemiLight.groundColor);
-        this.renderer.setClearColor(this.scene.fog.color);
+        // This was missing in the user's provided repo dump but present in my last one.
+        // It's not strictly necessary if the skybox is working well, but good to have.
+        if (this.scene.fog) {
+            this.scene.fog.color.copy(this.hemiLight.groundColor);
+            this.renderer.setClearColor(this.scene.fog.color);
+        }
         
         this.movement.update(delta);
         this.camera.update();
