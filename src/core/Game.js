@@ -8,13 +8,11 @@ import DeveloperUI from '../ui/DeveloperUI.js';
 import Grid from '../world/Grid.js';
 import TileMap from '../world/TileMap.js';
 import Atmosphere from '../world/Atmosphere.js';
-import VolumetricClouds from '../world/VolumetricClouds.js';
 import { setupLighting } from '../world/Lighting.js';
-import Boundary from '../world/Boundary.js';
 
-// ... (Constants are the same)
-const DAY_DURATION_SECONDS = 600;
-const NIGHT_DURATION_SECONDS = 240;
+// Constants for day/night cycle
+const DAY_DURATION_SECONDS = 600; // 10 minutes
+const NIGHT_DURATION_SECONDS = 240; // 4 minutes
 const TOTAL_CYCLE_SECONDS = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS;
 
 export default class Game {
@@ -24,15 +22,7 @@ export default class Game {
 
         this.scene = new THREE.Scene();
         
-        // Add global scene fog
-        const fogColor = new THREE.Color('#030A14');
-        // MODIFIED: Adjusted fog distances to cover the boundary hills
-        this.scene.fog = new THREE.Fog(fogColor, 40, 100);
-
         this.renderer = this._createRenderer();
-        // Set the renderer's clear color to match the fog for a seamless blend
-        this.renderer.setClearColor(fogColor);
-
         this.clock = new THREE.Clock();
         
         const startHourOffset = 1;
@@ -44,7 +34,6 @@ export default class Game {
         this.grid = new Grid(this.scene);
         this.tileMap = new TileMap(this.scene);
         this.atmosphere = new Atmosphere(this.scene);
-        this.clouds = new VolumetricClouds(this.scene);
         this.movement = new Movement(this.character.mesh);
         this.input = new InputController(this.camera.threeCamera, this.grid.plane);
         this.devUI = new DeveloperUI();
@@ -53,8 +42,6 @@ export default class Game {
         const { sun } = setupLighting(this.scene);
         this.sunLight = sun;
         this.character.mesh.castShadow = true;
-
-        new Boundary(this.scene);
 
         this._setupEvents();
     }
@@ -89,10 +76,9 @@ export default class Game {
     }
 
     _handleSettingChange(change) {
+        // Only settings for Atmosphere are left
         switch (change.setting) {
             case 'exposure': this.atmosphere.uniforms.uExposure.value = change.value; break;
-            case 'cloudCover': this.clouds.uniforms.uCloudCover.value = change.value; break;
-            case 'cloudSharpness': this.clouds.uniforms.uCloudSharpness.value = change.value; break;
         }
     }
 
@@ -125,7 +111,6 @@ export default class Game {
         this.movement.update(delta);
         this.camera.update();
         this.atmosphere.update(this.sunPosition);
-        this.clouds.update(this.sunPosition, delta);
 
         this.renderer.render(this.scene, this.camera.threeCamera);
     }
