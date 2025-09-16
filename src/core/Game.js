@@ -7,10 +7,10 @@ import Movement from '../mechanics/Movement.js';
 import DeveloperUI from '../ui/DeveloperUI.js';
 import { setupLighting } from '../world/Lighting.js';
 import GameSky from '../world/Sky.js';
-import Grid from '../world/Grid.js'; // MODIFIED: Import the new Grid
+import Terrain from '../world/Terrain.js'; // MODIFIED: Import Terrain
 
-// Constants for day/night cycle
-const DAY_DURATION_SECONDS = 600; 
+// ... (Constants are the same)
+const DAY_DURATION_SECONDS = 600;
 const NIGHT_DURATION_SECONDS = 300;
 const TOTAL_CYCLE_SECONDS = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS;
 
@@ -29,12 +29,12 @@ export default class Game {
         this.character = new Character(this.scene);
         this.sky = new GameSky(this.scene);
 
-        // MODIFIED: Replaced manual plane creation with the new Grid module
-        const grid = new Grid(this.scene);
+        // MODIFIED: Replaced Grid with the new Terrain module
+        this.terrain = new Terrain(this.scene);
 
         this.movement = new Movement(this.character.mesh);
-        // MODIFIED: The InputController now targets the mesh from the Grid module
-        this.input = new InputController(this.camera.threeCamera, grid.mesh);
+        // MODIFIED: The InputController now targets the new terrain mesh
+        this.input = new InputController(this.camera.threeCamera, this.terrain.mesh);
         this.devUI = new DeveloperUI();
 
         const { dirLight } = setupLighting(this.scene);
@@ -64,8 +64,8 @@ export default class Game {
         });
 
         this.input.onTap = (worldPos) => {
-            const targetGrid = { x: Math.round(worldPos.x), z: Math.round(worldPos.z) };
-            this.movement.calculatePath(worldPos, targetGrid);
+            // MODIFIED: Use the new pathfinding method for 3D terrain
+            this.movement.calculatePathOnTerrain(worldPos, this.terrain.mesh);
         };
         
         this.devUI.onSettingChange = (change) => {
