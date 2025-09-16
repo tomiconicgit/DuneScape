@@ -24,12 +24,12 @@ void main() {
     vec3 rayDir = normalize(vWorldPosition - cameraPosition);
     vec3 sunDir = normalize(uSunPosition);
 
-    // --- Sky Color from Gradient Textures ---
+    // Sky Color from Gradient Textures
     vec2 gradientUv = vec2(uTimeOfDay, 0.5);
     vec3 zenithColor = texture2D(uZenithGradient, gradientUv).rgb;
     vec3 horizonColor = texture2D(uHorizonGradient, gradientUv).rgb;
     
-    // --- Sky Gradient Calculation ---
+    // Sky Gradient Calculation
     float zenithFactor = smoothstep(0.0, 1.0, rayDir.y);
     vec3 skyGradient = mix(horizonColor, zenithColor, zenithFactor);
 
@@ -40,7 +40,14 @@ void main() {
     float sunDisk = smoothstep(0.998, 1.0, sunDot);
     finalColor += uSunColor * sunDisk * 2.0;
 
-    // MODIFIED: Star field logic has been removed.
+    // RE-ADDED: Day/Night brightness fade
+    float dayNightFade = smoothstep(-0.15, 0.1, sunDir.y);
+    finalColor *= dayNightFade;
+
+    // RE-ADDED: Horizon line blend to hide the void below the map
+    vec3 groundColor = vec3(0.0, 0.0, 0.0);
+    float horizonBlend = smoothstep(0.01, -0.01, rayDir.y);
+    finalColor = mix(finalColor, groundColor, horizonBlend);
     
     // Final color processing
     finalColor *= uExposure;
