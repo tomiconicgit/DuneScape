@@ -27,7 +27,6 @@ export default class Game {
         this.camera = new Camera(this.renderer.domElement);
         this.character = new Character(this.scene);
 
-        // MODIFIED: Removed DesertTerrain and added a simple shadow plane
         const groundGeometry = new THREE.PlaneGeometry(200, 200);
         const groundMaterial = new THREE.ShadowMaterial({ opacity: 0.3 });
         const groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
@@ -38,12 +37,12 @@ export default class Game {
         this.sky = new GameSky(this.scene);
 
         this.movement = new Movement(this.character.mesh);
-        // MODIFIED: The InputController now targets the new ground mesh
         this.input = new InputController(this.camera.threeCamera, groundMesh);
         this.devUI = new DeveloperUI();
 
-        const { sun } = setupLighting(this.scene);
-        this.sunLight = sun;
+        // MODIFIED: Use the correct variable name 'dirLight'
+        const { dirLight } = setupLighting(this.scene);
+        this.sunLight = dirLight;
         this.character.mesh.castShadow = true;
 
         this._setupEvents();
@@ -83,12 +82,10 @@ export default class Game {
     start() {
         console.log("Game Engine: World setup complete.");
         this.camera.setTarget(this.character.mesh);
-        // MODIFIED: Correctly start the animation loop
         this._animate();
     }
 
     _animate() {
-        // This is the animation loop that will now run correctly
         requestAnimationFrame(() => this._animate());
 
         const delta = this.clock.getDelta();
