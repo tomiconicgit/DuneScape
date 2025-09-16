@@ -6,12 +6,8 @@ import InputController from './InputController.js';
 import Movement from '../mechanics/Movement.js';
 import DeveloperUI from '../ui/DeveloperUI.js';
 import { setupLighting } from '../world/Lighting.js';
-import { DesertTerrain } from '../world/DesertTerrain.js';
-
-// Constants for day/night cycle
-const DAY_DURATION_SECONDS = 600; 
-const NIGHT_DURATION_SECONDS = 300;
-const TOTAL_CYCLE_SECONDS = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS;
+import Ground from '../world/Ground.js';
+import Sky from '../world/Sky.js';
 
 export default class Game {
     constructor() {
@@ -19,26 +15,33 @@ export default class Game {
         console.log("Game Engine: Initializing...");
 
         this.scene = new THREE.Scene();
-        this.renderer = this._createRenderer();
-        this.renderer.setClearColor(0x000000); // Set background to black for a fresh start
-
         this.clock = new THREE.Clock();
+
+        // 1. SETUP LIGHTING
+        // This is the most important step. The hemiLight provides the base colors.
+        const { hemiLight, dirLight } = setupLighting(this.scene);
+
+        // 2. SETUP THE REST OF THE SCENE
+        // We use the hemiLight's colors to keep everything consistent.
+        this.scene.background = hemiLight.color;
+        this.scene.fog = new THREE.Fog(hemiLight.groundColor, 1, 5000);
         
+        this.renderer = this._createRenderer();
         this.camera = new Camera(this.renderer.domElement);
         this.character = new Character(this.scene);
+        this.character.mesh.castShadow = true; // Make the character cast shadows
 
-        // Generate the 100x100 desert terrain
-        const desert = new DesertTerrain(this.scene);
-        const terrainMesh = desert.generate();
+        // 3. CREATE THE WORLD using colors from the lighting setup
+        new Ground(this.scene, hemiLight.groundColor);
+        new Sky(this.scene, hemiLight.color, hemiLight.groundColor);
 
+        // Movement requires an object to click on. We'll use the ground for this.
+        // NOTE: Ground.js doesn't return the mesh, so we find it in the scene.
+        const groundMesh = this.scene.children.find(c => c.geometry.type === 'PlaneGeometry');
+        
         this.movement = new Movement(this.character.mesh);
-        this.input = new InputController(this.camera.threeCamera, terrainMesh);
+        this.input = new InputController(this.camera.threeCamera, groundMesh);
         this.devUI = new DeveloperUI();
-        this.sunPosition = new THREE.Vector3();
-
-        const { sun } = setupLighting(this.scene);
-        this.sunLight = sun;
-        this.character.mesh.castShadow = true;
 
         this._setupEvents();
     }
@@ -46,8 +49,7 @@ export default class Game {
     _createRenderer() {
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.shadowMap.enabled = true; // Enable shadows in the renderer
         document.body.appendChild(renderer.domElement);
         return renderer;
     }
@@ -57,48 +59,28 @@ export default class Game {
             this.camera.handleResize();
             this.renderer.setSize(window.innerWidth, window.innerHeight);
         });
-
+        
+        // This will no longer work as there's no grid system, but we keep the hook.
+        // To make movement work, we'd need to update the pathfinding logic.
         this.input.onTap = (worldPos) => {
-            // Pathfinding now uses the terrain's height
-            const targetGrid = { x: worldPos.x, z: worldPos.z }; 
-            this.movement.calculatePathOnTerrain(targetGrid, this.input.raycaster);
+            // Pathfinding logic would need to be updated for a non-grid world.
+            // For now, we can just log the click position.
+            console.log("Clicked at:", worldPos);
         };
         
-        // Developer UI is now empty, but we keep the hooks for future use
         this.devUI.onSettingChange = (change) => {};
     }
 
     start() {
         console.log("Game Engine: World setup complete.");
         this.camera.setTarget(this.character.mesh);
-        this._animate();
+        this.renderer.setAnimationLoop(() => this.animate());
     }
 
-    _animate() {
-        requestAnimationFrame(() => this._animate());
-
+    animate() {
         const delta = this.clock.getDelta();
-        const elapsed = this.clock.getElapsedTime();
-
-        const cycleProgress = (elapsed % TOTAL_CYCLE_SECONDS) / TOTAL_CYCLE_SECONDS;
-        let angle;
-        
-        if (cycleProgress < (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) {
-            const dayProgress = cycleProgress / (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
-            angle = dayProgress * Math.PI;
-        } else {
-            const nightProgress = (cycleProgress - (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) / (NIGHT_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
-            angle = Math.PI + (nightProgress * Math.PI);
-        }
-        
-        this.sunPosition.set(Math.cos(angle) * 8000, Math.sin(angle) * 6000, Math.sin(angle * 0.5) * 2000);
-        
-        this.sunLight.position.copy(this.sunPosition);
-        this.sunLight.target.position.set(0, 0, 0); 
-        this.sunLight.target.updateMatrixWorld();
-        this.movement.update(delta);
+        this.movement.update(delta); // Movement won't do anything until pathfinding is updated
         this.camera.update();
-
         this.renderer.render(this.scene, this.camera.threeCamera);
     }
 }
