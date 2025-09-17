@@ -6,12 +6,13 @@ export default class Camera {
         this.target = null;
         const aspect = window.innerWidth / window.innerHeight;
         
-        // MODIFIED: Increased far plane from 1000 to 20000
-        this.threeCamera = new THREE.PerspectiveCamera(75, aspect, 0.1, 20000);
+        // MODIFIED: Field of View (FOV) increased from 75 to 100
+        this.threeCamera = new THREE.PerspectiveCamera(100, aspect, 0.1, 20000);
 
         // State
         this.orbitAngle = Math.PI / 4;
-        this.zoomLevel = 0.5;
+        // MODIFIED: Starts more zoomed in (0=in, 1=out)
+        this.zoomLevel = 0.2; 
 
         // Config
         this.minDistance = 8;
