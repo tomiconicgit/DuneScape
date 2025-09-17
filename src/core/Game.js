@@ -7,6 +7,7 @@ import Movement from '../mechanics/Movement.js';
 import { setupLighting } from '../world/Lighting.js';
 import GameSky from '../world/Sky.js';
 import Terrain from '../world/Terrain.js';
+import Rocks from '../world/objects/Rocks.js'; // Import the new Rocks class
 import GamepadController from './GamepadController.js';
 import Navbar from '../ui/Navbar.js';
 
@@ -23,6 +24,9 @@ const HEMI_GROUND_COLOR_NOON = new THREE.Color().setHSL(0.095, 1, 0.75);
 const HEMI_COLOR_SUNSET = new THREE.Color().setHSL(0.05, 0.5, 0.7);
 const HEMI_SKY_COLOR_NIGHT = new THREE.Color().setHSL(0.6, 0.1, 0.05);
 const HEMI_GROUND_COLOR_NIGHT = new THREE.Color().setHSL(0.6, 0.1, 0.05);
+
+// Define the mine area so we can pass it to the Rocks class
+const MINE_AREA = { x: 75, y: 75, width: 30, depth: 30, height: 0.1 };
 
 function smoothstep(min, max, value) { const x = Math.max(0, Math.min(1, (value - min) / (max - min))); return x * x * (3 - 2 * x); }
 
@@ -42,6 +46,7 @@ export default class Game {
         this.character = new Character(this.scene);
         this.sky = new GameSky(this.scene);
         this.terrain = new Terrain(this.scene);
+        new Rocks(this.scene, MINE_AREA); // Create the rocks in the mine
         this.movement = new Movement(this.character.mesh);
         this.input = new InputController(this.camera.threeCamera, this.terrain.mesh, this.renderer.domElement);
         this.navbar = new Navbar();
