@@ -55,9 +55,11 @@ export default class Rocks {
             color2: { value: new THREE.Color(preset.color2) },
             matRoughness: { value: preset.roughness },
             matMetalness: { value: preset.metalness },
-            lightDir: { value: new THREE.Vector3(5, 5, 5) },
+            lightDir: { value: new THREE.Vector3(5, 5, 5) }, // This will be updated by your game's light
+            // Default values for other shader uniforms
             texFrequency: { value: 5.0 }, colorVar: { value: 0.1 }, bumpStrength: { value: 0.1 },
-            texSeed: { value: Math.random() * 100 }, lightIntensity: { value: 0.25 },
+            texSeed: { value: Math.random() * 100 },
+            // REMOVED: lightIntensity here. It will now be controlled by the main scene's light.
             aoStrength: { value: 3.5 }, wetness: { value: 0.0 },
         };
         const material = new THREE.ShaderMaterial({
@@ -140,6 +142,9 @@ class Noise {
 const rockVertexShader = `
     varying vec3 vNormal;
     varying vec3 vPosition;
+    uniform float lightIntensity; // Now passed from Game.js
+    uniform vec3 lightDir; // Now passed from Game.js
+
     void main() {
         vNormal = normal;
         vPosition = position;
@@ -149,7 +154,10 @@ const rockVertexShader = `
 const rockFragmentShader = `
     uniform vec3 color; uniform vec3 color2; uniform float matRoughness; uniform float matMetalness;
     uniform float texFrequency; uniform float colorVar; uniform float bumpStrength; uniform float texSeed;
-    uniform float lightIntensity; uniform float aoStrength; uniform float wetness; uniform vec3 lightDir;
+    uniform float aoStrength; uniform float wetness;
+    uniform float lightIntensity; // Receive from Game.js
+    uniform vec3 lightDir; // Receive from Game.js
+
     varying vec3 vNormal; varying vec3 vPosition;
     vec3 mod289(vec3 x){return x-floor(x*(1./289.))*289.;} vec4 mod289(vec4 x){return x-floor(x*(1./289.))*289.;}
     vec4 permute(vec4 x){return mod289(((x*34.)+1.)*x);} vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-.85373472095314*r;}
