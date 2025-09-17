@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import Debug from '../ui/Debug.js'; // Restored
+import Debug from '../ui/Debug.js';
 import Character from '../components/Character.js';
 import Camera from './Camera.js';
 import InputController from './InputController.js';
@@ -27,7 +27,7 @@ function smoothstep(min, max, value) { const x = Math.max(0, Math.min(1, (value 
 
 export default class Game {
     constructor() {
-        Debug.init(); // Restored
+        Debug.init();
         this.scene = new THREE.Scene();
         this.renderer = this._createRenderer();
         this.clock = new THREE.Clock();
@@ -42,8 +42,8 @@ export default class Game {
         this.sky = new GameSky(this.scene);
         this.terrain = new Terrain(this.scene);
         this.movement = new Movement(this.character.mesh);
-        this.input = new InputController(this.camera.threeCamera, this.terrain.mesh);
-        // this.navbar = new DeveloperUI(); // Stays removed
+        // Pass the renderer's canvas element to the InputController
+        this.input = new InputController(this.camera.threeCamera, this.terrain.mesh, this.renderer.domElement);
 
         const { hemiLight, dirLight } = setupLighting(this.scene);
         this.sunLight = dirLight;
