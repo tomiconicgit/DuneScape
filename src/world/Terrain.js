@@ -1,5 +1,5 @@
-import * as THREE from 'three';
-import { SimplexNoise } from 'three/examples/jsm/math/SimplexNoise.js';
+import { SimplexNoise } from 'three/addons/math/SimplexNoise.js';
+
 
 export default class Terrain {
     constructor(scene) {
