@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import Debug from '../ui/Debug.js';
+import Debug from '../ui/Debug.js'; // Restored
 import Character from '../components/Character.js';
 import Camera from './Camera.js';
 import InputController from './InputController.js';
@@ -10,7 +10,7 @@ import Terrain from '../world/Terrain.js';
 import GamepadController from './GamepadController.js';
 
 // Constants for day/night cycle
-const DAY_DURATION_SECONDS = 60; 
+const DAY_DURATION_SECONDS = 60;
 const NIGHT_DURATION_SECONDS = 60;
 const TOTAL_CYCLE_SECONDS = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS;
 
@@ -27,7 +27,7 @@ function smoothstep(min, max, value) { const x = Math.max(0, Math.min(1, (value 
 
 export default class Game {
     constructor() {
-        Debug.init();
+        Debug.init(); // Restored
         this.scene = new THREE.Scene();
         this.renderer = this._createRenderer();
         this.clock = new THREE.Clock();
@@ -43,7 +43,7 @@ export default class Game {
         this.terrain = new Terrain(this.scene);
         this.movement = new Movement(this.character.mesh);
         this.input = new InputController(this.camera.threeCamera, this.terrain.mesh);
-        this.navbar = new DeveloperUI();
+        // this.navbar = new DeveloperUI(); // Stays removed
 
         const { hemiLight, dirLight } = setupLighting(this.scene);
         this.sunLight = dirLight;
@@ -51,7 +51,7 @@ export default class Game {
         this.character.mesh.castShadow = true;
 
         this.gamepad = new GamepadController();
-        
+
         this._setupEvents();
     }
 
@@ -67,52 +67,14 @@ export default class Game {
     }
 
     _setupEvents() {
-        window.addEventListener('resize', () => { 
-            this.camera.handleResize(); 
+        window.addEventListener('resize', () => {
+            this.camera.handleResize();
             this.renderer.setSize(window.innerWidth, window.innerHeight);
         });
-        
-        this.input.onTap = (worldPos) => { 
-            this.movement.calculatePathOnTerrain(worldPos, this.terrain.mesh); 
-        };
-        
-        this.navbar.onSettingChange = (change) => { 
-            this._handleSettingChange(change); 
-        };
-        this.navbar.onPauseToggle = () => { 
-            this.isPaused = !this.isPaused; 
-        };
-        this.navbar.onCopyRequest = () => { 
-            this._copySkySettings(); 
-        };
-        
-        this.gamepad.onRB = () => this.navbar.cycleTab(1);
-        this.gamepad.onLB = () => this.navbar.cycleTab(-1);
-        this.gamepad.onB = () => this.navbar.closePanel();
-    }
 
-    _handleSettingChange(change) {
-        switch (change.setting) {
-            case 'exposure': this.renderer.toneMappingExposure = change.value; break;
-            case 'turbidity': this.sky.uniforms['turbidity'].value = change.value; break;
-            case 'rayleigh': this.sky.uniforms['rayleigh'].value = change.value; break;
-            case 'mieCoefficient': this.sky.uniforms['mieCoefficient'].value = change.value; break;
-            case 'mieDirectionalG': this.sky.uniforms['mieDirectionalG'].value = change.value; break;
-            case 'sunIntensity': this.sunLight.intensity = change.value; break;
-            case 'hemiIntensity': this.hemiLight.intensity = change.value; break;
-        }
-    }
-
-    _copySkySettings() {
-        const settings = {
-            turbidity: this.sky.uniforms['turbidity'].value, rayleigh: this.sky.uniforms['rayleigh'].value,
-            mieCoefficient: this.sky.uniforms['mieCoefficient'].value, mieDirectionalG: this.sky.uniforms['mieDirectionalG'].value,
-            elevation: this.currentElevation, azimuth: this.currentAzimuth,
-            sunIntensity: this.sunLight.intensity, hemiIntensity: this.hemiLight.intensity,
-            exposure: this.renderer.toneMappingExposure
+        this.input.onTap = (worldPos) => {
+            this.movement.calculatePathOnTerrain(worldPos, this.terrain.mesh);
         };
-        const settingsString = `const timeSettings = ${JSON.stringify(settings, null, 2)};`;
-        navigator.clipboard.writeText(settingsString).then(() => { this.navbar.showCopiedFeedback(); });
     }
 
     start() {
@@ -127,10 +89,10 @@ export default class Game {
 
         this.gamepad.update();
 
-        if (!this.isPaused) { 
-            this.elapsedTime += delta; 
+        if (!this.isPaused) {
+            this.elapsedTime += delta;
         }
-        
+
         const elapsedWithOffset = this.elapsedTime + this.timeOffset;
         const cycleProgress = (elapsedWithOffset % TOTAL_CYCLE_SECONDS) / TOTAL_CYCLE_SECONDS;
         let dayProgress = 0;
@@ -143,13 +105,12 @@ export default class Game {
             dayProgress = 1.0;
         }
         this.currentAzimuth = 180 - (dayProgress * 360);
-        
+
         if (!this.isPaused) {
             this.sky.setParameters({ elevation: this.currentElevation, azimuth: this.currentAzimuth });
             this.sunLight.position.copy(this.sky.sun).multiplyScalar(1000);
         }
 
-        // --- RE-ADDED: The entire dynamic lighting block was missing ---
         const sunHeightFactor = Math.max(0, this.currentElevation) / 90;
         const sunsetFactor = smoothstep(0.4, 0.0, sunHeightFactor);
         const nightFactor = smoothstep(0.0, -0.2, this.currentElevation / 90.0);
@@ -162,13 +123,12 @@ export default class Game {
         const dayGroundHemi = HEMI_GROUND_COLOR_NOON.clone().lerp(HEMI_COLOR_SUNSET, sunsetFactor);
         this.hemiLight.color.lerpColors(daySkyHemi, HEMI_SKY_COLOR_NIGHT, nightFactor);
         this.hemiLight.groundColor.lerpColors(dayGroundHemi, HEMI_GROUND_COLOR_NIGHT, nightFactor);
-        
+
         if (this.scene.fog) {
             this.scene.fog.color.copy(this.hemiLight.groundColor);
             this.renderer.setClearColor(this.scene.fog.color);
         }
-        // --- End of re-added block ---
-        
+
         const { x: orbit } = this.gamepad.getRightStick();
         this.camera.orbitAngle -= orbit * 0.02;
         const { lt, rt } = this.gamepad.getTriggers();
@@ -184,7 +144,7 @@ export default class Game {
             const moveDirection = cameraForward.multiplyScalar(-stickY).add(cameraRight.multiplyScalar(stickX));
             this.movement.moveCharacter(moveDirection, delta);
         }
-        
+
         this.movement.update(delta);
         this.camera.update();
         this.renderer.render(this.scene, this.camera.threeCamera);
