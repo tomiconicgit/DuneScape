@@ -1,82 +1,94 @@
 import * as THREE from 'three';
 import { MINE_AREA } from '../WorldData.js';
 
-const MASTER_SEED = 42; // Change this number to get a completely new layout of rocks
+const MASTER_SEED = 42;
 
 export default class Rocks {
     constructor(scene) {
-        this.prng = this.seededRandom(MASTER_SEED);
+        this.prng = seededRandom(MASTER_SEED);
 
-        // --- Create Materials for each Ore Type ---
+        // --- Ore Presets ---
+        this.orePresets = {
+            limestone: { color: 0xc2c2b0, roughness: 0.9, metalness: 0.0, displacement: 0.2, seed: 10 },
+            carbon:    { color: 0x3d3d3d, roughness: 0.6, metalness: 0.1, displacement: 0.3, seed: 20 },
+            iron:      { color: 0x8E574A, roughness: 0.5, metalness: 0.4, displacement: 0.4, seed: 30 },
+            stone:     { color: 0x808080, roughness: 0.8, metalness: 0.2, displacement: 0.25, seed: null }
+        };
+
+        // --- Materials (reused for performance) ---
         this.materials = {
-            stone:     new THREE.MeshStandardMaterial({ color: 0x808080, roughness: 0.8 }),
-            iron:      new THREE.MeshStandardMaterial({ color: 0x8E574A, roughness: 0.6, metalness: 0.3 }),
-            limestone: new THREE.MeshStandardMaterial({ color: 0xD3D3D3, roughness: 0.9 }),
-            carbon:    new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.5 })
+            stone:     new THREE.MeshStandardMaterial({ color: this.orePresets.stone.color, roughness: this.orePresets.stone.roughness, metalness: this.orePresets.stone.metalness }),
+            iron:      new THREE.MeshStandardMaterial({ color: this.orePresets.iron.color, roughness: this.orePresets.iron.roughness, metalness: this.orePresets.iron.metalness }),
+            limestone: new THREE.MeshStandardMaterial({ color: this.orePresets.limestone.color, roughness: this.orePresets.limestone.roughness, metalness: this.orePresets.limestone.metalness }),
+            carbon:    new THREE.MeshStandardMaterial({ color: this.orePresets.carbon.color, roughness: this.orePresets.carbon.roughness, metalness: this.orePresets.carbon.metalness })
         };
         
-        // --- Create Base Geometries (once, for efficiency) ---
-        this.oreGeometry = new THREE.IcosahedronGeometry(0.5, 0); // Ores are uniform icosahedrons
-
         // --- Place Rocks on Mine Levels ---
-        MINE_AREA.levels.forEach(level => {
-            const rockCount = Math.floor(level.depth * 20);
-            for (let i = 0; i < rockCount; i++) {
-                const type = (this.prng() > 0.3) ? level.name : 'stone';
-                
-                const x = MINE_AREA.x + (this.prng() - 0.5) * MINE_AREA.width;
-                const y = level.y_start + (this.prng() * level.depth);
-                const position = new THREE.Vector3(x, level.height, y);
+        const mineCenter = new THREE.Vector2(MINE_AREA.x, MINE_AREA.y);
+        for (let i = 0; i < 200; i++) { // Generate 200 rocks in total
+            const angle = this.prng() * Math.PI * 2;
+            const distFromCenter = this.prng() * MINE_AREA.radius;
+            
+            const x = MINE_AREA.x + Math.cos(angle) * distFromCenter;
+            const z = MINE_AREA.y + Math.sin(angle) * distFromCenter;
 
-                this._createRock(scene, type, position);
-            }
-        });
+            // Determine which level this rock is on based on its distance
+            let rockType = 'stone'; // Default
+            if (distFromCenter < MINE_AREA.radius * 0.4) rockType = 'iron';
+            else if (distFromCenter < MINE_AREA.radius * 0.7) rockType = 'carbon';
+            else rockType = 'limestone';
+
+            // Add some generic stone too
+            if (this.prng() > 0.6) rockType = 'stone';
+
+            // Calculate the height from the terrain at this position
+            const smoothDepth = MINE_AREA.depth * Math.sqrt(1 - (distFromCenter / MINE_AREA.radius));
+            const y = -smoothDepth + (this.prng() * 0.5); // Add slight height variation
+
+            this._createRock(scene, rockType, new THREE.Vector3(x, y, z));
+        }
     }
 
     _createRock(scene, type, position) {
-        let geometry;
-        const isOre = type !== 'stone';
+        const preset = this.orePresets[type];
+        const shapeSeed = (preset.seed !== null) ? preset.seed : this.prng() * 100;
+        const noise = new Noise(shapeSeed);
 
-        if (isOre) {
-            geometry = this.oreGeometry;
-        } else {
-            const tempGeom = new THREE.IcosahedronGeometry(0.5, 1);
-            const positions = tempGeom.attributes.position;
-            const tempVector = new THREE.Vector3();
-            for (let j = 0; j < positions.count; j++) {
-                tempVector.fromBufferAttribute(positions, j);
-                tempVector.multiplyScalar(1 + (this.prng() - 0.5) * 0.8);
-                positions.setXYZ(j, tempVector.x, tempVector.y, tempVector.z);
-            }
-            tempGeom.computeVertexNormals();
-            geometry = tempGeom;
+        // --- High-Quality Geometry Generation (CPU) ---
+        const geometry = new THREE.SphereGeometry(1, 16, 16); // Moderate detail
+        const positions = geometry.attributes.position;
+        const tempVec = new THREE.Vector3();
+
+        for (let i = 0; i < positions.count; i++) {
+            tempVec.fromBufferAttribute(positions, i);
+            const n = noise.fbm(tempVec.x * 2, tempVec.y * 2, tempVec.z * 2, 4, 2, 0.5);
+            tempVec.multiplyScalar(1 + n * preset.displacement);
+            positions.setXYZ(i, tempVec.x, tempVec.y, tempVec.z);
         }
+        positions.needsUpdate = true;
+        geometry.computeVertexNormals();
 
         const material = this.materials[type];
         const rockMesh = new THREE.Mesh(geometry, material);
         rockMesh.position.copy(position);
-
-        const scale = isOre ? 0.8 : THREE.MathUtils.lerp(0.4, 1.1, this.prng());
-        rockMesh.scale.set(scale, scale, scale);
         
-        rockMesh.geometry.computeBoundingBox();
-        const rockHeight = rockMesh.geometry.boundingBox.max.y - rockMesh.geometry.boundingBox.min.y;
-        rockMesh.position.y += (rockHeight * rockMesh.scale.y) / 2;
-
+        const isOre = preset.seed !== null;
+        const scale = isOre ? 0.65 : THREE.MathUtils.lerp(0.4, 0.9, this.prng());
+        
+        rockMesh.scale.set(scale, scale, scale);
         rockMesh.rotation.set(this.prng() * Math.PI, this.prng() * Math.PI, this.prng() * Math.PI);
+
+        // Place rock on the ground
+        rockMesh.geometry.computeBoundingBox();
+        const height = rockMesh.geometry.boundingBox.max.y - rockMesh.geometry.boundingBox.min.y;
+        rockMesh.position.y += (height * scale) / 2;
 
         rockMesh.castShadow = true;
         rockMesh.receiveShadow = true;
         scene.add(rockMesh);
     }
-    
-    // Seeded pseudo-random number generator
-    seededRandom(seed) {
-        return function() {
-            let t = seed += 0x6D2B79F5;
-            t = Math.imul(t ^ t >>> 15, t | 1);
-            t ^= t + Math.imul(t ^ t >>> 7, t | 61);
-            return ((t ^ t >>> 14) >>> 0) / 4294967296;
-        }
-    }
 }
+
+// --- Full Noise Class (Self-Contained) ---
+function seededRandom(s){return function(){s=Math.sin(s)*1e4;return s-Math.floor(s)}}
+class Noise{constructor(s){this.seed=s||0;this.random=seededRandom(this.seed);this.p=Array.from({length:256},(_,i)=>i);for(let i=255;i>0;i--){const j=Math.floor(this.random()*(i+1));[this.p[i],this.p[j]]=[this.p[j],this.p[i]]}this.perm=[...this.p,...this.p];this.grad3=[[1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0],[1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1],[0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]]}fade(t){return t*t*t*(t*(t*6-15)+10)}lerp(t,a,b){return a+t*(b-a)}grad(h,x,y,z){return this.grad3[h%12].reduce((a,b,i)=>a+b*[x,y,z][i],0)}noise(x,y,z){const X=Math.floor(x)&255,Y=Math.floor(y)&255,Z=Math.floor(z)&255;x-=Math.floor(x);y-=Math.floor(y);z-=Math.floor(z);const u=this.fade(x),v=this.fade(y),w=this.fade(z),A=this.perm[X]+Y,AA=this.perm[A]+Z,AB=this.perm[A+1]+Z,B=this.perm[X+1]+Y,BA=this.perm[B]+Z,BB=this.perm[B+1]+Z;return this.lerp(w,this.lerp(v,this.lerp(u,this.grad(this.perm[AA],x,y,z),this.grad(this.perm[BA],x-1,y,z)),this.lerp(u,this.grad(this.perm[AB],x,y-1,z),this.grad(this.perm[BB],x-1,y-1,z))),this.lerp(v,this.lerp(u,this.grad(this.perm[AA+1],x,y,z-1),this.grad(this.perm[BA+1],x-1,y,z-1)),this.lerp(u,this.grad(this.perm[AB+1],x,y-1,z-1),this.grad(this.perm[BB+1],x-1,y-1,z-1))))}fbm(x,y,z,o,l,g){let v=0,a=1;for(let i=0;i<o;i++){v+=a*this.noise(x,y,z);x*=l;y*=l;z*=l;a*=g}return v}}
