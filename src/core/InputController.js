@@ -1,19 +1,19 @@
 import * as THREE from 'three';
 
 export default class InputController {
-    constructor(camera, plane) {
+    constructor(camera, plane, domElement) {
         this.camera = camera;
         this.plane = plane;
         this.raycaster = new THREE.Raycaster();
-        
-        // Use the full-screen canvas container for events and measurements
-        this.domElement = document.getElementById('canvas-container');
-        
+
+        // Use the domElement passed in from the Game class
+        this.domElement = domElement;
+
         this.onTap = null;
         this.touchState = { startTime: 0, startX: 0, startY: 0, isDragging: false, };
         this._addEventListeners();
     }
-    
+
     _addEventListeners() {
         this.domElement.addEventListener('touchstart', this._onTouchStart.bind(this), { passive: false });
         this.domElement.addEventListener('touchmove', this._onTouchMove.bind(this), { passive: false });
@@ -40,8 +40,8 @@ export default class InputController {
     _onTouchEnd(event) {
         if (event.changedTouches.length !== 1) return;
         event.preventDefault();
-        
-        // MODIFIED: Check if the tap landed on any UI element. If so, ignore it.
+
+        // Check if the tap landed on any UI element. If so, ignore it.
         const uiContainer = document.getElementById('ui-container');
         if (uiContainer && uiContainer.contains(event.target)) {
             return;
@@ -52,7 +52,7 @@ export default class InputController {
             this._handleTap(event.changedTouches[0]);
         }
     }
-    
+
     _handleTap(touch) {
         // Corrected logic for full-screen canvas
         const rect = this.domElement.getBoundingClientRect();
