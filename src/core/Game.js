@@ -7,8 +7,9 @@ import Movement from '../mechanics/Movement.js';
 import { setupLighting } from '../world/Lighting.js';
 import GameSky from '../world/Sky.js';
 import Terrain from '../world/Terrain.js';
+import Clouds from '../world/Clouds.js';
 import GamepadController from './GamepadController.js';
-import Navbar from '../ui/Navbar.js'; // Added back
+import Navbar from '../ui/Navbar.js';
 
 // Constants for day/night cycle
 const DAY_DURATION_SECONDS = 60;
@@ -42,9 +43,10 @@ export default class Game {
         this.character = new Character(this.scene);
         this.sky = new GameSky(this.scene);
         this.terrain = new Terrain(this.scene);
+        this.clouds = new Clouds(this.scene, this.camera.threeCamera);
         this.movement = new Movement(this.character.mesh);
         this.input = new InputController(this.camera.threeCamera, this.terrain.mesh, this.renderer.domElement);
-        this.navbar = new Navbar(); // Added back
+        this.navbar = new Navbar();
 
         const { hemiLight, dirLight } = setupLighting(this.scene);
         this.sunLight = dirLight;
@@ -77,7 +79,6 @@ export default class Game {
             this.movement.calculatePathOnTerrain(worldPos, this.terrain.mesh);
         };
         
-        // --- Gamepad Navbar controls restored ---
         this.gamepad.onRB = () => this.navbar.cycleTab(1);
         this.gamepad.onLB = () => this.navbar.cycleTab(-1);
         this.gamepad.onB = () => this.navbar.closePanel();
@@ -153,6 +154,7 @@ export default class Game {
 
         this.movement.update(delta);
         this.camera.update();
+        this.clouds.update(delta, this.sunLight, this.hemiLight, this.camera.threeCamera.position);
         this.renderer.render(this.scene, this.camera.threeCamera);
     }
 }
