@@ -7,7 +7,6 @@ import Movement from '../mechanics/Movement.js';
 import { setupLighting } from '../world/Lighting.js';
 import GameSky from '../world/Sky.js';
 import Terrain from '../world/Terrain.js';
-import Clouds from '../world/Clouds.js';
 import GamepadController from './GamepadController.js';
 import Navbar from '../ui/Navbar.js';
 
