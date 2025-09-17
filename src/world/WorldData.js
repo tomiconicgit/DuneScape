@@ -1,13 +1,15 @@
 // This file will store shared constants for your world.
 
 export const MINE_AREA = {
-    x: 75,
-    y: 75,
-    // The levels of the mine, from top to bottom
+    x: 75, y: 85, width: 40, depth: 60, // The entire footprint of the mine area
+    slope_width: 4, // How wide the sandy slope is between levels
     levels: [
-        { name: 'limestone', depth: 2, radius: 20 },
-        { name: 'carbon',    depth: 5, radius: 14 },
-        { name: 'iron',      depth: 8, radius: 8  }
+        // Top level
+        { name: 'carbon',    y_start: 55, height: 0.1 },
+        // Middle level
+        { name: 'limestone', y_start: 79, height: -0.5 },
+        // Bottom level
+        { name: 'iron',      y_start: 103, height: -1.0 }
     ]
 };
 
