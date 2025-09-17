@@ -67,7 +67,7 @@ export default class Clouds {
         texture.unpackAlignment = 1;
         texture.needsUpdate = true;
 
-        // --- 2. Define Custom Shader Material (Reverted to original working version) ---
+        // --- 2. Define Custom Shader Material ---
         const vertexShader = /* glsl */`
             in vec3 position; uniform mat4 modelMatrix; uniform mat4 modelViewMatrix; uniform mat4 projectionMatrix;
             uniform vec3 cameraPos; out vec3 vOrigin; out vec3 vDirection;
@@ -109,7 +109,7 @@ export default class Clouds {
                 if (bounds.x > bounds.y) discard; bounds.x = max(bounds.x, 0.0);
                 vec3 p = vOrigin + bounds.x * rayDir; vec3 inc = 1.0 / abs(rayDir);
                 float delta = min(inc.x, min(inc.y, inc.z)); delta /= steps;
-                uint seed = uint(gl_FragCoord.x)*1973u+uint(gl_FragCoord.y)*9277u+uint(frame)*26699u;
+                uint seed = uint(gl_FragCoord.x)*1973u+uint(gl_fragCoord.y)*9277u+uint(frame)*26699u;
                 p += rayDir * randomFloat(seed) * (1.0/vec3(textureSize(map, 0)).x);
 
                 vec4 accumulatedColor = vec4(0.0);
@@ -131,7 +131,7 @@ export default class Clouds {
         `;
 
         const material = new THREE.RawShaderMaterial({
-            glslVersion: THREE.GLS3,
+            glslVersion: THREE.GLSL3, // <-- CORRECTED TYPO HERE
             uniforms: {
                 map: { value: texture },
                 cameraPos: { value: new THREE.Vector3() },
@@ -157,7 +157,6 @@ export default class Clouds {
     update(delta, sunLight, hemiLight, cameraPosition) {
         this.frame++;
         
-        // Define a perpendicular vector to the wind for respawning clouds
         const perpendicularWind = new THREE.Vector3(-this.windDirection.z, 0, this.windDirection.x);
 
         for (const cloud of this.clouds) {
@@ -165,28 +164,21 @@ export default class Clouds {
             uniforms.cameraPos.value.copy(cameraPosition);
             uniforms.frame.value = this.frame;
 
-            // Reverted lighting logic from the first version
             uniforms.uSunColor.value.copy(sunLight.color).multiplyScalar(sunLight.intensity / 3.0);
             uniforms.uHemiColor.value.copy(hemiLight.color).multiplyScalar(hemiLight.intensity / 2.0);
             
-            // Animate cloud drift with the wind
             cloud.position.addScaledVector(this.windDirection, this.windSpeed * delta);
             
-            // Animate internal rotation
             cloud.rotation.y += cloud.userData.rotationSpeed * delta;
 
-            // Check if cloud is out of bounds and reset its position
             const distance = cloud.position.length();
             if (distance > this.areaSize * 1.2) {
-                // Move it to the opposite side, behind the wind
                 let resetPos = this.windDirection.clone().multiplyScalar(-this.areaSize);
-                // Add a random offset so clouds don't reappear in a straight line
                 let randomOffset = perpendicularWind.clone().multiplyScalar((Math.random() - 0.5) * this.areaSize * 2);
                 resetPos.add(randomOffset);
                 cloud.position.copy(resetPos);
             }
 
-            // Animate shape and density over time
             const time = performance.now() * 0.0002;
             uniforms.threshold.value = 0.25 + (Math.sin(time + cloud.userData.thresholdOffset) * 0.03);
         }
