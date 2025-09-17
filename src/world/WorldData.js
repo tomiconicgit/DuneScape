@@ -5,11 +5,11 @@ export const MINE_AREA = {
     slope_width: 4, // How wide the sandy slope is between levels
     levels: [
         // Top level
-        { name: 'carbon',    y_start: 55, height: 0.1 },
+        { name: 'carbon',    y_start: 55, depth: 20, height: 0.1 },
         // Middle level
-        { name: 'limestone', y_start: 79, height: -0.5 },
+        { name: 'limestone', y_start: 79, depth: 20, height: -0.5 },
         // Bottom level
-        { name: 'iron',      y_start: 103, height: -1.0 }
+        { name: 'iron',      y_start: 103, depth: 12, height: -1.0 }
     ]
 };
 
