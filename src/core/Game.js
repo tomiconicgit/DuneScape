@@ -4,31 +4,27 @@ import Character from '../components/Character.js';
 import Camera from './Camera.js';
 import InputController from './InputController.js';
 import Movement from '../mechanics/Movement.js';
+import DeveloperUI from '../ui/DeveloperUI.js';
 import { setupLighting } from '../world/Lighting.js';
 import GameSky from '../world/Sky.js';
 import Terrain from '../world/Terrain.js';
-import Navbar from '../ui/Navbar.js'; // MODIFIED
+import GamepadController from './GamepadController.js';
 
-// ... (Constants are the same)
-const DAY_DURATION_SECONDS = 30;
-const NIGHT_DURATION_SECONDS = 30;
+const DAY_DURATION_SECONDS = 600; 
+const NIGHT_DURATION_SECONDS = 300;
 const TOTAL_CYCLE_SECONDS = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS;
 
 export default class Game {
     constructor() {
         Debug.init();
-        console.log("Game Engine: Initializing...");
-
         this.scene = new THREE.Scene();
-        
-        // MODIFIED: Create a dedicated container for the canvas
-        const canvasContainer = document.createElement('div');
-        canvasContainer.id = 'canvas-container';
-        document.body.appendChild(canvasContainer);
-        
-        this.renderer = this._createRenderer(canvasContainer);
+        this.renderer = this._createRenderer();
         this.clock = new THREE.Clock();
         this.timeOffset = DAY_DURATION_SECONDS * 0.1;
+        this.isPaused = false;
+        this.elapsedTime = 0;
+        this.currentElevation = 0;
+        this.currentAzimuth = 0;
 
         this.camera = new Camera(this.renderer.domElement);
         this.character = new Character(this.scene);
@@ -36,42 +32,77 @@ export default class Game {
         this.terrain = new Terrain(this.scene);
         this.movement = new Movement(this.character.mesh);
         this.input = new InputController(this.camera.threeCamera, this.terrain.mesh);
-        
-        // MODIFIED: Replace DeveloperUI with the new Navbar
-        this.navbar = new Navbar();
+        this.navbar = new DeveloperUI(); // Renamed from devUI for clarity
 
-        const { dirLight } = setupLighting(this.scene);
+        const { hemiLight, dirLight } = setupLighting(this.scene);
         this.sunLight = dirLight;
+        this.hemiLight = hemiLight;
         this.character.mesh.castShadow = true;
+
+        this.gamepad = new GamepadController();
         
         this._setupEvents();
     }
 
-    _createRenderer(container) { // MODIFIED
+    _createRenderer() {
         const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(container.clientWidth, container.clientHeight); // MODIFIED
+        renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = 0.5;
-        container.appendChild(renderer.domElement); // MODIFIED
+        document.body.appendChild(renderer.domElement);
         return renderer;
     }
 
     _setupEvents() {
-        // MODIFIED: Resize now needs to look at the container's size
-        const canvasContainer = document.getElementById('canvas-container');
-        const resizeObserver = new ResizeObserver(entries => {
-            const { width, height } = entries[0].contentRect;
-            this.camera.threeCamera.aspect = width / height;
-            this.camera.threeCamera.updateProjectionMatrix();
-            this.renderer.setSize(width, height);
+        window.addEventListener('resize', () => { 
+            this.camera.handleResize(); 
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
         });
-        resizeObserver.observe(canvasContainer);
-
-        this.input.onTap = (worldPos) => {
-            this.movement.calculatePathOnTerrain(worldPos, this.terrain.mesh);
+        
+        this.input.onTap = (worldPos) => { 
+            this.movement.calculatePathOnTerrain(worldPos, this.terrain.mesh); 
         };
+        
+        this.navbar.onSettingChange = (change) => { 
+            this._handleSettingChange(change); 
+        };
+        this.navbar.onPauseToggle = () => { 
+            this.isPaused = !this.isPaused; 
+        };
+        this.navbar.onCopyRequest = () => { 
+            this._copySkySettings(); 
+        };
+        
+        // Gamepad event wiring
+        this.gamepad.onRB = () => this.navbar.cycleTab(1);
+        this.gamepad.onLB = () => this.navbar.cycleTab(-1);
+        this.gamepad.onB = () => this.navbar.closePanel();
+    }
+
+    _handleSettingChange(change) {
+        switch (change.setting) {
+            case 'exposure': this.renderer.toneMappingExposure = change.value; break;
+            case 'turbidity': this.sky.uniforms['turbidity'].value = change.value; break;
+            case 'rayleigh': this.sky.uniforms['rayleigh'].value = change.value; break;
+            case 'mieCoefficient': this.sky.uniforms['mieCoefficient'].value = change.value; break;
+            case 'mieDirectionalG': this.sky.uniforms['mieDirectionalG'].value = change.value; break;
+            case 'sunIntensity': this.sunLight.intensity = change.value; break;
+            case 'hemiIntensity': this.hemiLight.intensity = change.value; break;
+        }
+    }
+
+    _copySkySettings() {
+        const settings = {
+            turbidity: this.sky.uniforms['turbidity'].value, rayleigh: this.sky.uniforms['rayleigh'].value,
+            mieCoefficient: this.sky.uniforms['mieCoefficient'].value, mieDirectionalG: this.sky.uniforms['mieDirectionalG'].value,
+            elevation: this.currentElevation, azimuth: this.currentAzimuth,
+            sunIntensity: this.sunLight.intensity, hemiIntensity: this.hemiLight.intensity,
+            exposure: this.renderer.toneMappingExposure
+        };
+        const settingsString = `const timeSettings = ${JSON.stringify(settings, null, 2)};`;
+        navigator.clipboard.writeText(settingsString).then(() => { this.navbar.showCopiedFeedback(); });
     }
 
     start() {
@@ -82,29 +113,54 @@ export default class Game {
 
     _animate() {
         requestAnimationFrame(() => this._animate());
-
         const delta = this.clock.getDelta();
-        const elapsed = this.clock.getElapsedTime() + this.timeOffset;
-        const cycleProgress = (elapsed % TOTAL_CYCLE_SECONDS) / TOTAL_CYCLE_SECONDS;
-        
-        let elevation = 0;
-        let dayProgress = 0;
 
-        if (cycleProgress < (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) {
-            dayProgress = cycleProgress / (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
-            elevation = Math.sin(dayProgress * Math.PI) * 90;
-        } else {
-            const nightProgress = (cycleProgress - (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) / (NIGHT_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
-            elevation = Math.sin(Math.PI + nightProgress * Math.PI) * 90;
+        // Update gamepad state first
+        this.gamepad.update();
+
+        if (!this.isPaused) { 
+            this.elapsedTime += delta; 
         }
         
-        const azimuth = 180 - (dayProgress * 360);
-        this.sky.setParameters({ elevation, azimuth });
-        this.sunLight.position.copy(this.sky.sun);
+        // Time Display and Sky calculation
+        const elapsedWithOffset = this.elapsedTime + this.timeOffset;
+        const cycleProgress = (elapsedWithOffset % TOTAL_CYCLE_SECONDS) / TOTAL_CYCLE_SECONDS;
+        let dayProgress = 0;
+        if (cycleProgress < (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) {
+            dayProgress = cycleProgress / (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
+            this.currentElevation = Math.sin(dayProgress * Math.PI) * 90;
+        } else {
+            const nightProgress = (cycleProgress - (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) / (NIGHT_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
+            this.currentElevation = Math.sin(Math.PI + nightProgress * Math.PI) * 90;
+            dayProgress = 1.0;
+        }
+        this.currentAzimuth = 180 - (dayProgress * 360);
         
+        if (!this.isPaused) {
+            this.sky.setParameters({ elevation: this.currentElevation, azimuth: this.currentAzimuth });
+            this.sunLight.position.copy(this.sky.sun).multiplyScalar(1000);
+        }
+
+        // Gamepad Controls
+        const { x: orbit } = this.gamepad.getRightStick();
+        this.camera.orbitAngle -= orbit * 0.02;
+        const { lt, rt } = this.gamepad.getTriggers();
+        this.camera.zoomLevel += (lt - rt) * 0.02;
+        this.camera.zoomLevel = Math.max(0, Math.min(1, this.camera.zoomLevel));
+        const { x: stickX, y: stickY } = this.gamepad.getLeftStick();
+        if (Math.abs(stickX) > 0 || Math.abs(stickY) > 0) {
+            const cameraForward = new THREE.Vector3();
+            this.camera.threeCamera.getWorldDirection(cameraForward);
+            cameraForward.y = 0;
+            cameraForward.normalize();
+            const cameraRight = new THREE.Vector3().crossVectors(this.camera.threeCamera.up, cameraForward);
+            const moveDirection = cameraForward.multiplyScalar(-stickY).add(cameraRight.multiplyScalar(stickX));
+            this.movement.moveCharacter(moveDirection, delta);
+        }
+        
+        // Update game objects
         this.movement.update(delta);
         this.camera.update();
-
         this.renderer.render(this.scene, this.camera.threeCamera);
     }
 }
