@@ -1,116 +1,82 @@
 import * as THREE from 'three';
-import { SimplexNoise } from 'three/addons/math/SimplexNoise.js';
-import { MINE_AREA, TOWN_AREA, OASIS_AREA } from './WorldData.js';
+import { MINE_AREA } from '../WorldData.js';
 
-// Re-add the helper method to THREE.Vector2
-THREE.Vector2.prototype.distanceToSegment = function(v, w) {
-    const dx = v.x - w.x; const dy = v.y - w.y; const l2 = dx * dx + dy * dy;
-    if (l2 === 0) return this.distanceTo(v);
-    let t = ((this.x - v.x) * (w.x - v.x) + (this.y - v.y) * (w.y - v.y)) / l2;
-    t = Math.max(0, Math.min(1, t));
-    const closestPoint = new THREE.Vector2(v.x + t * (w.x - v.x), v.y + t * (w.y - v.y));
-    return this.distanceTo(closestPoint);
-};
+const MASTER_SEED = 42; // Change this number to get a completely new layout of rocks
 
-export default class Terrain {
+export default class Rocks {
     constructor(scene) {
-        const size = 200;
-        const segments = 256;
+        this.prng = this.seededRandom(MASTER_SEED);
 
-        // --- Trail to Mine Entrance ---
-        const TRAIL_WIDTH = 3;
-        const TRAIL_DEPTH = 0.5;
-        const mineEntranceY = MINE_AREA.y - MINE_AREA.depth / 2 - 2;
+        // --- Create Materials for each Ore Type ---
+        this.materials = {
+            stone:     new THREE.MeshStandardMaterial({ color: 0x808080, roughness: 0.8 }),
+            iron:      new THREE.MeshStandardMaterial({ color: 0x8E574A, roughness: 0.6, metalness: 0.3 }),
+            limestone: new THREE.MeshStandardMaterial({ color: 0xD3D3D3, roughness: 0.9 }),
+            carbon:    new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.5 })
+        };
         
-        // --- FIX: Corrected typo from "CatcatmullRomCurve3" to "CatmullRomCurve3" ---
-        const townToMinePath = new THREE.CatmullRomCurve3([
-            new THREE.Vector3(TOWN_AREA.x, TOWN_AREA.y + TOWN_AREA.depth / 2, 0),
-            new THREE.Vector3(40, 40, 0),
-            new THREE.Vector3(MINE_AREA.x, mineEntranceY, 0)
-        ]);
-        // --- END FIX ---
+        // --- Create Base Geometries (once, for efficiency) ---
+        this.oreGeometry = new THREE.IcosahedronGeometry(0.5, 0); // Ores are uniform icosahedrons
 
-        // Other trails can be added back here if needed
-        const trails = [{ points: townToMinePath.getPoints(50) }];
+        // --- Place Rocks on Mine Levels ---
+        MINE_AREA.levels.forEach(level => {
+            const rockCount = Math.floor(level.depth * 20);
+            for (let i = 0; i < rockCount; i++) {
+                const type = (this.prng() > 0.3) ? level.name : 'stone';
+                
+                const x = MINE_AREA.x + (this.prng() - 0.5) * MINE_AREA.width;
+                const y = level.y_start + (this.prng() * level.depth);
+                const position = new THREE.Vector3(x, level.height, y);
 
-        const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
-        const material = new THREE.MeshLambertMaterial({ color: 0xdbb480 });
-
-        const simplex = new SimplexNoise();
-        const positions = geometry.attributes.position;
-        const vertex = new THREE.Vector3();
-        const tempVec2 = new THREE.Vector2();
-
-        const slopeHeight = 1.5;
-        const detailHeight = 0.25;
-
-        for (let i = 0; i < positions.count; i++) {
-            vertex.fromBufferAttribute(positions, i);
-            let height = simplex.noise(vertex.x * 0.02, vertex.y * 0.02) * slopeHeight;
-            height += simplex.noise(vertex.x * 0.2, vertex.y * 0.2) * detailHeight;
-
-            let finalHeight = height;
-            let inDesignatedArea = false;
-
-            // --- Rectangular Terraced Mine Generation ---
-            const mineLeft = MINE_AREA.x - MINE_AREA.width / 2;
-            const mineRight = MINE_AREA.x + MINE_AREA.width / 2;
-            const mineTop = MINE_AREA.y - MINE_AREA.depth / 2;
-            const mineBottom = MINE_AREA.y + MINE_AREA.depth / 2;
-            
-            if (vertex.x > mineLeft && vertex.x < mineRight && vertex.y > mineTop && vertex.y < mineBottom) {
-                inDesignatedArea = true;
-                const L = MINE_AREA.levels;
-                const slope = MINE_AREA.slope_width;
-
-                const level1_end = L[0].y_start + L[0].depth;
-                const level2_start = L[1].y_start;
-                const level2_end = L[1].y_start + L[1].depth;
-                const level3_start = L[2].y_start;
-
-                if (vertex.y < level1_end) { // Carbon Level
-                    finalHeight = L[0].height;
-                } else if (vertex.y < level2_start) { // Slope 1
-                    const blend = (vertex.y - level1_end) / slope;
-                    finalHeight = THREE.MathUtils.lerp(L[0].height, L[1].height, blend);
-                } else if (vertex.y < level2_end) { // Limestone Level
-                    finalHeight = L[1].height;
-                } else if (vertex.y < level3_start) { // Slope 2
-                    const blend = (vertex.y - level2_end) / slope;
-                    finalHeight = THREE.MathUtils.lerp(L[1].height, L[2].height, blend);
-                } else { // Iron Level
-                    finalHeight = L[2].height;
-                }
+                this._createRock(scene, type, position);
             }
+        });
+    }
 
-            // Flatten other areas
-            // ... (Town/Oasis flattening logic can be re-added here if needed)
+    _createRock(scene, type, position) {
+        let geometry;
+        const isOre = type !== 'stone';
 
-            // Carve trails
-            if (!inDesignatedArea) {
-                let minTrailDist = Infinity;
-                tempVec2.set(vertex.x, vertex.y);
-                for (const trail of trails) {
-                    for (let j = 0; j < trail.points.length - 1; j++) {
-                        const p1 = new THREE.Vector2(trail.points[j].x, trail.points[j].y);
-                        const p2 = new THREE.Vector2(trail.points[j + 1].x, trail.points[j + 1].y);
-                        minTrailDist = Math.min(minTrailDist, tempVec2.distanceToSegment(p1, p2));
-                    }
-                }
-                if (minTrailDist < TRAIL_WIDTH) {
-                    const depressionFactor = 1.0 - (minTrailDist / TRAIL_WIDTH);
-                    finalHeight -= TRAIL_DEPTH * Math.sin(depressionFactor * Math.PI);
-                }
+        if (isOre) {
+            geometry = this.oreGeometry;
+        } else {
+            const tempGeom = new THREE.IcosahedronGeometry(0.5, 1);
+            const positions = tempGeom.attributes.position;
+            const tempVector = new THREE.Vector3();
+            for (let j = 0; j < positions.count; j++) {
+                tempVector.fromBufferAttribute(positions, j);
+                tempVector.multiplyScalar(1 + (this.prng() - 0.5) * 0.8);
+                positions.setXYZ(j, tempVector.x, tempVector.y, tempVector.z);
             }
-
-            positions.setZ(i, finalHeight);
+            tempGeom.computeVertexNormals();
+            geometry = tempGeom;
         }
 
-        geometry.computeVertexNormals();
+        const material = this.materials[type];
+        const rockMesh = new THREE.Mesh(geometry, material);
+        rockMesh.position.copy(position);
 
-        this.mesh = new THREE.Mesh(geometry, material);
-        this.mesh.rotation.x = -Math.PI / 2;
-        this.mesh.receiveShadow = true;
-        scene.add(this.mesh);
+        const scale = isOre ? 0.8 : THREE.MathUtils.lerp(0.4, 1.1, this.prng());
+        rockMesh.scale.set(scale, scale, scale);
+        
+        rockMesh.geometry.computeBoundingBox();
+        const rockHeight = rockMesh.geometry.boundingBox.max.y - rockMesh.geometry.boundingBox.min.y;
+        rockMesh.position.y += (rockHeight * rockMesh.scale.y) / 2;
+
+        rockMesh.rotation.set(this.prng() * Math.PI, this.prng() * Math.PI, this.prng() * Math.PI);
+
+        rockMesh.castShadow = true;
+        rockMesh.receiveShadow = true;
+        scene.add(rockMesh);
+    }
+    
+    // Seeded pseudo-random number generator
+    seededRandom(seed) {
+        return function() {
+            let t = seed += 0x6D2B79F5;
+            t = Math.imul(t ^ t >>> 15, t | 1);
+            t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+            return ((t ^ t >>> 14) >>> 0) / 4294967296;
+        }
     }
 }
