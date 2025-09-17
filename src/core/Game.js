@@ -8,6 +8,7 @@ import { setupLighting } from '../world/Lighting.js';
 import GameSky from '../world/Sky.js';
 import Terrain from '../world/Terrain.js';
 import GamepadController from './GamepadController.js';
+import Navbar from '../ui/Navbar.js'; // Added back
 
 // Constants for day/night cycle
 const DAY_DURATION_SECONDS = 60;
@@ -42,8 +43,8 @@ export default class Game {
         this.sky = new GameSky(this.scene);
         this.terrain = new Terrain(this.scene);
         this.movement = new Movement(this.character.mesh);
-        // Pass the renderer's canvas element to the InputController
         this.input = new InputController(this.camera.threeCamera, this.terrain.mesh, this.renderer.domElement);
+        this.navbar = new Navbar(); // Added back
 
         const { hemiLight, dirLight } = setupLighting(this.scene);
         this.sunLight = dirLight;
@@ -75,6 +76,11 @@ export default class Game {
         this.input.onTap = (worldPos) => {
             this.movement.calculatePathOnTerrain(worldPos, this.terrain.mesh);
         };
+        
+        // --- Gamepad Navbar controls restored ---
+        this.gamepad.onRB = () => this.navbar.cycleTab(1);
+        this.gamepad.onLB = () => this.navbar.cycleTab(-1);
+        this.gamepad.onB = () => this.navbar.closePanel();
     }
 
     start() {
@@ -121,7 +127,7 @@ export default class Game {
         this.hemiLight.intensity = (0.2 + sunHeightFactor * 2.0) * (1.0 - nightFactor * 0.5);
         const daySkyHemi = HEMI_SKY_COLOR_NOON.clone().lerp(HEMI_COLOR_SUNSET, sunsetFactor);
         const dayGroundHemi = HEMI_GROUND_COLOR_NOON.clone().lerp(HEMI_COLOR_SUNSET, sunsetFactor);
-        this.hemiLight.color.lerpColors(daySkyHemi, HEMI_SKY_COLOR_NIGHT, nightFactor);
+        this.hemiLight.color.lerpColors(daySkyHmi, HEMI_SKY_COLOR_NIGHT, nightFactor);
         this.hemiLight.groundColor.lerpColors(dayGroundHemi, HEMI_GROUND_COLOR_NIGHT, nightFactor);
 
         if (this.scene.fog) {
