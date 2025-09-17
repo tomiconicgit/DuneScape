@@ -2,15 +2,11 @@ import * as THREE from 'three';
 import { SimplexNoise } from 'three/addons/math/SimplexNoise.js';
 import { MINE_AREA, TOWN_AREA, OASIS_AREA } from './WorldData.js';
 
-// Re-add the helper method to THREE.Vector2
-THREE.Vector2.prototype.distanceToSegment = function(v, w) {
-    const dx = v.x - w.x; const dy = v.y - w.y; const l2 = dx * dx + dy * dy;
-    if (l2 === 0) return this.distanceTo(v);
-    let t = ((this.x - v.x) * (w.x - v.x) + (this.y - v.y) * (w.y - v.y)) / l2;
-    t = Math.max(0, Math.min(1, t));
-    const closestPoint = new THREE.Vector2(v.x + t * (w.x - v.x), v.y + t * (w.y - v.y));
-    return this.distanceTo(closestPoint);
-};
+// Helper for smoothstep interpolation
+function smoothstep(min, max, value) {
+    const x = Math.max(0, Math.min(1, (value - min) / (max - min)));
+    return x * x * (3 - 2 * x);
+}
 
 export default class Terrain {
     constructor(scene) {
@@ -19,13 +15,10 @@ export default class Terrain {
 
         const TRAIL_WIDTH = 3;
         const TRAIL_DEPTH = 0.5;
-        const mineEntranceY = MINE_AREA.y - MINE_AREA.depth / 2 - 2;
-        
-        // Corrected the typo here
         const townToMinePath = new THREE.CatmullRomCurve3([
             new THREE.Vector3(TOWN_AREA.x, TOWN_AREA.y + TOWN_AREA.depth / 2, 0),
             new THREE.Vector3(40, 40, 0),
-            new THREE.Vector3(MINE_AREA.x, mineEntranceY, 0)
+            new THREE.Vector3(MINE_AREA.x, MINE_AREA.y - MINE_AREA.radius - 5, 0) // End trail at the pit's edge
         ]);
         const trails = [{ points: townToMinePath.getPoints(50) }];
 
@@ -35,7 +28,7 @@ export default class Terrain {
         const simplex = new SimplexNoise();
         const positions = geometry.attributes.position;
         const vertex = new THREE.Vector3();
-        const tempVec2 = new THREE.Vector2();
+        const mineCenter = new THREE.Vector2(MINE_AREA.x, MINE_AREA.y);
 
         const slopeHeight = 1.5;
         const detailHeight = 0.25;
@@ -45,68 +38,42 @@ export default class Terrain {
             let height = simplex.noise(vertex.x * 0.02, vertex.y * 0.02) * slopeHeight;
             height += simplex.noise(vertex.x * 0.2, vertex.y * 0.2) * detailHeight;
 
-            let finalHeight = height;
-            let inDesignatedArea = false;
+            // --- Open-Pit Mine Generation ---
+            const distToMineCenter = mineCenter.distanceTo(new THREE.Vector2(vertex.x, vertex.y));
+            if (distToMineCenter < MINE_AREA.radius) {
+                // Calculate the smooth, bowl-shaped depth
+                const smoothDepth = MINE_AREA.depth * Math.sqrt(1 - (distToMineCenter / MINE_AREA.radius));
+                
+                // Calculate which terrace this point belongs to
+                const terraceWidth = MINE_AREA.radius / MINE_AREA.terraces;
+                const positionInTerrace = distToMineCenter % terraceWidth;
 
-            const mineLeft = MINE_AREA.x - MINE_AREA.width / 2;
-            const mineRight = MINE_AREA.x + MINE_AREA.width / 2;
-            const mineTop = MINE_AREA.y - MINE_AREA.depth / 2;
-            const mineBottom = MINE_AREA.y + MINE_AREA.depth / 2;
-            
-            if (vertex.x > mineLeft && vertex.x < mineRight && vertex.y > mineTop && vertex.y < mineBottom) {
-                inDesignatedArea = true;
-                const L = MINE_AREA.levels;
-                const slope = MINE_AREA.slope_width;
-
-                const level1_end = L[0].y_start + L[0].depth;
-                const level2_start = L[1].y_start;
-                const level2_end = L[1].y_start + L[1].depth;
-                const level3_start = L[2].y_start;
-
-                if (vertex.y < level1_end) {
-                    finalHeight = L[0].height;
-                } else if (vertex.y < level2_start) {
-                    const blend = (vertex.y - level1_end) / slope;
-                    finalHeight = THREE.MathUtils.lerp(L[0].height, L[1].height, blend);
-                } else if (vertex.y < level2_end) {
-                    finalHeight = L[1].height;
-                } else if (vertex.y < level3_start) {
-                    const blend = (vertex.y - level2_end) / slope;
-                    finalHeight = THREE.MathUtils.lerp(L[1].height, L[2].height, blend);
+                // Calculate the depth of the flat part of the current and next terraces
+                const currentTerrace = Math.floor(distToMineCenter / terraceWidth);
+                const depth1 = (currentTerrace / MINE_AREA.terraces) * MINE_AREA.depth;
+                const depth2 = ((currentTerrace + 1) / MINE_AREA.terraces) * MINE_AREA.depth;
+                
+                let mineHeight;
+                if (positionInTerrace < terraceWidth * MINE_AREA.tread) {
+                    // This is the flat part of the terrace
+                    mineHeight = -depth1;
                 } else {
-                    finalHeight = L[2].height;
+                    // This is the sloped wall between terraces
+                    const blend = (positionInTerrace - (terraceWidth * MINE_AREA.tread)) / (terraceWidth * (1.0 - MINE_AREA.tread));
+                    mineHeight = THREE.MathUtils.lerp(-depth1, -depth2, blend);
                 }
+
+                // Add some noise to the mine walls to make them less perfect
+                mineHeight += simplex.noise(vertex.x * 0.1, vertex.y * 0.1) * 0.5;
+                
+                // Blend the outer edge of the pit with the main terrain
+                const blendFactor = smoothstep(MINE_AREA.radius - 2, MINE_AREA.radius, distToMineCenter);
+                height = THREE.MathUtils.lerp(mineHeight, height, blendFactor);
             }
 
-            if (!inDesignatedArea) {
-                 if (vertex.x > TOWN_AREA.x - TOWN_AREA.width/2 && vertex.x < TOWN_AREA.x + TOWN_AREA.width/2 &&
-                    vertex.y > TOWN_AREA.y - TOWN_AREA.depth/2 && vertex.y < TOWN_AREA.y + TOWN_AREA.depth/2) {
-                    finalHeight = TOWN_AREA.height; 
-                    inDesignatedArea = true;
-                } else if (vertex.x > OASIS_AREA.x - OASIS_AREA.width/2 && vertex.x < OASIS_AREA.x + OASIS_AREA.width/2 &&
-                           vertex.y > OASIS_AREA.y - OASIS_AREA.depth/2 && vertex.y < OASIS_AREA.y + OASIS_AREA.depth/2) {
-                    finalHeight = OASIS_AREA.height; 
-                    inDesignatedArea = true;
-                }
-            }
+            // Other flat area and trail logic can be added here if needed
 
-            if (!inDesignatedArea) {
-                let minTrailDist = Infinity;
-                tempVec2.set(vertex.x, vertex.y);
-                for (const trail of trails) {
-                    for (let j = 0; j < trail.points.length - 1; j++) {
-                        const p1 = new THREE.Vector2(trail.points[j].x, trail.points[j].y);
-                        const p2 = new THREE.Vector2(trail.points[j + 1].x, trail.points[j + 1].y);
-                        minTrailDist = Math.min(minTrailDist, tempVec2.distanceToSegment(p1, p2));
-                    }
-                }
-                if (minTrailDist < TRAIL_WIDTH) {
-                    const depressionFactor = 1.0 - (minTrailDist / TRAIL_WIDTH);
-                    finalHeight -= TRAIL_DEPTH * Math.sin(depressionFactor * Math.PI);
-                }
-            }
-
-            positions.setZ(i, finalHeight);
+            positions.setZ(i, height);
         }
 
         geometry.computeVertexNormals();
