@@ -12,7 +12,7 @@ import GamepadController from './GamepadController.js';
 import Navbar from '../ui/Navbar.js';
 import { MINE_AREA } from '../world/WorldData.js';
 
-const DAY_DURATION_SECONDS = 60, NIGHT_DURATION_SECONDS = 60;
+const DAY_DURATION_SECONDS = 900, NIGHT_DURATION_SECONDS = 900;
 const TOTAL_CYCLE_SECONDS = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS;
 const SUN_COLOR_NOON = new THREE.Color().setHSL(0.1, 1, 0.95);
 const SUN_COLOR_SUNSET = new THREE.Color().setHSL(0.05, 1, 0.7);
@@ -28,12 +28,18 @@ export default class Game {
     constructor() {
         Debug.init();
         this.scene = new THREE.Scene();
+        
+        // --- FIX: Create the renderer BEFORE anything that needs it ---
         this.renderer = this._createRenderer();
+        
         this.clock = new THREE.Clock();
         this.buildMode = { enabled: false, rockType: null };
         this.timeOffset = DAY_DURATION_SECONDS * 0.1;
         this.elapsedTime = 0;
+        this.currentElevation = 0;
+        this.currentAzimuth = 0;
 
+        // Now it's safe to create the camera and other components
         this.camera = new Camera(this.renderer.domElement);
         this.character = new Character(this.scene);
         this.sky = new GameSky(this.scene);
@@ -41,16 +47,18 @@ export default class Game {
         this.rocks = new Rocks(this.scene);
         this.movement = new Movement(this.character.mesh);
         this.input = new InputController(this.camera.threeCamera, this.terrain.mesh, this.renderer.domElement);
+        
         this.navbar = new Navbar(
             (type) => this.handleRockSelect(type),
             () => this.handleCopyRockData(),
             () => this.rocks.clearAllRocks()
         );
-        
+
         const { hemiLight, dirLight } = setupLighting(this.scene);
         this.sunLight = dirLight;
         this.hemiLight = hemiLight;
         this.character.mesh.castShadow = true;
+
         this.gamepad = new GamepadController();
         this._setupEvents();
     }
@@ -68,7 +76,16 @@ export default class Game {
         });
     }
 
-    _createRenderer() { /* ... unchanged ... */ }
+    _createRenderer() {
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 0.5;
+        document.body.appendChild(renderer.domElement);
+        return renderer;
+    }
 
     _setupEvents() {
         window.addEventListener('resize', () => {
@@ -101,7 +118,11 @@ export default class Game {
         this.gamepad.onB = () => this.navbar.closePanel();
     }
 
-    start() { /* ... unchanged ... */ }
+    start() {
+        console.log("Game Engine: World setup complete.");
+        this.camera.setTarget(this.character.mesh);
+        this._animate();
+    }
 
     _animate() {
         requestAnimationFrame(() => this._animate());
@@ -109,14 +130,21 @@ export default class Game {
         this.gamepad.update();
         this.elapsedTime += delta;
 
-        // --- Day/Night Cycle Logic ---
         const cycleProgress = (this.elapsedTime + this.timeOffset) % TOTAL_CYCLE_SECONDS / TOTAL_CYCLE_SECONDS;
-        // ... (day/night math remains the same)
-        this.sky.setParameters({ elevation: this.currentElevation, azimuth: this.currentAzimuth });
-        this.sunLight.position.copy(this.sky.sun).multiplyScalar(1000);
-        // ... (light color/intensity lerping remains the same)
+        let dayProgress = 0, currentElevation = 0, currentAzimuth = 0;
+        if (cycleProgress < (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) {
+            dayProgress = cycleProgress / (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
+            currentElevation = Math.sin(dayProgress * Math.PI) * 90;
+        } else {
+            const nightProgress = (cycleProgress - (DAY_DURATION_SECONDS / TOTAL_CYCLE_SECONDS)) / (NIGHT_DURATION_SECONDS / TOTAL_CYCLE_SECONDS);
+            currentElevation = Math.sin(Math.PI + nightProgress * Math.PI) * 90;
+            dayProgress = 1.0;
+        }
+        currentAzimuth = 180 - (dayProgress * 360);
 
-        // --- Feed dynamic lighting data to all rock shaders ---
+        this.sky.setParameters({ elevation: currentElevation, azimuth: currentAzimuth });
+        this.sunLight.position.copy(this.sky.sun).multiplyScalar(1000);
+
         this.scene.traverse(child => {
             if (child.isMesh && child.material.uniforms) {
                 if (child.material.uniforms.lightDir) {
@@ -137,10 +165,36 @@ export default class Game {
             }
         });
 
-        if (this.scene.fog) { /* ... */ }
+        const sunHeightFactor = Math.max(0, currentElevation) / 90;
+        const sunsetFactor = smoothstep(0.4, 0.0, sunHeightFactor);
+        const nightFactor = smoothstep(0.0, -0.2, currentElevation / 90.0);
 
-        // --- Gamepad Movement Logic ---
-        // ... (remains the same)
+        this.sunLight.intensity = (1.0 - nightFactor) * 3.0;
+        this.sunLight.color.lerpColors(SUN_COLOR_NOON, SUN_COLOR_SUNSET, sunsetFactor);
+
+        this.hemiLight.intensity = (0.2 + sunHeightFactor * 2.0) * (1.0 - nightFactor * 0.5);
+        const daySkyHemi = HEMI_SKY_COLOR_NOON.clone().lerp(HEMI_COLOR_SUNSET, sunsetFactor);
+        const dayGroundHemi = HEMI_GROUND_COLOR_NOON.clone().lerp(HEMI_COLOR_SUNSET, sunsetFactor);
+        this.hemiLight.color.lerpColors(daySkyHemi, HEMI_SKY_COLOR_NIGHT, nightFactor);
+        this.hemiLight.groundColor.lerpColors(dayGroundHemi, HEMI_GROUND_COLOR_NIGHT, nightFactor);
+
+        if (this.scene.fog) { this.scene.fog.color.copy(this.hemiLight.groundColor); this.renderer.setClearColor(this.scene.fog.color); }
+
+        const { x: orbit } = this.gamepad.getRightStick();
+        this.camera.orbitAngle -= orbit * 0.02;
+        const { lt, rt } = this.gamepad.getTriggers();
+        this.camera.zoomLevel += (lt - rt) * 0.02;
+        this.camera.zoomLevel = Math.max(0, Math.min(1, this.camera.zoomLevel));
+        const { x: stickX, y: stickY } = this.gamepad.getLeftStick();
+        if (Math.abs(stickX) > 0 || Math.abs(stickY) > 0) {
+            const cameraForward = new THREE.Vector3();
+            this.camera.threeCamera.getWorldDirection(cameraForward);
+            cameraForward.y = 0;
+            cameraForward.normalize();
+            const cameraRight = new THREE.Vector3().crossVectors(this.camera.threeCamera.up, cameraForward);
+            const moveDirection = cameraForward.multiplyScalar(-stickY).add(cameraRight.multiplyScalar(stickX));
+            this.movement.moveCharacter(moveDirection, delta);
+        }
 
         this.movement.update(delta);
         this.camera.update();
