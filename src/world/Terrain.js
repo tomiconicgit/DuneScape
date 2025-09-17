@@ -19,12 +19,10 @@ export default class Terrain {
         const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
         const positions = geometry.attributes.position; // Define positions here
 
-        // Add a color attribute to the geometry
         geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(positions.count * 3), 3));
 
-        // Use vertex colors in the material
         const material = new THREE.MeshLambertMaterial({
-            color: 0xffffff, // Base color is white, we use vertex colors
+            color: 0xffffff,
             vertexColors: true
         });
 
@@ -38,9 +36,8 @@ export default class Terrain {
         const darkSandColor = new THREE.Color(0xb89460);
         const trailColor = new THREE.Color(0x9c7c4f);
 
-        // --- Create a full trail network ---
-        const TRAIL_WIDTH = 2;
-        const TRAIL_DEPTH = 0.7; // Deeper trails
+        const TRAIL_WIDTH = 2.5;
+        const TRAIL_DEPTH = 0.8;
         const trails = [
             new THREE.CatmullRomCurve3([ new THREE.Vector3(TOWN_AREA.x, TOWN_AREA.y, 0), new THREE.Vector3(30, 30, 0), new THREE.Vector3(MINE_AREA.x, MINE_AREA.y, 0) ]),
             new THREE.CatmullRomCurve3([ new THREE.Vector3(TOWN_AREA.x, TOWN_AREA.y, 0), new THREE.Vector3(-25, -40, 0), new THREE.Vector3(OASIS_AREA.x, OASIS_AREA.y, 0) ]),
@@ -61,8 +58,9 @@ export default class Terrain {
             const blendDistance = 5;
             const distToMine = mineRect.distanceToPoint(point);
             if (distToMine < blendDistance) {
-                finalHeight = THREE.MathUtils.lerp(MINE_AREA.height, finalHeight, distToMine / blendDistance);
-                finalColor.lerp(darkSandColor, 1.0 - (distToMine / blendDistance));
+                const blendFactor = 1.0 - (distToMine / blendDistance);
+                finalHeight = THREE.MathUtils.lerp(finalHeight, MINE_AREA.height, blendFactor);
+                finalColor.lerp(darkSandColor, blendFactor);
             }
             
             let minTrailDist = Infinity;
