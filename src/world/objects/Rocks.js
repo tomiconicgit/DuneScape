@@ -4,7 +4,7 @@ import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
 // --- Rock Settings ---
 const ROCK_COUNT = 50;
 const BASE_ROCK_SIZE = 1.0;
-const SUBDIVISIONS = 4; // Increased for more detail. This is now used as segments.
+const SUBDIVISIONS = 4; // Segments for geometry detail
 const DISPLACEMENT_STRENGTH = 0.4;
 const DISPLACEMENT_SCALE = 0.8;
 
@@ -44,44 +44,24 @@ export default class Rocks {
         this.mineArea = mineArea;
 
         const displacementTexture = generateDisplacementNoiseTexture();
-
-        // Shader for Displacement
-        const rockVertexShader = `
-            uniform sampler3D displacementMap;
-            uniform float displacementStrength;
-            uniform float displacementScale;
-            
-            varying vec3 vNormal;
-            varying vec3 vWorldPosition;
-
-            void main() {
-                vNormal = normal;
-                
-                vec3 noiseCoord = position * displacementScale;
-                float noiseVal = texture(displacementMap, noiseCoord).r;
-                
-                vec3 displacedPosition = position + normal * (noiseVal - 0.5) * displacementStrength;
-
-                vec4 worldPosition = modelMatrix * vec4(displacedPosition, 1.0);
-                vWorldPosition = worldPosition.xyz;
-                
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(displacedPosition, 1.0);
-            }
-        `;
         
         // Use a standard material and modify its vertex shader
         const setupMaterial = (material) => {
             material.onBeforeCompile = (shader) => {
+                // Pass our custom uniforms to the shader
                 shader.uniforms.displacementMap = { value: displacementTexture };
                 shader.uniforms.displacementStrength = { value: DISPLACEMENT_STRENGTH };
                 shader.uniforms.displacementScale = { value: DISPLACEMENT_SCALE };
 
-                // Inject code into the existing vertex shader
-                shader.vertexShader = 'uniform sampler3D displacementMap;\n' +
+                // --- FIX: Add precision specifier for sampler3D ---
+                shader.vertexShader = 'precision highp sampler3D;\n' +
+                                      'uniform sampler3D displacementMap;\n' +
                                       'uniform float displacementStrength;\n' +
                                       'uniform float displacementScale;\n' +
                                       shader.vertexShader;
+                // --- END FIX ---
 
+                // Inject displacement logic into the existing vertex shader
                 shader.vertexShader = shader.vertexShader.replace(
                     '#include <begin_vertex>',
                     `
@@ -104,12 +84,10 @@ export default class Rocks {
         // --- Generate and Place Rocks ---
         for (let i = 0; i < ROCK_COUNT; i++) {
             
-            // --- FIX: Use modern BufferGeometry with segments ---
             const rockGeometry = new THREE.BoxGeometry(
                 BASE_ROCK_SIZE, BASE_ROCK_SIZE, BASE_ROCK_SIZE,
                 SUBDIVISIONS, SUBDIVISIONS, SUBDIVISIONS
             );
-            // --- END FIX ---
 
             const type = oreTypes[Math.floor(Math.random() * oreTypes.length)];
             const material = materials[type];
