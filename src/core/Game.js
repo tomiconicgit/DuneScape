@@ -7,10 +7,9 @@ import Movement from '../mechanics/Movement.js';
 import { setupLighting } from '../world/Lighting.js';
 import GameSky from '../world/Sky.js';
 import Terrain from '../world/Terrain.js';
-import Rocks from '../world/objects/Rocks.js'; // Import the new Rocks class
+import Rocks from '../world/objects/Rocks.js';
 import GamepadController from './GamepadController.js';
 import Navbar from '../ui/Navbar.js';
-import { MINE_AREA } from '../world/WorldData.js'; // Import shared data
 
 // Constants for day/night cycle
 const DAY_DURATION_SECONDS = 60;
@@ -44,7 +43,7 @@ export default class Game {
         this.character = new Character(this.scene);
         this.sky = new GameSky(this.scene);
         this.terrain = new Terrain(this.scene);
-        this.rocks = new Rocks(this.scene); // Create the rocks
+        this.rocks = new Rocks(this.scene);
         this.movement = new Movement(this.character.mesh);
         this.input = new InputController(this.camera.threeCamera, this.terrain.mesh, this.renderer.domElement);
         this.navbar = new Navbar();
@@ -119,13 +118,6 @@ export default class Game {
             this.sunLight.position.copy(this.sky.sun).multiplyScalar(1000);
         }
 
-        // Update rock lighting every frame
-        this.scene.traverse(child => {
-            if (child.isMesh && child.material.uniforms && child.material.uniforms.lightDir) {
-                child.material.uniforms.lightDir.value.copy(this.sunLight.position);
-            }
-        });
-
         const sunHeightFactor = Math.max(0, this.currentElevation) / 90;
         const sunsetFactor = smoothstep(0.4, 0.0, sunHeightFactor);
         const nightFactor = smoothstep(0.0, -0.2, this.currentElevation / 90.0);
@@ -138,6 +130,24 @@ export default class Game {
         const dayGroundHemi = HEMI_GROUND_COLOR_NOON.clone().lerp(HEMI_COLOR_SUNSET, sunsetFactor);
         this.hemiLight.color.lerpColors(daySkyHemi, HEMI_SKY_COLOR_NIGHT, nightFactor);
         this.hemiLight.groundColor.lerpColors(dayGroundHemi, HEMI_GROUND_COLOR_NIGHT, nightFactor);
+
+        // --- Feed dynamic lighting data to all rock shaders ---
+        this.scene.traverse(child => {
+            if (child.isMesh && child.material.uniforms) {
+                if (child.material.uniforms.lightDir) {
+                    child.material.uniforms.lightDir.value.copy(this.sunLight.position);
+                }
+                if (child.material.uniforms.sunColor) {
+                    child.material.uniforms.sunColor.value.copy(this.sunLight.color).multiplyScalar(this.sunLight.intensity);
+                }
+                if (child.material.uniforms.hemiSkyColor) {
+                    child.material.uniforms.hemiSkyColor.value.copy(this.hemiLight.color).multiplyScalar(this.hemiLight.intensity);
+                }
+                if (child.material.uniforms.hemiGroundColor) {
+                    child.material.uniforms.hemiGroundColor.value.copy(this.hemiLight.groundColor).multiplyScalar(this.hemiLight.intensity);
+                }
+            }
+        });
 
         if (this.scene.fog) {
             this.scene.fog.color.copy(this.hemiLight.groundColor);
