@@ -10,9 +10,21 @@ import GameSky from '../world/Sky.js';
 import Terrain from '../world/Terrain.js';
 import GamepadController from './GamepadController.js';
 
-const DAY_DURATION_SECONDS = 600; 
-const NIGHT_DURATION_SECONDS = 300;
+// Constants for day/night cycle
+const DAY_DURATION_SECONDS = 60; 
+const NIGHT_DURATION_SECONDS = 60;
 const TOTAL_CYCLE_SECONDS = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS;
+
+// Color constants for dynamic lighting
+const SUN_COLOR_NOON = new THREE.Color().setHSL(0.1, 1, 0.95);
+const SUN_COLOR_SUNSET = new THREE.Color().setHSL(0.05, 1, 0.7);
+const HEMI_SKY_COLOR_NOON = new THREE.Color().setHSL(0.6, 1, 0.6);
+const HEMI_GROUND_COLOR_NOON = new THREE.Color().setHSL(0.095, 1, 0.75);
+const HEMI_COLOR_SUNSET = new THREE.Color().setHSL(0.05, 0.5, 0.7);
+const HEMI_SKY_COLOR_NIGHT = new THREE.Color().setHSL(0.6, 0.1, 0.05);
+const HEMI_GROUND_COLOR_NIGHT = new THREE.Color().setHSL(0.6, 0.1, 0.05);
+
+function smoothstep(min, max, value) { const x = Math.max(0, Math.min(1, (value - min) / (max - min))); return x * x * (3 - 2 * x); }
 
 export default class Game {
     constructor() {
@@ -32,7 +44,7 @@ export default class Game {
         this.terrain = new Terrain(this.scene);
         this.movement = new Movement(this.character.mesh);
         this.input = new InputController(this.camera.threeCamera, this.terrain.mesh);
-        this.navbar = new DeveloperUI(); // Renamed from devUI for clarity
+        this.navbar = new DeveloperUI();
 
         const { hemiLight, dirLight } = setupLighting(this.scene);
         this.sunLight = dirLight;
@@ -75,7 +87,6 @@ export default class Game {
             this._copySkySettings(); 
         };
         
-        // Gamepad event wiring
         this.gamepad.onRB = () => this.navbar.cycleTab(1);
         this.gamepad.onLB = () => this.navbar.cycleTab(-1);
         this.gamepad.onB = () => this.navbar.closePanel();
@@ -115,14 +126,12 @@ export default class Game {
         requestAnimationFrame(() => this._animate());
         const delta = this.clock.getDelta();
 
-        // Update gamepad state first
         this.gamepad.update();
 
         if (!this.isPaused) { 
             this.elapsedTime += delta; 
         }
         
-        // Time Display and Sky calculation
         const elapsedWithOffset = this.elapsedTime + this.timeOffset;
         const cycleProgress = (elapsedWithOffset % TOTAL_CYCLE_SECONDS) / TOTAL_CYCLE_SECONDS;
         let dayProgress = 0;
@@ -141,7 +150,26 @@ export default class Game {
             this.sunLight.position.copy(this.sky.sun).multiplyScalar(1000);
         }
 
-        // Gamepad Controls
+        // --- RE-ADDED: The entire dynamic lighting block was missing ---
+        const sunHeightFactor = Math.max(0, this.currentElevation) / 90;
+        const sunsetFactor = smoothstep(0.4, 0.0, sunHeightFactor);
+        const nightFactor = smoothstep(0.0, -0.2, this.currentElevation / 90.0);
+
+        this.sunLight.intensity = (1.0 - nightFactor) * 3.0;
+        this.sunLight.color.lerpColors(SUN_COLOR_NOON, SUN_COLOR_SUNSET, sunsetFactor);
+
+        this.hemiLight.intensity = (0.2 + sunHeightFactor * 2.0) * (1.0 - nightFactor * 0.5);
+        const daySkyHemi = HEMI_SKY_COLOR_NOON.clone().lerp(HEMI_COLOR_SUNSET, sunsetFactor);
+        const dayGroundHemi = HEMI_GROUND_COLOR_NOON.clone().lerp(HEMI_COLOR_SUNSET, sunsetFactor);
+        this.hemiLight.color.lerpColors(daySkyHemi, HEMI_SKY_COLOR_NIGHT, nightFactor);
+        this.hemiLight.groundColor.lerpColors(dayGroundHemi, HEMI_GROUND_COLOR_NIGHT, nightFactor);
+        
+        if (this.scene.fog) {
+            this.scene.fog.color.copy(this.hemiLight.groundColor);
+            this.renderer.setClearColor(this.scene.fog.color);
+        }
+        // --- End of re-added block ---
+        
         const { x: orbit } = this.gamepad.getRightStick();
         this.camera.orbitAngle -= orbit * 0.02;
         const { lt, rt } = this.gamepad.getTriggers();
@@ -158,7 +186,6 @@ export default class Game {
             this.movement.moveCharacter(moveDirection, delta);
         }
         
-        // Update game objects
         this.movement.update(delta);
         this.camera.update();
         this.renderer.render(this.scene, this.camera.threeCamera);
