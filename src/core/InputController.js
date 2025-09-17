@@ -5,13 +5,25 @@ export default class InputController {
         this.camera = camera;
         this.plane = plane;
         this.raycaster = new THREE.Raycaster();
-
-        // Use the domElement passed in from the Game class
         this.domElement = domElement;
 
-        this.onTap = null;
-        this.touchState = { startTime: 0, startX: 0, startY: 0, isDragging: false, };
+        // Callbacks for different modes
+        this.onTap = null; // For movement
+        this.onBuildTap = null; // For building
+
+        // State management
+        this.mode = 'MOVEMENT'; // Can be 'MOVEMENT' or 'BUILD'
+        this.touchState = { startTime: 0, startX: 0, startY: 0, isDragging: false };
+        
         this._addEventListeners();
+    }
+
+    /**
+     * Sets the current input mode.
+     * @param {string} mode - The new mode, either 'MOVEMENT' or 'BUILD'.
+     */
+    setMode(mode) {
+        this.mode = mode;
     }
 
     _addEventListeners() {
@@ -37,24 +49,29 @@ export default class InputController {
         if (dist > 10) { this.touchState.isDragging = true; }
     }
 
+
+
     _onTouchEnd(event) {
         if (event.changedTouches.length !== 1) return;
         event.preventDefault();
 
-        // Check if the tap landed on any UI element. If so, ignore it.
-        const uiContainer = document.getElementById('ui-container');
-        if (uiContainer && uiContainer.contains(event.target)) {
+        // Do not process tap if it landed on a UI element (like the navbar)
+        const isTapOnUI = event.target.closest('#editor-navbar');
+        if (isTapOnUI) {
             return;
         }
 
         const duration = Date.now() - this.touchState.startTime;
-        if (duration < 300 && !this.touchState.isDragging && this.onTap) {
+        // Check if the tap is valid (short and not a drag)
+        const isValidTap = duration < 300 && !this.touchState.isDragging;
+
+        if (isValidTap) {
             this._handleTap(event.changedTouches[0]);
         }
     }
 
+
     _handleTap(touch) {
-        // Corrected logic for full-screen canvas
         const rect = this.domElement.getBoundingClientRect();
         const mouse = new THREE.Vector2();
         mouse.x = ((touch.clientX - rect.left) / rect.width) * 2 - 1;
@@ -64,7 +81,14 @@ export default class InputController {
         const intersects = this.raycaster.intersectObject(this.plane);
 
         if (intersects.length > 0) {
-            this.onTap(intersects[0].point);
+            const point = intersects[0].point;
+
+            // Check the current mode and call the appropriate callback
+            if (this.mode === 'BUILD' && this.onBuildTap) {
+                this.onBuildTap(point);
+            } else if (this.mode === 'MOVEMENT' && this.onTap) {
+                this.onTap(point);
+            }
         }
     }
 }
