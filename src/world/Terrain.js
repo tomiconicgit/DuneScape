@@ -1,6 +1,17 @@
 import * as THREE from 'three';
 import { SimplexNoise } from 'three/addons/math/SimplexNoise.js';
 
+// --- FIX: Add a helper method to THREE.Vector2 for distance-to-segment calculation ---
+THREE.Vector2.prototype.distanceToSegment = function(v, w) {
+    const l2 = v.distanceToSq(w);
+    if (l2 === 0) return this.distanceTo(v);
+    let t = ((this.x - v.x) * (w.x - v.x) + (this.y - v.y) * (w.y - v.y)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    const closestPoint = new THREE.Vector2(v.x + t * (w.x - v.x), v.y + t * (w.y - v.y));
+    return this.distanceTo(closestPoint);
+};
+// --- END FIX ---
+
 export default class Terrain {
     constructor(scene) {
         // --- Core Terrain Parameters ---
@@ -83,6 +94,7 @@ export default class Terrain {
                     for (let j = 0; j < trail.points.length - 1; j++) {
                         const p1 = new THREE.Vector2(trail.points[j].x, trail.points[j].y);
                         const p2 = new THREE.Vector2(trail.points[j + 1].x, trail.points[j + 1].y);
+                        // The call below now works because of the helper function added at the top
                         const dist = tempVec2.distanceToSegment(p1, p2);
                         if (dist < minTrailDist) {
                             minTrailDist = dist;
