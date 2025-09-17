@@ -2,7 +2,7 @@ export default class Navbar {
     constructor(onRockSelect, onCopy, onClear) {
         this.onRockSelect = onRockSelect;
         this.onCopy = onCopy;
-        this.onClear = onClear; // New callback for clearing
+        this.onClear = onClear;
         this.activeButton = null;
         this.rockTypes = ['iron', 'carbon', 'limestone', 'stone'];
 
@@ -13,10 +13,10 @@ export default class Navbar {
     _injectStyles() {
         const style = document.createElement('style');
         style.textContent = `
-            #editor-navbar { position: fixed; top: 0; left: 0; width: 100%; background: rgba(0,0,0,0.5); padding: 5px; display: flex; gap: 5px; z-index: 100; justify-content: center; }
-            .nav-btn { background: #fff; border: 1px solid #333; padding: 5px 10px; cursor: pointer; border-radius: 4px; }
+            #editor-navbar { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.5); padding: 5px; display: flex; gap: 5px; z-index: 100; border-radius: 8px; }
+            .nav-btn { font-family: sans-serif; background: #fff; border: 1px solid #333; padding: 5px 10px; cursor: pointer; border-radius: 4px; }
             .nav-btn.active { background: #a8d8ff; border-color: #007bff; }
-            #copy-btn { background: #9effa0; margin-left: auto; }
+            #copy-btn { background: #9effa0; margin-left: 20px; }
             #clear-btn { background: #ff9e9e; }
         `;
         document.head.appendChild(style);
@@ -30,16 +30,13 @@ export default class Navbar {
             const btn = document.createElement('button');
             btn.className = 'nav-btn';
             btn.textContent = type.charAt(0).toUpperCase() + type.slice(1);
-            btn.dataset.type = type;
 
             btn.addEventListener('click', () => {
                 if (this.activeButton === btn) {
-                    // Deselect
                     this.activeButton.classList.remove('active');
                     this.activeButton = null;
                     this.onRockSelect(null);
                 } else {
-                    // Select
                     if (this.activeButton) this.activeButton.classList.remove('active');
                     this.activeButton = btn;
                     this.activeButton.classList.add('active');
