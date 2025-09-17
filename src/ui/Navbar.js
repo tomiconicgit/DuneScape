@@ -39,14 +39,11 @@ export default class Navbar {
         this._registerPanel('Missions', new MissionsPanel(), panelContentArea, navbarContent, 'fa-scroll');
         this._registerPanel('World Map', new WorldMapPanel(), panelContentArea, navbarContent, 'fa-map-location-dot');
         
-        // MODIFIED: Changed the order for navbar at the bottom
         uiContainer.appendChild(this.dom.panelContent);
         uiContainer.appendChild(this.dom.navbar);
         document.body.appendChild(uiContainer);
         
-        // Set a default tab but don't open the panel initially
-        this.buttons['Inventory'].classList.add('active');
-        this.activePanelName = 'Inventory';
+        // Don't open a panel by default
     }
     
     _registerPanel(name, panelInstance, contentContainer, navContainer, iconClass) {
@@ -61,29 +58,32 @@ export default class Navbar {
         navContainer.appendChild(button);
     }
     
+    // MODIFIED: Rewritten with simpler, more robust logic
     _handleTabClick(name) {
-        // Case 1: Clicking the currently open tab to close the panel
-        if (this.isPanelOpen && this.activePanelName === name) {
-            this.dom.panelContent.classList.remove('visible');
-            this.isPanelOpen = false;
-            return;
+        const currentlyActive = this.activePanelName;
+        const isClosing = currentlyActive === name;
+
+        // First, always hide the currently active panel and deactivate its button
+        if (currentlyActive) {
+            this.panels[currentlyActive].hide();
+            this.buttons[currentlyActive].classList.remove('active');
         }
 
-        // Case 2: The panel is open, but we're switching to a new tab
-        if (this.isPanelOpen && this.activePanelName !== name) {
-            this.panels[this.activePanelName].hide();
-            this.buttons[this.activePanelName].classList.remove('active');
-        }
-
-        // Case 3: The panel is closed, and we're opening a tab (or switching)
-        if (!this.isPanelOpen) {
+        // If the user clicked a new tab (or the panel was closed)
+        if (!isClosing) {
+            // Show the new panel and activate its button
+            this.panels[name].show();
+            this.buttons[name].classList.add('active');
+            this.activePanelName = name;
+            
+            // Slide the main panel up
             this.dom.panelContent.classList.add('visible');
-            this.isPanelOpen = true;
+        } else {
+            // If the user clicked the same tab, it means we're closing.
+            this.activePanelName = null;
+            // Slide the main panel down
+            this.dom.panelContent.classList.remove('visible');
         }
-
-        this.panels[name].show();
-        this.buttons[name].classList.add('active');
-        this.activePanelName = name;
     }
 
     _injectStyles() {
@@ -96,8 +96,8 @@ export default class Navbar {
                 bottom: 0; left: 0; right: 0;
                 z-index: 2;
                 display: flex;
-                flex-direction: column; /* Panel is now above Navbar in the flex flow */
-                height: 40vh; /* Shorter vertical height */
+                flex-direction: column; 
+                height: 40vh; 
             }
             body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
 
@@ -125,7 +125,7 @@ export default class Navbar {
             #navbar button .fa-solid { font-size: 20px; }
             #navbar button.active {
                 color: #ffffff;
-                border-top-color: #00aaff; /* Highlight for active tab */
+                border-top-color: #00aaff;
             }
 
             /* --- Content Panel (Slides Up) --- */
@@ -134,7 +134,6 @@ export default class Navbar {
                 min-height: 0;
                 border-radius: 20px 20px 0 0;
                 border-bottom: none;
-                /* Animation setup */
                 transform: translateY(100%);
                 visibility: hidden;
                 transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), visibility 0.4s;
