@@ -9,11 +9,11 @@ export default class Clouds {
         this.frame = 0;
 
         // --- Cloud Settings ---
-        const CLOUD_COUNT_MIN = 5;
-        const CLOUD_COUNT_MAX = 10;
-        const AREA_SIZE = 150; // How far clouds can spawn from the center
-        const ALTITUDE_MIN = 30; // Minimum height
-        const ALTITUDE_MAX = 45; // Maximum height
+        const CLOUD_COUNT_MIN = 8; // Increased count for more coverage
+        const CLOUD_COUNT_MAX = 15;
+        const AREA_SIZE = 200; // Larger area for cloud distribution
+        const ALTITUDE_MIN = 35; // Slightly higher minimum height
+        const ALTITUDE_MAX = 55; // Slightly higher maximum height
 
         const cloudCount = THREE.MathUtils.randInt(CLOUD_COUNT_MIN, CLOUD_COUNT_MAX);
         for (let i = 0; i < cloudCount; i++) {
@@ -25,12 +25,14 @@ export default class Clouds {
                 THREE.MathUtils.randFloat(ALTITUDE_MIN, ALTITUDE_MAX),
                 (Math.random() - 0.5) * AREA_SIZE
             );
-            const scale = THREE.MathUtils.randFloat(15, 25);
-            cloudMesh.scale.set(scale, scale * 0.7, scale); // Make clouds wider than they are tall
+            const scale = THREE.MathUtils.randFloat(20, 35); // Larger scale for flatter, wider clouds
+            // Make clouds significantly wider and deeper than they are tall for a flatter look
+            cloudMesh.scale.set(scale * THREE.MathUtils.randFloat(1.5, 2.5), scale * THREE.MathUtils.randFloat(0.3, 0.6), scale * THREE.MathUtils.randFloat(1.5, 2.5));
 
             // Store custom data for animation
             cloudMesh.userData = {
-                rotationSpeed: (Math.random() - 0.5) * 0.02,
+                rotationSpeed: (Math.random() - 0.5) * 0.005, // Slower rotation
+                driftSpeed: new THREE.Vector3(THREE.MathUtils.randFloat(-0.05, 0.05), 0, THREE.MathUtils.randFloat(-0.05, 0.05)), // Added horizontal drift
                 thresholdOffset: Math.random() * 1000 // To desynchronize shape-shifting
             };
             
@@ -47,12 +49,18 @@ export default class Clouds {
         const vector = new THREE.Vector3();
 
         let i = 0;
-        const scale = 0.05;
+        // Adjusted noise scale for flatter, more stretched shapes
+        const noiseScaleX = 0.02; 
+        const noiseScaleY = 0.01; // Smaller Y scale to compress vertically
+        const noiseScaleZ = 0.02;
+
         for (let z = 0; z < size; z++) {
             for (let y = 0; y < size; y++) {
                 for (let x = 0; x < size; x++) {
+                    // Flatten the noise along Y-axis and make it less dense
                     const d = 1.0 - vector.set(x, y, z).subScalar(size / 2).divideScalar(size).length();
-                    data[i] = (128 + 128 * perlin.noise(x * scale, y * scale, z * scale)) * d * d;
+                    // Multiplied noise value by 0.7 to make clouds less dense
+                    data[i] = (128 + 128 * perlin.noise(x * noiseScaleX, y * noiseScaleY, z * noiseScaleZ)) * d * d * 0.7; 
                     i++;
                 }
             }
@@ -98,6 +106,9 @@ export default class Clouds {
             uniform float steps;
             uniform float frame;
 
+            // Day/Night control for cloud brightness
+            uniform float uOverallLightness; // 0.0 (night) to 1.0 (day)
+
             uint wang_hash(uint seed) {
                 seed = (seed ^ 61u) ^ (seed >> 16u);
                 seed *= 9u;
@@ -128,10 +139,13 @@ export default class Clouds {
                 return texture(map, p).r;
             }
             
-            // Basic self-shadowing
+            // Basic self-shadowing - adjusted to be softer
             float shading(vec3 coord) {
-                float step = 0.01;
-                return sample1(coord + vec3(-step)) - sample1(coord + vec3(step));
+                float step = 0.005; // Smaller step for softer shadows
+                // Use a slightly larger sample radius for broader shading effects
+                float s1 = sample1(coord + vec3(-step));
+                float s2 = sample1(coord + vec3(step));
+                return (s1 - s2) * 1.5 + 0.5; // Adjusted intensity and bias
             }
             
             vec4 linearToSRGB(in vec4 value) {
@@ -152,21 +166,31 @@ export default class Clouds {
                 p += rayDir * randomFloat(seed) * (1.0 / vec3(textureSize(map, 0)).x);
 
                 vec4 accumulatedColor = vec4(0.0);
+                // Base cloud color, always somewhat visible
+                vec3 baseCloudColor = vec3(1.0, 1.0, 1.0); 
 
                 for (float t = bounds.x; t < bounds.y; t += delta) {
                     float density = sample1(p + 0.5);
-                    density = smoothstep(threshold - range, threshold + range, density) * opacity;
-                    if (density > 0.01) {
-                        float shade = shading(p + 0.5) * 2.0 + 0.5; // Controls how light is scattered
-                        vec3 mixedLight = mix(uHemiColor, uSunColor, shade);
-                        accumulatedColor.rgb += (1.0 - accumulatedColor.a) * density * mixedLight;
+                    // Increased range for softer edges, higher threshold for sparser clouds
+                    density = smoothstep(threshold - range, threshold + range, density) * opacity; 
+
+                    if (density > 0.005) { // Lower threshold for rendering small wisps
+                        float shade = shading(p + 0.5); 
+                        
+                        // Blend sun and hemi colors for overall lighting
+                        vec3 combinedLight = mix(uHemiColor, uSunColor, clamp(uOverallLightness * 1.5, 0.0, 1.0)); // Amplify daytime effect
+                        
+                        // Apply self-shading and overall lightness to the base color
+                        vec3 finalCloudColor = baseCloudColor * combinedLight * clamp(shade + uOverallLightness * 0.5, 0.1, 1.0); // Ensure minimal darkness
+                        
+                        accumulatedColor.rgb += (1.0 - accumulatedColor.a) * density * finalCloudColor;
                         accumulatedColor.a += (1.0 - accumulatedColor.a) * density;
                         if (accumulatedColor.a >= 0.95) break;
                     }
                     p += rayDir * delta;
                 }
                 color = linearToSRGB(accumulatedColor);
-                if (color.a < 0.01) discard;
+                if (color.a < 0.005) discard; // Lower discard threshold to keep very faint wisps
             }
         `;
 
@@ -177,44 +201,52 @@ export default class Clouds {
                 cameraPos: { value: new THREE.Vector3() },
                 uSunColor: { value: new THREE.Color() },
                 uHemiColor: { value: new THREE.Color() },
-                threshold: { value: 0.25 },
-                opacity: { value: 0.15 },
-                range: { value: 0.1 },
-                steps: { value: 80 },
+                uOverallLightness: { value: 1.0 }, // New uniform for overall brightness
+                threshold: { value: 0.35 }, // Higher threshold for sparser clouds
+                opacity: { value: 0.1 }, // Reduced opacity for lighter, wispier clouds
+                range: { value: 0.15 }, // Increased range for softer edges
+                steps: { value: 60 }, // Reduced steps for performance and softer look
                 frame: { value: 0 }
             },
             vertexShader,
             fragmentShader,
             side: THREE.BackSide,
             transparent: true,
-            depthWrite: false, // Important for correct blending with other transparent objects
+            depthWrite: false, 
         });
 
-        // --- 3. Create the Mesh ---
         const geometry = new THREE.BoxGeometry(1, 1, 1);
         return new THREE.Mesh(geometry, material);
     }
     
-    // This method will be called from your main game loop
-    update(delta, sunLight, hemiLight, cameraPosition) {
+    update(delta, sunLight, hemiLight, cameraPosition, currentElevation) {
         this.frame++;
 
+        // Calculate a general lightness factor for clouds based on sun elevation
+        // This makes them consistently bright during the day and gracefully dimmer at night,
+        // but never fully black.
+        const overallLightness = THREE.MathUtils.smoothstep(currentElevation, -10, 60); 
+        
         for (const cloud of this.clouds) {
-            // Update uniforms required for rendering
             const uniforms = cloud.material.uniforms;
             uniforms.cameraPos.value.copy(cameraPosition);
             uniforms.frame.value = this.frame;
 
-            // Update lighting based on game's day/night cycle
-            uniforms.uSunColor.value.copy(sunLight.color).multiplyScalar(sunLight.intensity / 3.0); // Modulate by sun intensity
-            uniforms.uHemiColor.value.copy(hemiLight.color).multiplyScalar(hemiLight.intensity / 2.0); // Modulate by ambient intensity
+            // Pass the calculated overall lightness to the shader
+            uniforms.uOverallLightness.value = overallLightness;
+
+            // Adjust sun and hemi colors. Sun color is bright, hemi provides ambient fill
+            uniforms.uSunColor.value.copy(sunLight.color).multiplyScalar(sunLight.intensity * 2.0); // Boost sun impact
+            uniforms.uHemiColor.value.copy(hemiLight.color).multiplyScalar(hemiLight.intensity * 1.5); // Boost ambient impact
             
             // Animate cloud drift
             cloud.rotation.y += cloud.userData.rotationSpeed * delta;
+            cloud.position.addScaledVector(cloud.userData.driftSpeed, delta);
 
             // Animate shape and density over time
-            const time = performance.now() * 0.0002;
-            uniforms.threshold.value = 0.25 + (Math.sin(time + cloud.userData.thresholdOffset) * 0.03);
+            const time = (performance.now() * 0.0001) + cloud.userData.thresholdOffset; // Slower, more subtle changes
+            uniforms.threshold.value = 0.35 + (Math.sin(time) * 0.05); // More subtle shape changes
+            uniforms.opacity.value = 0.1 + (Math.sin(time * 0.7) * 0.03); // Subtle opacity changes
         }
     }
 }
