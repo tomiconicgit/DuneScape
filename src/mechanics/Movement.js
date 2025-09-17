@@ -6,51 +6,67 @@ export default class Movement {
         this.path = [];
         this.currentPathIndex = 0;
         this.isMoving = false;
-        this.moveSpeed = 2;
+        this.moveSpeed = 3; // Speed for both pathfinding and joystick
         this.marker = null;
         this.raycaster = new THREE.Raycaster();
     }
+    
+    /**
+     * Handles direct, continuous movement from a joystick.
+     * @param {THREE.Vector3} direction - The normalized direction of movement.
+     * @param {number} delta - The time since the last frame.
+     */
+    moveCharacter(direction, delta) {
+        // Stop any click-based pathfinding if the joystick is moved
+        if (this.isMoving) {
+            this.isMoving = false;
+            this.path = [];
+            if (this.marker && this.marker.parent) this.marker.parent.remove(this.marker);
+        }
+        
+        const moveDistance = this.moveSpeed * delta;
+        this.character.position.addScaledVector(direction, moveDistance);
+    }
 
     /**
-     * Calculates a path on a 3D terrain mesh.
+     * Calculates a path on a 3D terrain mesh for click-to-move.
      * @param {THREE.Vector3} targetWorldPos - The 3D point clicked on the terrain.
      * @param {THREE.Mesh} terrainMesh - The terrain to pathfind on.
      */
     calculatePathOnTerrain(targetWorldPos, terrainMesh) {
-        // Pathfinding in 2D (x, z) remains the same
         const startPos = { x: this.character.position.x, z: this.character.position.z };
         const endPos = { x: targetWorldPos.x, z: targetWorldPos.z };
         const flatPath = this._findPath(startPos, endPos);
 
         if (flatPath.length === 0) return;
 
-        // Now, find the correct Y for each point in the path
         const finalPath = [];
         const down = new THREE.Vector3(0, -1, 0);
 
         for (const point of flatPath) {
-            this.raycaster.set(new THREE.Vector3(point.x, 50, point.z), down); // Raycast from high up
+            this.raycaster.set(new THREE.Vector3(point.x, 50, point.z), down);
             const intersects = this.raycaster.intersectObject(terrainMesh);
             if (intersects.length > 0) {
-                // Add the 3D point with the correct height
                 finalPath.push(intersects[0].point);
             }
         }
 
-        // Adjust character height for path
         this.path = finalPath.map(p => new THREE.Vector3(p.x, p.y + this.character.geometry.parameters.height / 2, p.z));
         this.currentPathIndex = 0;
         this.isMoving = true;
         this._placeMarker(targetWorldPos.x, targetWorldPos.y + 0.05, targetWorldPos.z);
     }
 
+    /**
+     * Main update loop, only handles click-based path movement.
+     * @param {number} delta - The time since the last frame.
+     */
     update(delta) {
         if (!this.isMoving) return;
 
         const target = this.path[this.currentPathIndex];
         const direction = new THREE.Vector3().subVectors(target, this.character.position);
         
-        // Only consider horizontal distance for path progression
         const flatDistance = new THREE.Vector2(direction.x, direction.z).length();
 
         if (flatDistance < 0.1) {
@@ -78,10 +94,8 @@ export default class Movement {
         this.character.parent.add(this.marker);
     }
     
-    // A* Pathfinding (simplified for non-grid)
+    // Simple straight-line path generator
     _findPath(start, goal) {
-        // For a non-grid world, A* is very complex. We'll use a simple straight line path.
-        // You could later implement a more advanced pathfinder using a navigation mesh.
         const path = [];
         const distance = Math.hypot(goal.x - start.x, goal.z - start.z);
         const segments = Math.ceil(distance / 0.5); // Waypoint every 0.5 units
