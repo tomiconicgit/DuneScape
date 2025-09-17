@@ -1,11 +1,6 @@
 import * as THREE from 'three';
 import { MINE_AREA } from '../WorldData.js'; // Import the mine data
 
-// --- Noise generation code adapted directly from your example ---
-function seededRandom(seed) { /* ... same as your example ... */ }
-class Noise { /* ... same as your example ... */ }
-// Note: The full Noise class code is long, so it's included at the bottom of this file.
-
 export default class Rocks {
     constructor(scene) {
         // --- Ore Presets (colors, settings for the shader) ---
@@ -21,7 +16,8 @@ export default class Rocks {
             const rockCount = Math.floor(level.radius * 5); // More rocks on wider levels
             for (let i = 0; i < rockCount; i++) {
                 const angle = Math.random() * Math.PI * 2;
-                const radius = Math.random() * level.radius;
+                // Place rocks from the edge inwards to avoid perfect circles
+                const radius = level.radius - (Math.random() * level.radius * 0.5);
                 const x = MINE_AREA.x + Math.cos(angle) * radius;
                 const z = MINE_AREA.y + Math.sin(angle) * radius;
                 const position = new THREE.Vector3(x, -level.depth, z);
@@ -59,8 +55,7 @@ export default class Rocks {
             color2: { value: new THREE.Color(preset.color2) },
             matRoughness: { value: preset.roughness },
             matMetalness: { value: preset.metalness },
-            lightDir: { value: new THREE.Vector3(5, 5, 5) }, // This will be updated by your game's light
-            // Default values for other shader uniforms
+            lightDir: { value: new THREE.Vector3(5, 5, 5) },
             texFrequency: { value: 5.0 }, colorVar: { value: 0.1 }, bumpStrength: { value: 0.1 },
             texSeed: { value: Math.random() * 100 }, lightIntensity: { value: 0.25 },
             aoStrength: { value: 3.5 }, wetness: { value: 0.0 },
@@ -74,7 +69,6 @@ export default class Rocks {
         const rockMesh = new THREE.Mesh(geometry, material);
         rockMesh.position.copy(position);
 
-        // Sit the rock on the ground
         rockMesh.geometry.computeBoundingBox();
         const height = rockMesh.geometry.boundingBox.max.y - rockMesh.geometry.boundingBox.min.y;
         rockMesh.position.y += height / 2;
@@ -90,10 +84,58 @@ export default class Rocks {
 }
 
 
-// --- Noise & Shader Code (to be placed at the bottom of Rocks.js) ---
+// --- FULL NOISE & SHADER CODE (PLACED AT THE BOTTOM OF ROCKS.JS) ---
 
-function seededRandom(s){return function(){s=Math.sin(s)*1e4;return s-Math.floor(s)}}
-class Noise{constructor(s){this.seed=s||0;this.random=seededRandom(this.seed);this.p=Array.from({length:256},(_,i)=>i);for(let i=255;i>0;i--){const j=Math.floor(this.random()*(i+1));[this.p[i],this.p[j]]=[this.p[j],this.p[i]]}this.perm=[...this.p,...this.p];this.grad3=[[1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0],[1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1],[0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]]}fade(t){return t*t*t*(t*(t*6-15)+10)}lerp(t,a,b){return a+t*(b-a)}grad(h,x,y,z){return this.grad3[h%12].reduce((a,b,i)=>a+b*[x,y,z][i],0)}noise(x,y,z){const X=Math.floor(x)&255,Y=Math.floor(y)&255,Z=Math.floor(z)&255;x-=Math.floor(x);y-=Math.floor(y);z-=Math.floor(z);const u=this.fade(x),v=this.fade(y),w=this.fade(z),A=this.perm[X]+Y,AA=this.perm[A]+Z,AB=this.perm[A+1]+Z,B=this.perm[X+1]+Y,BA=this.perm[B]+Z,BB=this.perm[B+1]+Z;return this.lerp(w,this.lerp(v,this.lerp(u,this.grad(this.perm[AA],x,y,z),this.grad(this.perm[BA],x-1,y,z)),this.lerp(u,this.grad(this.perm[AB],x,y-1,z),this.grad(this.perm[BB],x-1,y-1,z))),this.lerp(v,this.lerp(u,this.grad(this.perm[AA+1],x,y,z-1),this.grad(this.perm[BA+1],x-1,y,z-1)),this.lerp(u,this.grad(this.perm[AB+1],x,y-1,z-1),this.grad(this.perm[BB+1],x-1,y-1,z-1))))}fbm(x,y,z,o,l,g){let v=0,a=1;for(let i=0;i<o;i++){v+=a*this.noise(x,y,z);x*=l;y*=l;z*=l;a*=g}return v}}
+function seededRandom(seed) {
+    return function() {
+        let t = seed += 0x6D2B79F5;
+        t = Math.imul(t ^ t >>> 15, t | 1);
+        t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    }
+}
+
+class Noise {
+    constructor(seed) {
+        this.seed = seed || 0;
+        this.random = seededRandom(this.seed);
+        this.permutation = Array.from({length: 256}, (_, i) => i);
+        for (let i = 255; i > 0; i--) {
+            const j = Math.floor(this.random() * (i + 1));
+            [this.permutation[i], this.permutation[j]] = [this.permutation[j], this.permutation[i]];
+        }
+        this.p = [...this.permutation, ...this.permutation];
+    }
+    grad3 = [[1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0],[1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1],[0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]];
+    noise(x, y, z) {
+        const X = Math.floor(x) & 255, Y = Math.floor(y) & 255, Z = Math.floor(z) & 255;
+        x -= Math.floor(x); y -= Math.floor(y); z -= Math.floor(z);
+        const u = this.fade(x), v = this.fade(y), w = this.fade(z);
+        const A = this.p[X] + Y, AA = this.p[A] + Z, AB = this.p[A + 1] + Z;
+        const B = this.p[X + 1] + Y, BA = this.p[B] + Z, BB = this.p[B + 1] + Z;
+        return this.lerp(w, this.lerp(v, this.lerp(u, this.grad(this.p[AA], x, y, z), this.grad(this.p[BA], x-1, y, z)),
+            this.lerp(u, this.grad(this.p[AB], x, y-1, z), this.grad(this.p[BB], x-1, y-1, z))),
+            this.lerp(v, this.lerp(u, this.grad(this.p[AA+1], x, y, z-1), this.grad(this.p[BA+1], x-1, y, z-1)),
+            this.lerp(u, this.grad(this.p[AB+1], x, y-1, z-1), this.grad(this.p[BB+1], x-1, y-1, z-1))));
+    }
+    fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+    lerp(t, a, b) { return a + t * (b - a); }
+    grad(hash, x, y, z) {
+        return this.grad3[hash % 12].reduce((a, b, i) => a + b * [x,y,z][i], 0);
+    }
+    fbm(x, y, z, octaves, lacunarity, gain) {
+        let value = 0;
+        let amplitude = 1;
+        for (let i = 0; i < octaves; i++) {
+            value += amplitude * this.noise(x, y, z);
+            x *= lacunarity;
+            y *= lacunarity;
+            z *= lacunarity;
+            amplitude *= gain;
+        }
+        return value;
+    }
+};
 
 const rockVertexShader = `
     varying vec3 vNormal;
