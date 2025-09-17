@@ -17,16 +17,16 @@ export default class Terrain {
         const size = 200;
         const segments = 256;
 
-        // --- Trail to Mine Entrance ---
         const TRAIL_WIDTH = 3;
         const TRAIL_DEPTH = 0.5;
         const mineEntranceY = MINE_AREA.y - MINE_AREA.depth / 2 - 2;
-        const townToMinePath = new THREE.CatmullRomCurve3([ // Corrected typo here
+        
+        // Corrected the typo here
+        const townToMinePath = new THREE.CatmullRomCurve3([
             new THREE.Vector3(TOWN_AREA.x, TOWN_AREA.y + TOWN_AREA.depth / 2, 0),
             new THREE.Vector3(40, 40, 0),
             new THREE.Vector3(MINE_AREA.x, mineEntranceY, 0)
         ]);
-        // Other trails can be added back here if needed
         const trails = [{ points: townToMinePath.getPoints(50) }];
 
         const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
@@ -48,7 +48,6 @@ export default class Terrain {
             let finalHeight = height;
             let inDesignatedArea = false;
 
-            // --- Rectangular Terraced Mine Generation ---
             const mineLeft = MINE_AREA.x - MINE_AREA.width / 2;
             const mineRight = MINE_AREA.x + MINE_AREA.width / 2;
             const mineTop = MINE_AREA.y - MINE_AREA.depth / 2;
@@ -64,23 +63,21 @@ export default class Terrain {
                 const level2_end = L[1].y_start + L[1].depth;
                 const level3_start = L[2].y_start;
 
-                if (vertex.y < level1_end) { // Carbon Level
+                if (vertex.y < level1_end) {
                     finalHeight = L[0].height;
-                } else if (vertex.y < level2_start) { // Slope 1
+                } else if (vertex.y < level2_start) {
                     const blend = (vertex.y - level1_end) / slope;
                     finalHeight = THREE.MathUtils.lerp(L[0].height, L[1].height, blend);
-                } else if (vertex.y < level2_end) { // Limestone Level
+                } else if (vertex.y < level2_end) {
                     finalHeight = L[1].height;
-                } else if (vertex.y < level3_start) { // Slope 2
+                } else if (vertex.y < level3_start) {
                     const blend = (vertex.y - level2_end) / slope;
                     finalHeight = THREE.MathUtils.lerp(L[1].height, L[2].height, blend);
-                } else { // Iron Level
+                } else {
                     finalHeight = L[2].height;
                 }
             }
-            
-            // Note: Your `Rocks.js` file contained the logic for flattening the Town and Oasis.
-            // That logic should live here if you want those areas to be flat.
+
             if (!inDesignatedArea) {
                  if (vertex.x > TOWN_AREA.x - TOWN_AREA.width/2 && vertex.x < TOWN_AREA.x + TOWN_AREA.width/2 &&
                     vertex.y > TOWN_AREA.y - TOWN_AREA.depth/2 && vertex.y < TOWN_AREA.y + TOWN_AREA.depth/2) {
@@ -93,7 +90,6 @@ export default class Terrain {
                 }
             }
 
-            // Carve trails
             if (!inDesignatedArea) {
                 let minTrailDist = Infinity;
                 tempVec2.set(vertex.x, vertex.y);
