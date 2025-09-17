@@ -131,24 +131,6 @@ export default class Game {
         this.hemiLight.color.lerpColors(daySkyHemi, HEMI_SKY_COLOR_NIGHT, nightFactor);
         this.hemiLight.groundColor.lerpColors(dayGroundHemi, HEMI_GROUND_COLOR_NIGHT, nightFactor);
 
-        // --- Feed dynamic lighting data to all rock shaders ---
-        this.scene.traverse(child => {
-            if (child.isMesh && child.material.uniforms) {
-                if (child.material.uniforms.lightDir) {
-                    child.material.uniforms.lightDir.value.copy(this.sunLight.position);
-                }
-                if (child.material.uniforms.sunColor) {
-                    child.material.uniforms.sunColor.value.copy(this.sunLight.color).multiplyScalar(this.sunLight.intensity);
-                }
-                if (child.material.uniforms.hemiSkyColor) {
-                    child.material.uniforms.hemiSkyColor.value.copy(this.hemiLight.color).multiplyScalar(this.hemiLight.intensity);
-                }
-                if (child.material.uniforms.hemiGroundColor) {
-                    child.material.uniforms.hemiGroundColor.value.copy(this.hemiLight.groundColor).multiplyScalar(this.hemiLight.intensity);
-                }
-            }
-        });
-
         if (this.scene.fog) {
             this.scene.fog.color.copy(this.hemiLight.groundColor);
             this.renderer.setClearColor(this.scene.fog.color);
