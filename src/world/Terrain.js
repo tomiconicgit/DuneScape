@@ -21,7 +21,7 @@ export default class Terrain {
         const TRAIL_WIDTH = 3;
         const TRAIL_DEPTH = 0.5;
         const mineEntranceY = MINE_AREA.y - MINE_AREA.depth / 2 - 2;
-        const townToMinePath = new THREE.CatcatmullRomCurve3([
+        const townToMinePath = new THREE.CatmullRomCurve3([ // Corrected typo here
             new THREE.Vector3(TOWN_AREA.x, TOWN_AREA.y + TOWN_AREA.depth / 2, 0),
             new THREE.Vector3(40, 40, 0),
             new THREE.Vector3(MINE_AREA.x, mineEntranceY, 0)
@@ -59,27 +59,55 @@ export default class Terrain {
                 const L = MINE_AREA.levels;
                 const slope = MINE_AREA.slope_width;
 
-                if (vertex.y < L[0].y_start + L[0].depth) { // Carbon Level
+                const level1_end = L[0].y_start + L[0].depth;
+                const level2_start = L[1].y_start;
+                const level2_end = L[1].y_start + L[1].depth;
+                const level3_start = L[2].y_start;
+
+                if (vertex.y < level1_end) { // Carbon Level
                     finalHeight = L[0].height;
-                } else if (vertex.y < L[1].y_start) { // Slope 1
-                    const blend = (vertex.y - (L[0].y_start + L[0].depth)) / slope;
+                } else if (vertex.y < level2_start) { // Slope 1
+                    const blend = (vertex.y - level1_end) / slope;
                     finalHeight = THREE.MathUtils.lerp(L[0].height, L[1].height, blend);
-                } else if (vertex.y < L[1].y_start + L[1].depth) { // Limestone Level
+                } else if (vertex.y < level2_end) { // Limestone Level
                     finalHeight = L[1].height;
-                } else if (vertex.y < L[2].y_start) { // Slope 2
-                    const blend = (vertex.y - (L[1].y_start + L[1].depth)) / slope;
+                } else if (vertex.y < level3_start) { // Slope 2
+                    const blend = (vertex.y - level2_end) / slope;
                     finalHeight = THREE.MathUtils.lerp(L[1].height, L[2].height, blend);
                 } else { // Iron Level
                     finalHeight = L[2].height;
                 }
             }
-
-            // Flatten other areas
-            // ... (Town/Oasis flattening logic can be re-added here if needed)
+            
+            // Note: Your `Rocks.js` file contained the logic for flattening the Town and Oasis.
+            // That logic should live here if you want those areas to be flat.
+            if (!inDesignatedArea) {
+                 if (vertex.x > TOWN_AREA.x - TOWN_AREA.width/2 && vertex.x < TOWN_AREA.x + TOWN_AREA.width/2 &&
+                    vertex.y > TOWN_AREA.y - TOWN_AREA.depth/2 && vertex.y < TOWN_AREA.y + TOWN_AREA.depth/2) {
+                    finalHeight = TOWN_AREA.height; 
+                    inDesignatedArea = true;
+                } else if (vertex.x > OASIS_AREA.x - OASIS_AREA.width/2 && vertex.x < OASIS_AREA.x + OASIS_AREA.width/2 &&
+                           vertex.y > OASIS_AREA.y - OASIS_AREA.depth/2 && vertex.y < OASIS_AREA.y + OASIS_AREA.depth/2) {
+                    finalHeight = OASIS_AREA.height; 
+                    inDesignatedArea = true;
+                }
+            }
 
             // Carve trails
             if (!inDesignatedArea) {
-                // ... (Trail carving logic)
+                let minTrailDist = Infinity;
+                tempVec2.set(vertex.x, vertex.y);
+                for (const trail of trails) {
+                    for (let j = 0; j < trail.points.length - 1; j++) {
+                        const p1 = new THREE.Vector2(trail.points[j].x, trail.points[j].y);
+                        const p2 = new THREE.Vector2(trail.points[j + 1].x, trail.points[j + 1].y);
+                        minTrailDist = Math.min(minTrailDist, tempVec2.distanceToSegment(p1, p2));
+                    }
+                }
+                if (minTrailDist < TRAIL_WIDTH) {
+                    const depressionFactor = 1.0 - (minTrailDist / TRAIL_WIDTH);
+                    finalHeight -= TRAIL_DEPTH * Math.sin(depressionFactor * Math.PI);
+                }
             }
 
             positions.setZ(i, finalHeight);
