@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { SimplexNoise } from 'three/addons/math/SimplexNoise.js';
 import { MINE_AREA, TOWN_AREA, OASIS_AREA } from './WorldData.js';
 
-// Helper for smoothstep interpolation
+// Helper function for smooth interpolation
 function smoothstep(min, max, value) {
     const x = Math.max(0, Math.min(1, (value - min) / (max - min)));
     return x * x * (3 - 2 * x);
@@ -13,15 +13,11 @@ export default class Terrain {
         const size = 200;
         const segments = 256;
 
-        const TRAIL_WIDTH = 3;
-        const TRAIL_DEPTH = 0.5;
-        const townToMinePath = new THREE.CatmullRomCurve3([
-            new THREE.Vector3(TOWN_AREA.x, TOWN_AREA.y + TOWN_AREA.depth / 2, 0),
-            new THREE.Vector3(40, 40, 0),
-            new THREE.Vector3(MINE_AREA.x, MINE_AREA.y - MINE_AREA.radius - 5, 0) // End trail at the pit's edge
-        ]);
-        const trails = [{ points: townToMinePath.getPoints(50) }];
-
+        // --- Trail to Mine Entrance (can be re-enabled if needed) ---
+        // const TRAIL_WIDTH = 3;
+        // const TRAIL_DEPTH = 0.5;
+        // const townToMinePath = new THREE.CatmullRomCurve3([ ... ]);
+        
         const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
         const material = new THREE.MeshLambertMaterial({ color: 0xdbb480 });
 
@@ -38,40 +34,31 @@ export default class Terrain {
             let height = simplex.noise(vertex.x * 0.02, vertex.y * 0.02) * slopeHeight;
             height += simplex.noise(vertex.x * 0.2, vertex.y * 0.2) * detailHeight;
 
-            // --- Open-Pit Mine Generation ---
+            // --- NEW Open-Pit Mine Generation Logic ---
             const distToMineCenter = mineCenter.distanceTo(new THREE.Vector2(vertex.x, vertex.y));
+
             if (distToMineCenter < MINE_AREA.radius) {
-                // Calculate the smooth, bowl-shaped depth
-                const smoothDepth = MINE_AREA.depth * Math.sqrt(1 - (distToMineCenter / MINE_AREA.radius));
-                
-                // Calculate which terrace this point belongs to
-                const terraceWidth = MINE_AREA.radius / MINE_AREA.terraces;
-                const positionInTerrace = distToMineCenter % terraceWidth;
+                // 1. Create a smooth, bowl-shaped pit.
+                // The value goes from 0 at the edge to 1 at the center.
+                const bowlFactor = 1.0 - (distToMineCenter / MINE_AREA.radius);
+                const smoothDepth = MINE_AREA.depth * smoothstep(0, 1, bowlFactor);
 
-                // Calculate the depth of the flat part of the current and next terraces
-                const currentTerrace = Math.floor(distToMineCenter / terraceWidth);
-                const depth1 = (currentTerrace / MINE_AREA.terraces) * MINE_AREA.depth;
-                const depth2 = ((currentTerrace + 1) / MINE_AREA.terraces) * MINE_AREA.depth;
-                
-                let mineHeight;
-                if (positionInTerrace < terraceWidth * MINE_AREA.tread) {
-                    // This is the flat part of the terrace
-                    mineHeight = -depth1;
-                } else {
-                    // This is the sloped wall between terraces
-                    const blend = (positionInTerrace - (terraceWidth * MINE_AREA.tread)) / (terraceWidth * (1.0 - MINE_AREA.tread));
-                    mineHeight = THREE.MathUtils.lerp(-depth1, -depth2, blend);
-                }
+                // 2. Quantize the depth to create the stepped terraces.
+                const terraceStepHeight = MINE_AREA.depth / MINE_AREA.terraces;
+                const terracedDepth = Math.round(smoothDepth / terraceStepHeight) * terraceStepHeight;
 
-                // Add some noise to the mine walls to make them less perfect
-                mineHeight += simplex.noise(vertex.x * 0.1, vertex.y * 0.1) * 0.5;
-                
-                // Blend the outer edge of the pit with the main terrain
-                const blendFactor = smoothstep(MINE_AREA.radius - 2, MINE_AREA.radius, distToMineCenter);
+                // 3. Add some noise to the walls to make them look more natural and less perfect.
+                const wallNoise = simplex.noise(vertex.x * 0.1, vertex.y * 0.1) * 0.5;
+                let mineHeight = -terracedDepth + wallNoise;
+
+                // 4. Blend the outer rim of the pit smoothly with the surrounding desert.
+                const blendDistance = 3.0;
+                const blendFactor = smoothstep(MINE_AREA.radius - blendDistance, MINE_AREA.radius, distToMineCenter);
                 height = THREE.MathUtils.lerp(mineHeight, height, blendFactor);
             }
 
-            // Other flat area and trail logic can be added here if needed
+            // Other flat area logic (Town, Oasis) can be added back here if desired
+            // ...
 
             positions.setZ(i, height);
         }
