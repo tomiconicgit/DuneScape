@@ -109,7 +109,7 @@ export default class Clouds {
                 if (bounds.x > bounds.y) discard; bounds.x = max(bounds.x, 0.0);
                 vec3 p = vOrigin + bounds.x * rayDir; vec3 inc = 1.0 / abs(rayDir);
                 float delta = min(inc.x, min(inc.y, inc.z)); delta /= steps;
-                uint seed = uint(gl_FragCoord.x)*1973u+uint(gl_fragCoord.y)*9277u+uint(frame)*26699u;
+                uint seed = uint(gl_FragCoord.x)*1973u+uint(gl_FragCoord.y)*9277u+uint(frame)*26699u; // <-- CORRECTED CASING HERE
                 p += rayDir * randomFloat(seed) * (1.0/vec3(textureSize(map, 0)).x);
 
                 vec4 accumulatedColor = vec4(0.0);
@@ -131,7 +131,7 @@ export default class Clouds {
         `;
 
         const material = new THREE.RawShaderMaterial({
-            glslVersion: THREE.GLSL3, // <-- CORRECTED TYPO HERE
+            glslVersion: THREE.GLSL3,
             uniforms: {
                 map: { value: texture },
                 cameraPos: { value: new THREE.Vector3() },
