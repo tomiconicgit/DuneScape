@@ -4,7 +4,6 @@ import Character from '../components/Character.js';
 import Camera from './Camera.js';
 import InputController from './InputController.js';
 import Movement from '../mechanics/Movement.js';
-import DeveloperUI from '../ui/DeveloperUI.js';
 import { setupLighting } from '../world/Lighting.js';
 import GameSky from '../world/Sky.js';
 import Terrain from '../world/Terrain.js';
