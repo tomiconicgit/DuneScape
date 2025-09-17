@@ -10,6 +10,7 @@ import Terrain from '../world/Terrain.js';
 import Rocks from '../world/objects/Rocks.js'; // Import the new Rocks class
 import GamepadController from './GamepadController.js';
 import Navbar from '../ui/Navbar.js';
+import { MINE_AREA } from '../world/WorldData.js'; // Import shared data
 
 // Constants for day/night cycle
 const DAY_DURATION_SECONDS = 60;
@@ -24,9 +25,6 @@ const HEMI_GROUND_COLOR_NOON = new THREE.Color().setHSL(0.095, 1, 0.75);
 const HEMI_COLOR_SUNSET = new THREE.Color().setHSL(0.05, 0.5, 0.7);
 const HEMI_SKY_COLOR_NIGHT = new THREE.Color().setHSL(0.6, 0.1, 0.05);
 const HEMI_GROUND_COLOR_NIGHT = new THREE.Color().setHSL(0.6, 0.1, 0.05);
-
-// Define the mine area so we can pass it to the Rocks class
-const MINE_AREA = { x: 75, y: 75, width: 30, depth: 30, height: 0.1 };
 
 function smoothstep(min, max, value) { const x = Math.max(0, Math.min(1, (value - min) / (max - min))); return x * x * (3 - 2 * x); }
 
@@ -46,7 +44,7 @@ export default class Game {
         this.character = new Character(this.scene);
         this.sky = new GameSky(this.scene);
         this.terrain = new Terrain(this.scene);
-        new Rocks(this.scene, MINE_AREA); // Create the rocks in the mine
+        this.rocks = new Rocks(this.scene); // Create the rocks
         this.movement = new Movement(this.character.mesh);
         this.input = new InputController(this.camera.threeCamera, this.terrain.mesh, this.renderer.domElement);
         this.navbar = new Navbar();
@@ -120,6 +118,13 @@ export default class Game {
             this.sky.setParameters({ elevation: this.currentElevation, azimuth: this.currentAzimuth });
             this.sunLight.position.copy(this.sky.sun).multiplyScalar(1000);
         }
+
+        // Update rock lighting every frame
+        this.scene.traverse(child => {
+            if (child.isMesh && child.material.uniforms && child.material.uniforms.lightDir) {
+                child.material.uniforms.lightDir.value.copy(this.sunLight.position);
+            }
+        });
 
         const sunHeightFactor = Math.max(0, this.currentElevation) / 90;
         const sunsetFactor = smoothstep(0.4, 0.0, sunHeightFactor);
