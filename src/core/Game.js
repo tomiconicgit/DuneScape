@@ -1,9 +1,9 @@
-// ... (imports)
+// (All imports as before)
 import { MINE_AREA } from '../world/WorldData.js';
 
 export default class Game {
     constructor() {
-        // ... (initial setup)
+        // ... (Debug, scene, renderer, clock...)
         this.buildMode = { enabled: false, rockType: null };
 
         this.camera = new Camera(this.renderer.domElement);
@@ -19,7 +19,8 @@ export default class Game {
             () => this.handleCopyRockData(),
             () => this.rocks.clearAllRocks()
         );
-        // ... (lighting, gamepad)
+
+        // ... (lighting, gamepad setup)
         this._setupEvents();
     }
 
@@ -27,7 +28,6 @@ export default class Game {
         this.buildMode.enabled = rockType !== null;
         this.buildMode.rockType = rockType;
         this.input.setMode(this.buildMode.enabled ? 'BUILD' : 'MOVEMENT');
-        console.log(`Build mode: ${this.buildMode.enabled}, Type: ${this.buildMode.rockType}`);
     }
 
     handleCopyRockData() {
@@ -38,10 +38,15 @@ export default class Game {
     }
 
     _setupEvents() {
-        // ... (resize listener)
+        window.addEventListener('resize', () => { /* ... */ });
 
-        // Tapping moves character OR places a rock
-        const placeRockHandler = (worldPos) => {
+        this.input.onTap = (worldPos) => {
+            if (!this.buildMode.enabled) {
+                this.movement.calculatePathOnTerrain(worldPos, this.terrain.mesh);
+            }
+        };
+
+        this.input.onBuildTap = (worldPos) => {
             if (this.buildMode.enabled) {
                 const mineRect = new THREE.Box2(
                     new THREE.Vector2(MINE_AREA.x - MINE_AREA.width / 2, MINE_AREA.y - MINE_AREA.depth / 2),
@@ -50,32 +55,39 @@ export default class Game {
                 if (mineRect.containsPoint(new THREE.Vector2(worldPos.x, worldPos.z))) {
                     this.rocks.addRock(this.buildMode.rockType, worldPos);
                 } else {
-                    console.log("Can only place rocks inside the designated mine area.");
+                    alert("You can only place rocks inside the mine area.");
                 }
             }
         };
-
-        this.input.onTap = (worldPos) => {
-            if (!this.buildMode.enabled) {
-                this.movement.calculatePathOnTerrain(worldPos, this.terrain.mesh);
-            }
-        };
-        this.input.onBuildTap = placeRockHandler; // Set the new handler
         
         // ... (gamepad listeners)
     }
 
     _animate() {
-        // ... (game loop)
+        // ... (game loop start)
+        // ... (day/night cycle logic)
 
         // Update rock lighting every frame
         this.scene.traverse(child => {
-            if (child.isMesh && child.material.uniforms && child.material.uniforms.lightDir) {
-                child.material.uniforms.lightDir.value.copy(this.sunLight.position);
-                // You might also want to pass sun color and intensity here
+            if (child.isMesh && child.material.uniforms) {
+                if (child.material.uniforms.lightDir) {
+                    child.material.uniforms.lightDir.value.copy(this.sunLight.position);
+                }
+                if (child.material.uniforms.sunColor) {
+                    const sun = this.sunLight.color.clone().multiplyScalar(this.sunLight.intensity);
+                    child.material.uniforms.sunColor.value.copy(sun);
+                }
+                if (child.material.uniforms.hemiSkyColor) {
+                    const hemiSky = this.hemiLight.color.clone().multiplyScalar(this.hemiLight.intensity);
+                    child.material.uniforms.hemiSkyColor.value.copy(hemiSky);
+                }
+                if (child.material.uniforms.hemiGroundColor) {
+                    const hemiGround = this.hemiLight.groundColor.clone().multiplyScalar(this.hemiLight.intensity);
+                    child.material.uniforms.hemiGroundColor.value.copy(hemiGround);
+                }
             }
         });
-        
-        // ... (movement, camera, render)
+
+        // ... (rest of game loop: fog, gamepad, movement, camera, render)
     }
 }
