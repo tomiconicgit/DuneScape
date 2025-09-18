@@ -11,6 +11,9 @@ export default class Game {
         this.debugger = new Debugger();
         this.debugger.log('Game starting...');
 
+        // ✨ ADDED: A clock to track time for animations
+        this.clock = new THREE.Clock();
+
         this.scene = new THREE.Scene();
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         
@@ -36,7 +39,7 @@ export default class Game {
     }
     
     setupInitialScene() {
-        this.scene.background = new THREE.Color(0x87CEEB); // Sky blue
+        this.scene.background = new THREE.Color(0x87CEEB);
         this.scene.fog = new THREE.Fog(0x87CEEB, 100, 400);
 
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
@@ -68,7 +71,14 @@ export default class Game {
 
     animate() {
         requestAnimationFrame(this.animate.bind(this));
+
+        const elapsedTime = this.clock.getElapsedTime();
+
         this.camera.update();
+        
+        // ✨ ADDED: This line makes the wind animation play
+        this.landscape.update(elapsedTime);
+        
         this.renderer.render(this.scene, this.camera.threeCamera);
     }
 }
