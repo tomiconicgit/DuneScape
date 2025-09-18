@@ -3,7 +3,8 @@ import * as THREE from 'three';
 import Landscape from '../world/Landscape.js';
 import Player from '../entities/Player.js';
 import Camera from '../entities/Camera.js';
-import InputController from './InputController.js';
+import CameraController from './CameraController.js';
+import PlayerController from './PlayerController.js';
 import Debugger from '../ui/Debugger.js';
 import Sky from '../world/Sky.js';
 import Lighting from '../world/Lighting.js';
@@ -21,10 +22,11 @@ export default class Game {
         this.camera = new Camera();
         
         this.setupRenderer();
-        this.setupInitialScene(); // Must be before InputController to create landscape
+        this.setupInitialScene(); // Must be before controllers to create landscape
 
-        // ✨ CHANGED: Pass landscape and player to the input controller
-        this.input = new InputController(this.renderer.domElement, this.camera, this.landscape, this.player);
+        // ✨ CHANGED: Instantiate separate controllers for camera and player
+        this.cameraController = new CameraController(this.renderer.domElement, this.camera);
+        this.playerController = new PlayerController(this.renderer.domElement, this.camera, this.landscape, this.player);
 
         this.camera.setTarget(this.player.mesh);
 
@@ -62,8 +64,6 @@ export default class Game {
         const deltaTime = this.clock.getDelta();
 
         this.camera.update();
-        
-        // ✨ ADDED: Update the player's movement each frame
         this.player.update(deltaTime);
         
         this.renderer.render(this.scene, this.camera.threeCamera);
