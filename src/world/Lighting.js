@@ -19,13 +19,19 @@ export default class Lighting {
 
         // Directional Light shadow properties
         this.dirLight.castShadow = true;
-        this.dirLight.shadow.mapSize.width = 2048;
-        this.dirLight.shadow.mapSize.height = 2048;
-        const d = 50;
+
+        // ✨ CHANGED: Increased shadow map resolution for better quality on a large map
+        this.dirLight.shadow.mapSize.width = 4096;
+        this.dirLight.shadow.mapSize.height = 4096;
+
+        // ✨ CHANGED: Increased the size of the shadow camera to cover the 800x800 world
+        const d = 400; // Was 50, now half the world size
+
         this.dirLight.shadow.camera.left = -d;
         this.dirLight.shadow.camera.right = d;
         this.dirLight.shadow.camera.top = d;
-        this.dirLight.shadow.camera.bottom = d;
+        this.dirLight.shadow.camera.bottom = -d;
+
         this.dirLight.shadow.camera.far = 3500;
         this.dirLight.shadow.bias = -0.0001;
     }
