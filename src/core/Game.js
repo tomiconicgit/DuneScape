@@ -5,7 +5,8 @@ import Player from '../entities/Player.js';
 import Camera from '../entities/Camera.js';
 import InputController from './InputController.js';
 import Debugger from '../ui/Debugger.js';
-import Sky from '../world/Sky.js'; // ✨ ADDED: Import the new Sky class
+import Sky from '../world/Sky.js';
+import Lighting from '../world/Lighting.js'; // ✨ ADDED: Import the new Lighting class
 
 export default class Game {
     constructor() {
@@ -19,8 +20,6 @@ export default class Game {
         this.player = new Player(this.scene);
         this.camera = new Camera();
         this.input = new InputController(this.renderer.domElement, this.camera);
-        
-        // ✨ MOVED: Sky is now created in setupInitialScene
         
         this.setupRenderer();
         this.setupInitialScene();
@@ -40,23 +39,16 @@ export default class Game {
     }
     
     setupInitialScene() {
-        // ✨ REPLACED: The old background, fog, and lights are gone.
-        // The new Sky class now handles all of it.
-        this.sky = new Sky(this.scene);
+        // ✨ REPLACED: The entire scene setup is now modular.
+        
+        // 1. Set up the lighting system
+        this.lighting = new Lighting(this.scene);
 
-        // We still need to configure the main sun from the sky system to cast shadows
-        if (this.sky.sun) {
-            const sun = this.sky.sun;
-            sun.castShadow = true;
-            sun.shadow.mapSize.width = 2048;
-            sun.shadow.mapSize.height = 2048;
-            sun.shadow.camera.left = -250;
-            sun.shadow.camera.right = 250;
-            sun.shadow.camera.top = 250;
-            sun.shadow.camera.bottom = -250;
-        }
+        // 2. Set up the sky, which uses the lighting info
+        this.sky = new Sky(this.scene, this.lighting);
 
-        this.landscape = new Landscape();
+        // 3. Set up the landscape, which also uses lighting info
+        this.landscape = new Landscape(this.scene, this.lighting);
         this.scene.add(this.landscape.mesh);
     }
     
@@ -71,14 +63,9 @@ export default class Game {
 
     animate() {
         requestAnimationFrame(this.animate.bind(this));
-
-        const elapsedTime = this.clock.getElapsedTime();
-
-        this.camera.update();
-        this.landscape.update(elapsedTime);
         
-        // ✨ ADDED: This line updates the day/night cycle and cloud animation
-        this.sky.update(elapsedTime);
+        // ✨ UPDATED: Removed update calls for static landscape and sky
+        this.camera.update();
         
         this.renderer.render(this.scene, this.camera.threeCamera);
     }
