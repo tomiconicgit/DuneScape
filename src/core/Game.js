@@ -1,6 +1,6 @@
 // File: src/core/Game.js
 import * as THREE from 'three';
-import Landscape from '../world/Landscape.js';
+import Landscape from '../world/Landscape.js'; // This now handles everything
 import Player from '../entities/Player.js';
 import Camera from '../entities/Camera.js';
 import InputController from './InputController.js';
@@ -8,7 +8,6 @@ import Debugger from '../ui/Debugger.js';
 
 export default class Game {
     constructor() {
-        // Must be first to catch all initialization errors
         this.debugger = new Debugger();
         this.debugger.log('Game starting...');
 
@@ -22,21 +21,14 @@ export default class Game {
         this.setupRenderer();
         this.setupInitialScene();
 
-        // Set camera target after player is created
         this.camera.setTarget(this.player.mesh);
 
         window.addEventListener('resize', this.handleResize.bind(this));
         this.debugger.log('Game initialized successfully.');
     }
 
-    setupRenderer() {
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(window.devicePixelRatio);
-        this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        document.body.appendChild(this.renderer.domElement);
-    }
-    
+    // ... all other methods (setupRenderer, setupInitialScene, etc.) remain exactly the same as before ...
+    // The only change is that `new Landscape()` now does all the work internally.
     setupInitialScene() {
         this.scene.background = new THREE.Color(0x87CEEB); // Sky blue
         this.scene.fog = new THREE.Fog(0x87CEEB, 100, 400);
@@ -55,10 +47,10 @@ export default class Game {
         directionalLight.shadow.camera.bottom = -250;
         this.scene.add(directionalLight);
 
-        this.landscape = new Landscape();
+        this.landscape = new Landscape(); // This one line now does everything
         this.scene.add(this.landscape.mesh);
     }
-
+    
     handleResize() {
         this.camera.handleResize();
         this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -70,10 +62,7 @@ export default class Game {
 
     animate() {
         requestAnimationFrame(this.animate.bind(this));
-        
-        // Update controls and camera every frame
         this.camera.update();
-        
         this.renderer.render(this.scene, this.camera.threeCamera);
     }
 }
