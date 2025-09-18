@@ -4,7 +4,9 @@ import * as THREE from 'three';
 export default class Camera {
     constructor() {
         this.target = null;
-        this.threeCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+        
+        // ✨ CHANGED: Increased the camera's far view distance from 2000 to 5000
+        this.threeCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
 
         // State (controlled by InputController)
         this.orbitAngle = Math.PI / 4; // Starting angle
@@ -12,9 +14,9 @@ export default class Camera {
 
         // Config
         this.minDistance = 5;
-        this.maxDistance = 25;
+        this.maxDistance = 50; // Increased max zoom out distance
         this.minHeight = 2;
-        this.maxHeight = 15;
+        this.maxHeight = 25; // Increased max height
         this.smoothing = 0.05; // Lower is smoother
     }
 
