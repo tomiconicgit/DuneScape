@@ -12,7 +12,7 @@ export default class Camera {
         this.zoomLevel = 0.5; // Starting zoom (0=in, 1=out)
 
         // Config
-        this.minDistance = 5;
+        this.minDistance = 15;
         this.maxDistance = 15;
         this.cameraHeight = 5; // ✨ ADD THIS: Set a fixed height for the camera
         this.smoothing = 0.05;
