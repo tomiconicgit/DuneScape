@@ -134,10 +134,19 @@ export default class Game {
         const allRocks = [...this.mineableRocks, ...this.placedRocks.map(r => r.mesh)];
 
         for (const rock of allRocks) {
-            const x = Math.round(rock.position.x);
-            const z = Math.round(rock.position.z);
-            if (x >= 0 && x < gridSize && z >= 0 && z < gridSize) {
-                this.grid[x][z] = 1;
+            const centerX = Math.round(rock.position.x);
+            const centerZ = Math.round(rock.position.z);
+            // Determine a simple radius based on the largest horizontal scale.
+            // A scale of 1.4 will result in a radius of 1, blocking a 3x3 area.
+            const radius = Math.ceil(Math.max(rock.scale.x, rock.scale.z) / 2);
+
+            // Mark a square area around the rock as unwalkable
+            for (let x = centerX - radius; x <= centerX + radius; x++) {
+                for (let z = centerZ - radius; z <= centerZ + radius; z++) {
+                    if (x >= 0 && x < gridSize && z >= 0 && z < gridSize) {
+                        this.grid[x][z] = 1; // Mark as unwalkable
+                    }
+                }
             }
         }
     }
