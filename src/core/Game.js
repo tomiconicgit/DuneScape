@@ -11,7 +11,6 @@ import Lighting from '../world/Lighting.js';
 import { createProceduralRock } from '../world/assets/rock.js';
 import DeveloperBar from '../ui/DeveloperBar.js';
 import { rockPresets } from '../world/assets/rockPresets.js';
-// ✨ FIX: Removed the import for the deleted 'rockLayout.js' file. This was causing the startup crash.
 
 export default class Game {
     constructor() {
@@ -32,11 +31,17 @@ export default class Game {
         
         this.player = new Player(this.scene, this);
         this.camera = new Camera();
+        // ✨ FIX: Tell the main camera to also render Layer 1, where the player is.
+        this.camera.threeCamera.layers.enable(1);
+
         window.loader.updateStatus('Entities created...', 80);
         
         this.setupRenderer();
         
-        this.devBar = new DeveloperBar(this.handleBuildModeToggle.bind(this), this.copyLayout.bind(this));
+        this.devBar = new DeveloperBar(
+            this.handleBuildModeToggle.bind(this),
+            this.copyLayout.bind(this)
+        );
         
         this.cameraController = new CameraController(this.renderer.domElement, this.camera);
         this.playerController = new PlayerController(this.renderer.domElement, this, this.camera, this.player, this.landscape);
@@ -168,7 +173,7 @@ export default class Game {
 
         this.scene.add(newRock);
         this.placedRocks.push({ type: this.buildMode.selectedRockName, mesh: newRock });
-        this.createPathfindingGrid(); // Rebuild grid after placing a new rock
+        this.createPathfindingGrid();
     }
 
     copyLayout() {
