@@ -43,6 +43,7 @@ export default class DeveloperBar {
                 color: #fff;
                 border: 1px solid #555;
                 cursor: pointer;
+                margin-left: 10px;
             }
             .dev-panel {
                 background-color: rgba(20, 20, 20, 0.85);
@@ -83,15 +84,25 @@ export default class DeveloperBar {
         this.header.className = 'dev-bar-header';
         this.header.innerHTML = '<span class="dev-bar-title">🛠️ Rock Controls</span>';
 
+        const buttonGroup = document.createElement('div');
+        
+        // ✨ ADDED: Copy Config Button
+        this.copyButton = document.createElement('button');
+        this.copyButton.id = 'copy-config-btn';
+        this.copyButton.textContent = 'Copy Config';
+        
         this.toggleButton = document.createElement('button');
         this.toggleButton.id = 'toggle-panel-btn';
         this.toggleButton.textContent = 'Show';
+        
+        buttonGroup.appendChild(this.copyButton);
+        buttonGroup.appendChild(this.toggleButton);
+        this.header.appendChild(buttonGroup);
+        this.container.appendChild(this.header);
 
         this.panel = document.createElement('div');
         this.panel.className = 'dev-panel';
-
-        this.header.appendChild(this.toggleButton);
-        this.container.appendChild(this.header);
+        
         this.container.appendChild(this.panel);
         document.body.appendChild(this.container);
 
@@ -103,13 +114,14 @@ export default class DeveloperBar {
         this.panel.innerHTML += this.createSlider('radius', 'Size', 0.1, 5, 0.1, this.config.radius);
         this.panel.innerHTML += this.createSlider('detail', 'Edges (Detail)', 0, 7, 1, this.config.detail);
         this.panel.innerHTML += this.createSlider('roughness', 'Shape Roughness', 0, 1.5, 0.05, this.config.roughness);
-        this.panel.innerHTML += this.createSlider('noiseScale', 'Noise Scale', 0.1, 2, 0.05, this.config.noiseScale);
+        this.panel.innerHTML += this.createSlider('noiseScale', 'Shape Noise Scale', 0.1, 2, 0.05, this.config.noiseScale);
         
-        // Material
-        this.panel.innerHTML += this.createColorPicker('color', 'Color', this.config.color);
-        this.panel.innerHTML += this.createSlider('materialRoughness', 'Material Roughness', 0, 1, 0.05, this.config.materialRoughness);
+        // ✨ CHANGED: Updated material controls for the new shader
+        this.panel.innerHTML += this.createColorPicker('topColor', 'Top Color', this.config.topColor);
+        this.panel.innerHTML += this.createColorPicker('bottomColor', 'Bottom Color', this.config.bottomColor);
+        this.panel.innerHTML += this.createSlider('textureScale', 'Texture Scale', 1, 50, 1, this.config.textureScale);
+        this.panel.innerHTML += this.createSlider('wetness', 'Wetness', 0, 1, 0.05, this.config.wetness);
         this.panel.innerHTML += this.createSlider('metalness', 'Metalness', 0, 1, 0.05, this.config.metalness);
-        this.panel.innerHTML += this.createCheckbox('flatShading', 'Flat Shading', this.config.flatShading);
 
         // Transform
         this.panel.innerHTML += this.createSlider('scaleX', 'Width', 0.2, 3, 0.1, this.config.scaleX);
@@ -157,6 +169,18 @@ export default class DeveloperBar {
             this.toggleButton.textContent = this.isPanelOpen ? 'Hide' : 'Show';
         });
 
+        // ✨ ADDED: Event listener for the copy button
+        this.copyButton.addEventListener('click', () => {
+            // Exclude the seed from the copied config for consistency
+            const { seed, ...configToCopy } = this.config;
+            const configString = `const rockConfig = ${JSON.stringify(configToCopy, null, 4)};`;
+            
+            navigator.clipboard.writeText(configString).then(() => {
+                this.copyButton.textContent = 'Copied!';
+                setTimeout(() => { this.copyButton.textContent = 'Copy Config'; }, 2000);
+            });
+        });
+
         this.panel.addEventListener('input', (e) => {
             const el = e.target;
             const valueSpan = document.getElementById(`${el.id}-value`);
@@ -182,12 +206,13 @@ export default class DeveloperBar {
             detail: parseInt(document.getElementById('detail').value),
             roughness: parseFloat(document.getElementById('roughness').value),
             noiseScale: parseFloat(document.getElementById('noiseScale').value),
-            seed: this.config.seed, // Keep the seed unless randomized
-            // Material
-            color: parseInt(document.getElementById('color').value.substring(1), 16),
-            materialRoughness: parseFloat(document.getElementById('materialRoughness').value),
+            seed: this.config.seed,
+            // ✨ CHANGED: New shader properties
+            topColor: parseInt(document.getElementById('topColor').value.substring(1), 16),
+            bottomColor: parseInt(document.getElementById('bottomColor').value.substring(1), 16),
+            textureScale: parseFloat(document.getElementById('textureScale').value),
+            wetness: parseFloat(document.getElementById('wetness').value),
             metalness: parseFloat(document.getElementById('metalness').value),
-            flatShading: document.getElementById('flatShading').checked,
             // Transform
             scaleX: parseFloat(document.getElementById('scaleX').value),
             scaleY: parseFloat(document.getElementById('scaleY').value),
