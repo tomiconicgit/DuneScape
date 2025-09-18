@@ -5,21 +5,22 @@ import Player from '../entities/Player.js';
 import Camera from '../entities/Camera.js';
 import InputController from './InputController.js';
 import Debugger from '../ui/Debugger.js';
+import Sky from '../world/Sky.js'; // ✨ ADDED: Import the new Sky class
 
 export default class Game {
     constructor() {
         this.debugger = new Debugger();
         this.debugger.log('Game starting...');
 
-        // ✨ ADDED: A clock to track time for animations
         this.clock = new THREE.Clock();
-
         this.scene = new THREE.Scene();
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         
         this.player = new Player(this.scene);
         this.camera = new Camera();
         this.input = new InputController(this.renderer.domElement, this.camera);
+        
+        // ✨ MOVED: Sky is now created in setupInitialScene
         
         this.setupRenderer();
         this.setupInitialScene();
@@ -39,22 +40,21 @@ export default class Game {
     }
     
     setupInitialScene() {
-        this.scene.background = new THREE.Color(0x87CEEB);
-        this.scene.fog = new THREE.Fog(0x87CEEB, 100, 400);
+        // ✨ REPLACED: The old background, fog, and lights are gone.
+        // The new Sky class now handles all of it.
+        this.sky = new Sky(this.scene);
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-        this.scene.add(ambientLight);
-
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
-        directionalLight.position.set(-100, 150, -50);
-        directionalLight.castShadow = true;
-        directionalLight.shadow.mapSize.width = 2048;
-        directionalLight.shadow.mapSize.height = 2048;
-        directionalLight.shadow.camera.left = -250;
-        directionalLight.shadow.camera.right = 250;
-        directionalLight.shadow.camera.top = 250;
-        directionalLight.shadow.camera.bottom = -250;
-        this.scene.add(directionalLight);
+        // We still need to configure the main sun from the sky system to cast shadows
+        if (this.sky.sun) {
+            const sun = this.sky.sun;
+            sun.castShadow = true;
+            sun.shadow.mapSize.width = 2048;
+            sun.shadow.mapSize.height = 2048;
+            sun.shadow.camera.left = -250;
+            sun.shadow.camera.right = 250;
+            sun.shadow.camera.top = 250;
+            sun.shadow.camera.bottom = -250;
+        }
 
         this.landscape = new Landscape();
         this.scene.add(this.landscape.mesh);
@@ -75,9 +75,10 @@ export default class Game {
         const elapsedTime = this.clock.getElapsedTime();
 
         this.camera.update();
-        
-        // ✨ ADDED: This line makes the wind animation play
         this.landscape.update(elapsedTime);
+        
+        // ✨ ADDED: This line updates the day/night cycle and cloud animation
+        this.sky.update(elapsedTime);
         
         this.renderer.render(this.scene, this.camera.threeCamera);
     }
