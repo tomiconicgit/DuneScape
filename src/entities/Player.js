@@ -50,18 +50,9 @@ export default class Player {
 
     createCharacterRig() {
         const playerGroup = new THREE.Group();
-
-        const bodyMaterial = new THREE.MeshStandardMaterial({
-            color: 0x666688,
-            roughness: 0.8,
-            metalness: 0.1,
-        });
-        const jointMaterial = new THREE.MeshStandardMaterial({
-            color: 0x444455,
-            roughness: 0.9
-        });
+        const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x666688, roughness: 0.8, metalness: 0.1 });
+        const jointMaterial = new THREE.MeshStandardMaterial({ color: 0x444455, roughness: 0.9 });
         
-        // Torso
         const torsoGeo = new THREE.BoxGeometry(1, 1.5, 0.5);
         const torso = new THREE.Mesh(torsoGeo, bodyMaterial);
         torso.position.y = 0.75;
@@ -69,14 +60,13 @@ export default class Player {
         playerGroup.add(torso);
         this.rig.torso = torso;
 
-        // Head
         const headGeo = new THREE.BoxGeometry(0.7, 0.7, 0.7);
         const head = new THREE.Mesh(headGeo, bodyMaterial);
         head.position.y = 1.8;
         torso.add(head);
         this.rig.head = head;
         
-        const createLimb = (isArm, isRight) => {
+        const createLimb = (isArm) => {
             const group = new THREE.Group();
             const upperGeo = new THREE.BoxGeometry(0.25, 0.6, 0.25);
             const upper = new THREE.Mesh(upperGeo, bodyMaterial);
@@ -93,7 +83,7 @@ export default class Player {
                 upper.position.y = -0.4;
                 joint.position.y = -0.35;
                 lower.position.y = -0.3;
-            } else { // Leg
+            } else {
                 upper.position.y = -0.45;
                 joint.position.y = -0.4;
                 lower.position.y = -0.3;
@@ -102,33 +92,29 @@ export default class Player {
             group.add(upper);
             upper.add(joint);
             joint.add(lower);
-
-            return { group, upper, joint, lower };
+            return { group, joint };
         };
 
-        // Arms
-        const rightArm = createLimb(true, true);
+        const rightArm = createLimb(true);
         rightArm.group.position.set(-0.65, 0.6, 0);
         torso.add(rightArm.group);
         this.rig.rightArm = { group: rightArm.group, joint: rightArm.joint };
         
-        const leftArm = createLimb(true, false);
+        const leftArm = createLimb(true);
         leftArm.group.position.set(0.65, 0.6, 0);
         torso.add(leftArm.group);
         this.rig.leftArm = { group: leftArm.group, joint: leftArm.joint };
 
-        // Legs
-        const rightLeg = createLimb(false, true);
+        const rightLeg = createLimb(false);
         rightLeg.group.position.set(-0.25, -0.75, 0);
         torso.add(rightLeg.group);
         this.rig.rightLeg = { group: rightLeg.group, joint: rightLeg.joint };
         
-        const leftLeg = createLimb(false, false);
+        const leftLeg = createLimb(false);
         leftLeg.group.position.set(0.25, -0.75, 0);
         torso.add(leftLeg.group);
         this.rig.leftLeg = { group: leftLeg.group, joint: leftLeg.joint };
 
-        // ✨ FIX: Added the missing return statement. This was causing the crash.
         return playerGroup;
     }
     
@@ -144,10 +130,10 @@ export default class Player {
         this.miningTarget = this.isMining ? this.miningTarget : null;
         this.isMining = false;
         
-        const targetGridX = Math.round(targetPosition.x / this.tileSize);
-        const targetGridZ = Math.round(targetPosition.z / this.tileSize);
-        const startGridX = Math.round(this.mesh.position.x / this.tileSize);
-        const startGridZ = Math.round(this.mesh.position.z / this.tileSize);
+        const targetGridX = Math.round(targetPosition.x);
+        const targetGridZ = Math.round(targetPosition.z);
+        const startGridX = Math.round(this.mesh.position.x);
+        const startGridZ = Math.round(this.mesh.position.z);
 
         this.marker.position.set(targetGridX, targetPosition.y + 0.1, targetGridZ);
         this.marker.visible = true;
@@ -173,7 +159,6 @@ export default class Player {
         const endNode = { x: endX, z: endZ };
 
         openSet.push(startNode);
-
         const getHeuristic = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.z - b.z);
 
         while (openSet.length > 0) {
@@ -195,7 +180,6 @@ export default class Player {
             for (let dx = -1; dx <= 1; dx++) {
                 for (let dz = -1; dz <= 1; dz++) {
                     if (dx === 0 && dz === 0) continue;
-
                     const neighborX = currentNode.x + dx;
                     const neighborZ = currentNode.z + dz;
 
@@ -203,9 +187,7 @@ export default class Player {
                         continue;
                     }
 
-                    if (closedSet.has(`${neighborX},${neighborZ}`)) {
-                        continue;
-                    }
+                    if (closedSet.has(`${neighborX},${neighborZ}`)) continue;
                     
                     const gCost = currentNode.g + 1;
                     let neighbor = openSet.find(n => n.x === neighborX && n.z === neighborZ);
@@ -234,7 +216,6 @@ export default class Player {
         positions[3] = this.marker.position.x;
         positions[4] = this.marker.position.y;
         positions[5] = this.marker.position.z;
-
         this.pathLine.geometry.attributes.position.needsUpdate = true;
         this.pathLine.computeLineDistances();
     }
@@ -254,16 +235,9 @@ export default class Player {
         }
         
         switch (this.state) {
-            case states.WALKING:
-                this.updateWalkAnimation();
-                break;
-            case states.MINING:
-                this.updateMineAnimation();
-                this.updateMineTimer(deltaTime);
-                break;
-            default:
-                this.updateIdleAnimation();
-                break;
+            case states.WALKING: this.updateWalkAnimation(); break;
+            case states.MINING: this.updateMineAnimation(); this.updateMineTimer(deltaTime); break;
+            default: this.updateIdleAnimation(); break;
         }
     }
     
@@ -309,15 +283,12 @@ export default class Player {
         const time = this.animationTimer * 8;
         const swing = Math.sin(time) * 0.5;
         const kneeBend = Math.max(0, Math.sin(time + Math.PI / 2)) * 0.4;
-
         this.rig.leftLeg.group.rotation.x = swing;
         this.rig.rightLeg.group.rotation.x = -swing;
         this.rig.leftLeg.joint.rotation.x = -kneeBend;
         this.rig.rightLeg.joint.rotation.x = -kneeBend;
-
         this.rig.leftArm.group.rotation.x = -swing * 0.5;
         this.rig.rightArm.group.rotation.x = swing * 0.5;
-        
         this.rig.torso.position.y = 0.75 + Math.sin(time * 2) * 0.05;
     }
 
@@ -326,8 +297,6 @@ export default class Player {
         this.mesh.lookAt(this.miningTarget.position);
 
         const time = this.miningTimer * 4;
-        const swing = Math.sin(time);
-
         const swingAngle = -1.5 + (Math.sin(time) * 1.5);
         this.rig.rightArm.group.rotation.x = swingAngle;
         this.rig.leftArm.group.rotation.x = swingAngle * 0.8;
