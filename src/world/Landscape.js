@@ -15,7 +15,7 @@ export default class Landscape {
         groundMesh.receiveShadow = true;
         this.mesh.add(groundMesh);
         
-        // ✨ CHANGED: Create a simple, flat 100x100 plane for the mine area.
+        // 2. Create a simple, flat 100x100 plane for the mine area.
         const mineGeo = new THREE.PlaneGeometry(100, 100);
         
         // Create a new material that is a darker shade of the main ground
