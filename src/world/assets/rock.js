@@ -3,7 +3,6 @@
 import * as THREE from 'three';
 
 // Simplex noise generator (inline, zero dependency)
-// NOTE: Moved class definition before its use to prevent ReferenceError.
 class SimplexNoise {
   constructor(seed = 0) {
     this.p = new Uint8Array(512);
@@ -21,11 +20,17 @@ class SimplexNoise {
   }
 }
 
+// ✨ CHANGED: Function now accepts a single config object with more parameters
 export function createProceduralRock({
   radius = 1,
   detail = 3,
   roughness = 0.5,
-  seed = Math.random()
+  noiseScale = 0.8,
+  seed = Math.random(),
+  color = 0x888888,
+  materialRoughness = 1,
+  metalness = 0,
+  flatShading = true
 } = {}) {
   const geometry = new THREE.IcosahedronGeometry(radius, detail);
   const position = geometry.attributes.position;
@@ -38,7 +43,7 @@ export function createProceduralRock({
     if (vertex.y < 0) vertex.y = 0;
 
     // Apply noise-based displacement for roughness
-    const n = noise.noise3D(vertex.x * 0.8, vertex.y * 0.8, vertex.z * 0.8);
+    const n = noise.noise3D(vertex.x * noiseScale, vertex.y * noiseScale, vertex.z * noiseScale);
     vertex.multiplyScalar(1 + n * roughness);
 
     position.setXYZ(i, vertex.x, vertex.y, vertex.z);
@@ -47,10 +52,10 @@ export function createProceduralRock({
   geometry.computeVertexNormals();
 
   const material = new THREE.MeshStandardMaterial({
-    color: 0x888888,
-    roughness: 1,
-    metalness: 0,
-    flatShading: true
+    color: color,
+    roughness: materialRoughness,
+    metalness: metalness,
+    flatShading: flatShading
   });
 
   const mesh = new THREE.Mesh(geometry, material);
