@@ -2,13 +2,19 @@ import * as THREE from 'three';
 import { SimplexNoise } from 'three/addons/math/SimplexNoise.js';
 import { MINE_AREA, TOWN_AREA, OASIS_AREA, trailNetwork } from './WorldData.js';
 
+// --- FIX: Correct the distance calculation helper method ---
 THREE.Vector2.prototype.distanceToSegment = function(v, w) {
-    const l2 = v.distanceToSq(w); if (l2 === 0) return this.distanceTo(v);
+    const dx = v.x - w.x;
+    const dy = v.y - w.y;
+    const l2 = dx * dx + dy * dy; // Correctly calculate the squared distance manually
+
+    if (l2 === 0) return this.distanceTo(v);
     let t = ((this.x - v.x) * (w.x - v.x) + (this.y - v.y) * (w.y - v.y)) / l2;
     t = Math.max(0, Math.min(1, t));
     const closestPoint = new THREE.Vector2(v.x + t * (w.x - v.x), v.y + t * (w.y - v.y));
     return this.distanceTo(closestPoint);
 };
+// --- END FIX ---
 
 export default class Terrain {
     constructor(scene) {
@@ -16,9 +22,7 @@ export default class Terrain {
         const segments = 512;
 
         const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
-        // --- FIX: Define 'positions' BEFORE using it ---
         const positions = geometry.attributes.position;
-        
         geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(positions.count * 3), 3));
 
         const material = new THREE.MeshLambertMaterial({
@@ -31,12 +35,12 @@ export default class Terrain {
         const vertex = new THREE.Vector3();
         const tempVec2 = new THREE.Vector2();
 
-        const slopeHeight = 1.0;
+        const slopeHeight = 1.5;
         const sandColor = new THREE.Color(0xf0e0b0);
         const darkSandColor = new THREE.Color(0xd8c0a0);
-        const trailColor = new THREE.Color(0xbfa67f);
+        const trailColor = new THREE.Color(0xa88f6c);
 
-        const TRAIL_WIDTH = 2.5;
+        const TRAIL_WIDTH = 3;
         const TRAIL_DEPTH = 0.8;
         const trails = Object.values(trailNetwork).map(curve => curve.getPoints(100));
         
@@ -50,6 +54,7 @@ export default class Terrain {
             const point = new THREE.Vector2(vertex.x, vertex.y);
             let onTrail = false;
 
+            // Carve and color trails first
             let minTrailDist = Infinity;
             for (const trail of trails) {
                 for (let j = 0; j < trail.length - 1; j++) {
@@ -63,23 +68,28 @@ export default class Terrain {
                 finalColor.lerp(trailColor, depressionFactor);
             }
 
+            // Flatten and color designated areas, but not on top of trails
             if (!onTrail) {
                 for (const area of areas) {
                     const rect = new THREE.Box2(
                         new THREE.Vector2(area.x - area.width / 2, area.y - area.depth / 2),
                         new THREE.Vector2(area.x + area.width / 2, area.y + area.depth / 2)
                     );
+
                     const blendDistance = 8;
                     const distToArea = rect.distanceToPoint(point);
+
                     if (distToArea < blendDistance) {
                         const blendFactor = 1.0 - (distToArea / blendDistance);
                         finalHeight = THREE.MathUtils.lerp(finalHeight, area.height, blendFactor);
+                        
                         if (area === MINE_AREA) {
                             finalColor.lerp(darkSandColor, blendFactor);
                         }
                     }
                 }
             }
+
             colors.setXYZ(i, finalColor.r, finalColor.g, finalColor.b);
             positions.setZ(i, finalHeight);
         }
