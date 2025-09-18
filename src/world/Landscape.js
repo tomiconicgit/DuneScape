@@ -1,7 +1,7 @@
 // File: src/world/Landscape.js
 import * as THREE from 'three';
 
-// A self-contained Perlin noise implementation. It's simple and effective.
+// A self-contained Perlin noise implementation.
 class PerlinNoise {
     constructor() {
         this.perm = new Uint8Array(512);
@@ -36,21 +36,43 @@ export default class Landscape {
     constructor() {
         this.config = {
             size: 500,
-            resolution: 40, // Low resolution for the low-poly look
+            resolution: 128,
             noiseScale: {
-                dunes: 0.02,
+                dunes: 0.03,
                 detail: 0.1,
             },
+            // ✨ KEY CHANGE: Drastically reduced height for a flat plain with gentle dunes
             heightScale: {
-                dunes: 35,
-                detail: 5,
+                dunes: 2.5,  // Was 35, now very subtle
+                detail: 0.5, // Was 5, now very subtle
+            },
+            trail: {
+                width: 4,
+                fadeDistance: 3,
             },
             colors: {
-                deepSand: new THREE.Color(0xc2b280),
-                midSand: new THREE.Color(0xd8c593),
-                highlightSand: new THREE.Color(0xf5e1a9),
+                sand: new THREE.Color(0xd8c593),
+                sandDark: new THREE.Color(0xc2b280),
+                mine: new THREE.Color(0x8a8d91),
+                oasis: new THREE.Color(0x556b2f), // Dark olive green
+                wildlands: new THREE.Color(0x9b7653), // Darker, rougher sand
+                trail: new THREE.Color(0x9e8a78),
             }
         };
+
+        this.BIOMES = {
+            MINE:      { x: -125, z: -125, size: 50 },
+            TOWN:      { x: -125, z:  125, size: 80 },
+            OASIS:     { x:  125, z:  125, size: 50 },
+            WILDLANDS: { x:  125, z: -125, size: 250 },
+        };
+        
+        this.TRAIL_PATH = [
+            new THREE.Vector2(this.BIOMES.OASIS.x, this.BIOMES.OASIS.z),
+            new THREE.Vector2(this.BIOMES.TOWN.x, this.BIOMES.TOWN.z),
+            new THREE.Vector2(this.BIOMES.MINE.x, this.BIOMES.MINE.z),
+            new THREE.Vector2(this.BIOMES.WILDLANDS.x, this.BIOMES.WILDLANDS.z),
+        ];
 
         this.noise = new PerlinNoise();
         this.createMesh();
@@ -58,70 +80,108 @@ export default class Landscape {
     }
 
     createMesh() {
-        this.geometry = new THREE.PlaneGeometry(
-            this.config.size, this.config.size,
-            this.config.resolution, this.config.resolution
-        );
+        this.geometry = new THREE.PlaneGeometry(this.config.size, this.config.size, this.config.resolution, this.config.resolution);
         this.geometry.rotateX(-Math.PI / 2);
 
         this.material = new THREE.MeshLambertMaterial({
             vertexColors: true,
-            flatShading: true, // This is the key to the faceted, low-poly look!
+            // flatShading is removed for a smoother look
         });
 
         this.mesh = new THREE.Mesh(this.geometry, this.material);
         this.mesh.receiveShadow = true;
-        this.mesh.castShadow = true;
     }
 
     generate() {
-        console.log("Generating low-poly landscape...");
+        console.log("Generating flat landscape with subtle features...");
         const vertices = this.geometry.attributes.position.array;
-        let minHeight = Infinity;
-        let maxHeight = -Infinity;
+        const colors = new Float32Array(vertices.length);
 
-        // --- Pass 1: Set Heights ---
-        // We loop through and set the height of each vertex based on noise.
         for (let i = 0; i < vertices.length / 3; i++) {
             const x = vertices[i * 3];
             const z = vertices[i * 3 + 2];
 
+            const biomeWeights = this.getBiomeWeights(x, z);
+            const trailFactor = this.getTrailFactor(x, z);
+
+            // --- 1. Calculate Subtle Height ---
             const duneHeight = this.noise.noise(x * this.config.noiseScale.dunes, z * this.config.noiseScale.dunes) * this.config.heightScale.dunes;
             const detailHeight = this.noise.noise(x * this.config.noiseScale.detail, z * this.config.noiseScale.detail) * this.config.heightScale.detail;
-            
-            const height = duneHeight + detailHeight;
+            let height = duneHeight + detailHeight;
+
+            // Slightly flatten the trail, but don't dig a trench
+            height *= (1.0 - (1.0 - trailFactor.factor) * 0.2);
             vertices[i * 3 + 1] = height;
 
-            if (height < minHeight) minHeight = height;
-            if (height > maxHeight) maxHeight = height;
-        }
-
-        // --- Pass 2: Set Colors ---
-        // Now that we know the min/max height, we can color each vertex based on its normalized height.
-        const colors = new Float32Array(vertices.length);
-        const heightRange = maxHeight - minHeight;
-        
-        for (let i = 0; i < vertices.length / 3; i++) {
-            const height = vertices[i * 3 + 1];
-            const normalizedHeight = (height - minHeight) / heightRange;
-
-            // Create a gradient from deep sand to highlight sand
-            const color = this.config.colors.deepSand.clone();
-            if (normalizedHeight < 0.5) {
-                color.lerp(this.config.colors.midSand, normalizedHeight * 2);
-            } else {
-                color.copy(this.config.colors.midSand);
-                color.lerp(this.config.colors.highlightSand, (normalizedHeight - 0.5) * 2);
-            }
+            // --- 2. Calculate Color based on Biomes and Trails ---
+            const colorNoiseVal = (this.noise.noise(x * 0.1, z * 0.1) + 1) / 2;
             
-            colors[i * 3] = color.r;
-            colors[i * 3 + 1] = color.g;
-            colors[i * 3 + 2] = color.b;
+            // Start with base sand color
+            let finalColor = this.config.colors.sand.clone();
+            finalColor.lerp(this.config.colors.sandDark, colorNoiseVal * 0.5); // Add subtle variation
+
+            // Blend biome colors based on location
+            finalColor.lerp(this.config.colors.mine, biomeWeights.MINE);
+            finalColor.lerp(this.config.colors.wildlands, biomeWeights.WILDLANDS);
+            finalColor.lerp(this.config.colors.oasis, biomeWeights.OASIS);
+            
+            // Override other colors to draw the trail
+            finalColor.lerp(this.config.colors.trail, (1.0 - trailFactor.factor));
+            
+            colors[i * 3] = finalColor.r;
+            colors[i * 3 + 1] = finalColor.g;
+            colors[i * 3 + 2] = finalColor.b;
         }
 
         this.geometry.attributes.position.needsUpdate = true;
         this.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
         this.geometry.computeVertexNormals();
-        console.log("Low-poly landscape generated.");
+        console.log("Flat landscape generation complete.");
+    }
+    
+    getBiomeWeights(x, z) {
+        const weights = { MINE: 0, TOWN: 0, OASIS: 0, WILDLANDS: 0 };
+        let totalInfluence = 0;
+        const falloff = 2; // How quickly biome influence fades
+
+        for (const key in this.BIOMES) {
+            const biome = this.BIOMES[key];
+            const dx = x - biome.x;
+            const dz = z - biome.z;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+            
+            // Calculate influence that fades to zero at the edge of the biome's intended size
+            const influence = Math.max(0, 1.0 - (dist / (biome.size * falloff)));
+            weights[key] = influence;
+            totalInfluence += influence;
+        }
+        
+        // Normalize only if a point is in multiple biomes at once
+        if (totalInfluence > 1) {
+            for (const key in weights) {
+                weights[key] /= totalInfluence;
+            }
+        }
+        return weights;
+    }
+
+    getTrailFactor(x, z) {
+        let minDistance = Infinity;
+        const p = new THREE.Vector2(x, z);
+        for (let i = 0; i < this.TRAIL_PATH.length - 1; i++) {
+            minDistance = Math.min(minDistance, this.distanceToLineSegment(p, this.TRAIL_PATH[i], this.TRAIL_PATH[i+1]));
+        }
+        const { width, fadeDistance } = this.config.trail;
+        const factor = THREE.MathUtils.smoothstep(minDistance, width, width + fadeDistance);
+        return { distance: minDistance, factor: factor };
+    }
+
+    distanceToLineSegment(p, a, b) {
+        const l2 = a.distanceToSquared(b);
+        if (l2 === 0) return p.distanceTo(a);
+        let t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / l2;
+        t = Math.max(0, Math.min(1, t));
+        const projection = a.clone().lerp(b, t);
+        return p.distanceTo(projection);
     }
 }
