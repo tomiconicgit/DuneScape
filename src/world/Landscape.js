@@ -1,7 +1,7 @@
 // File: src/world/Landscape.js
 import * as THREE from 'three';
 
-// A self-contained, high-quality Perlin noise implementation from the reference code.
+// A self-contained, high-quality Perlin noise implementation.
 class PerlinNoise {
     constructor(seed = Math.random()) {
         const p = new Array(256).fill(0).map((_, i) => i);
@@ -38,33 +38,32 @@ export default class Landscape {
         this.config = {
             size: 500,
             resolution: 196,
-            // ✨ KEY CHANGE: Noise scales are increased 10x to suit our 500-unit world
+            // ✨ KEY CHANGE: Corrected noise scales for smaller, more frequent features.
             noiseScale: {
-                base: 0.003,
-                dunes: 0.008,
-                secondaryDunes: 0.015,
-                ridges: 0.03,
-                detail: 0.1,
-                microRipples: 0.4,
-                sandGrains: 3.0
+                base: 0.01,
+                dunes: 0.02,
+                secondaryDunes: 0.05,
+                ridges: 0.08,
+                detail: 0.2,
+                microRipples: 0.5,
+                sandGrains: 4.0
             },
-            // ✨ KEY CHANGE: Heights are drastically reduced for smooth, small slopes
+            // ✨ KEY CHANGE: Re-balanced heights for small, smooth slopes.
             heightScale: {
-                base: 2,
-                dunes: 2,
-                secondaryDunes: 3,
-                ridges: 1,
-                detail: 0.8,
-                microRipples: 0.2,
-                sandGrains: 0.03
+                base: 2.0,
+                dunes: 5.0,         // Primary dunes are the main feature
+                secondaryDunes: 1.5,// Secondary dunes are smaller
+                ridges: 0.5,        // Ridges are very subtle
+                detail: 0.25,
+                microRipples: 0.1,
+                sandGrains: 0.02
             },
-            // ✨ KEY CHANGE: Colors are lightened by mixing with white
             sandColors: [
-                new THREE.Color(0xec9e5c).lerp(new THREE.Color(0xffffff), 0.3), // Base sand
-                new THREE.Color(0xd4884a).lerp(new THREE.Color(0xffffff), 0.3), // Darker
-                new THREE.Color(0xf7b777).lerp(new THREE.Color(0xffffff), 0.3), // Lighter
-                new THREE.Color(0xb7703e).lerp(new THREE.Color(0xffffff), 0.3), // Shadow
-                new THREE.Color(0xffc890).lerp(new THREE.Color(0xffffff), 0.3)  // Highlight
+                new THREE.Color(0xec9e5c).lerp(new THREE.Color(0xffffff), 0.35), // Base
+                new THREE.Color(0xd4884a).lerp(new THREE.Color(0xffffff), 0.35), // Darker
+                new THREE.Color(0xf7b777).lerp(new THREE.Color(0xffffff), 0.35), // Lighter
+                new THREE.Color(0xb7703e).lerp(new THREE.Color(0xffffff), 0.35), // Shadow
+                new THREE.Color(0xffc890).lerp(new THREE.Color(0xffffff), 0.35)  // Highlight
             ],
             duneDirection: Math.PI * 0.25
         };
@@ -112,13 +111,13 @@ export default class Landscape {
             vertices[i + 1] = height;
 
             // --- Color Generation ---
-            const colorNoise = this.colorNoise.noise(x * this.config.noiseScale.base * 2, z * this.config.noiseScale.base * 2);
-            const heightFactor = Math.max(0, Math.min(1, height / 10)); // Normalized height for color
+            const colorNoise = this.colorNoise.noise(x * this.config.noiseScale.base * 4, z * this.config.noiseScale.base * 4);
+            const heightFactor = Math.max(0, Math.min(1, height / 8)); // Normalize height for color
             let finalColor = this.config.sandColors[0].clone();
 
-            finalColor.lerp(this.config.sandColors[1], Math.max(0, 0.5 - heightFactor)); // Darker in valleys
-            finalColor.lerp(this.config.sandColors[2], Math.max(0, heightFactor - 0.5)); // Lighter on peaks
-            finalColor.lerp(colorNoise > 0 ? this.config.sandColors[4] : this.config.sandColors[3], Math.abs(colorNoise) * 0.3);
+            finalColor.lerp(this.config.sandColors[1], Math.max(0, 0.5 - heightFactor));
+            finalColor.lerp(this.config.sandColors[2], Math.max(0, heightFactor - 0.5));
+            finalColor.lerp(colorNoise > 0 ? this.config.sandColors[4] : this.config.sandColors[3], Math.abs(colorNoise) * 0.2);
 
             colors[i] = finalColor.r;
             colors[i + 1] = finalColor.g;
@@ -151,8 +150,8 @@ export default class Landscape {
         duneHeight += this.secondaryDuneNoise.noise(rotX * this.config.noiseScale.secondaryDunes, rotZ * this.config.noiseScale.secondaryDunes) * this.config.heightScale.secondaryDunes;
         
         const ridges = this.ridgeNoise.noise(rotX * this.config.noiseScale.ridges, rotZ * this.config.noiseScale.ridges);
-        const smoothedRidge = Math.pow(Math.abs(ridges * 2 - 1), 1.0 + 0.7 * 2.0);
-        duneHeight += smoothedRidge * this.config.heightScale.ridges * 0.4;
+        const smoothedRidge = Math.pow(Math.abs(ridges * 2 - 1), 2.4);
+        duneHeight += smoothedRidge * this.config.heightScale.ridges;
         
         return duneHeight;
     }
@@ -160,7 +159,6 @@ export default class Landscape {
     createProceduralNormalMap() {
         const size = 512;
         const data = new Uint8Array(size * size * 4);
-        const normalStrength = 1.5;
         
         for (let y = 0; y < size; y++) {
             for (let x = 0; x < size; x++) {
@@ -179,9 +177,9 @@ export default class Landscape {
                 const normal = new THREE.Vector3(hL - hR, hD - hU, 2 / size).normalize();
                 
                 const idx = (y * size + x) * 4;
-                data[idx] = (normal.x * 0.5 + 0.5) * 255 * normalStrength;
-                data[idx + 1] = (normal.y * 0.5 + 0.5) * 255 * normalStrength;
-                data[idx + 2] = (1.0) * 255;
+                data[idx] = (normal.x * 0.5 + 0.5) * 255;
+                data[idx + 1] = (normal.y * 0.5 + 0.5) * 255;
+                data[idx + 2] = 1.0 * 255;
                 data[idx + 3] = 255;
             }
         }
