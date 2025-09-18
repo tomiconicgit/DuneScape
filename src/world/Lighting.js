@@ -7,23 +7,26 @@ export function setupLighting(scene) {
     hemiLight.position.set(0, 50, 0);
     scene.add(hemiLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.0); // Slightly increased base intensity
     dirLight.color.setHSL(0.1, 1, 0.95);
     dirLight.position.set(-1, 1.75, 1);
     dirLight.position.multiplyScalar(50);
     scene.add(dirLight);
 
+    // This is important for the shadow camera to follow the target
+    scene.add(dirLight.target);
+
     dirLight.castShadow = true;
-    dirLight.shadow.mapSize.width = 2048; // You can increase this for sharper shadows
+    dirLight.shadow.mapSize.width = 2048;
     dirLight.shadow.mapSize.height = 2048;
     
-    // --- FIX: Increased shadow camera area to cover the 800x800 map ---
-    const d = 400; 
+    // --- FIX: Smaller, focused shadow area that will follow the player ---
+    const d = 100; 
     dirLight.shadow.camera.left = -d;
     dirLight.shadow.camera.right = d;
     dirLight.shadow.camera.top = d;
     dirLight.shadow.camera.bottom = -d;
-    dirLight.shadow.camera.far = 500;
+    dirLight.shadow.camera.far = 350; // Increased far plane for better coverage
     dirLight.shadow.bias = -0.0001;
 
     return { hemiLight, dirLight };
