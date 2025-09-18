@@ -43,7 +43,6 @@ function map(p, displacement) {
     return d;
 }
 
-// ✨ ADDED: New GLSL code ported from the "Wet stone" shader for advanced texturing
 const rockShader = {
     shader: `
     varying vec3 vWorldPosition;
@@ -95,25 +94,24 @@ const rockShader = {
 
 export function createProceduralRock({
   radius = 1,
-  detail = 7, // Needs high detail for SDF to work well
+  detail = 7,
   displacement = 0.4,
-  seed = Math.random(), // Seed isn't used by new SDF, but kept for compatibility
+  seed = Math.random(),
   aoParam = new THREE.Vector2(1.2, 3.5),
   cornerParam = new THREE.Vector2(0.25, 40.0),
   lightIntensity = 0.25,
   metalness = 0.1,
 } = {}) {
-  // Use a sphere for a better base shape for SDF
-  const geometry = new THREE.SphereGeometry(radius, detail * 16, detail * 8);
-  geometry.deleteAttribute('uv'); // Not needed
+  // ✨ FIX: Drastically reduced segment count to prevent browser freezing on startup.
+  const geometry = new THREE.SphereGeometry(radius, detail * 8, detail * 4);
+  geometry.deleteAttribute('uv');
   
   const position = geometry.attributes.position;
   const normal = geometry.attributes.normal;
 
-  // Apply SDF displacement
   for (let i = 0; i < position.count; i++) {
     const p = new THREE.Vector3().fromBufferAttribute(position, i);
-    const d = map(GLSL.div(p, radius), displacement); // Normalize p for SDF
+    const d = map(GLSL.div(p, radius), displacement);
     const n = new THREE.Vector3().fromBufferAttribute(normal, i);
     p.add(n.multiplyScalar(d * radius));
     position.setXYZ(i, p.x, p.y, p.z);
@@ -123,7 +121,7 @@ export function createProceduralRock({
 
   const material = new THREE.MeshStandardMaterial({
     metalness: metalness,
-    roughness: 0.2, // Wet look
+    roughness: 0.2,
     flatShading: false,
   });
 
@@ -158,24 +156,21 @@ export function createProceduralRock({
       `#include <color_fragment>
       
       // Base colors from the original shader
-      vec3 red = vec3(1.0,0.7,0.7) * uLightIntensity;
-      vec3 orange = vec3(1.0,0.67,0.43) * uLightIntensity;
-      vec3 blue = vec3(0.54,0.77,1.0) * uLightIntensity;
-      vec3 white = vec3(1.2,1.07,0.98) * uLightIntensity;
+      vec3 orange = vec3(1.0, 0.67, 0.43);
+      vec3 blue = vec3(0.54, 0.77, 1.0);
       
       // Calculate AO and corner highlights
-      float ao = calcAO(vWorldPosition*0.2, vObjectNormal);
-      float corner = pow(clamp(dot(vObjectNormal, (viewMatrix * vec4(1.0,1.0,1.0,0.0)).xyz), 0.0, 1.0), uCornerParam.y) * uCornerParam.x;
+      float ao = calcAO(vWorldPosition * 0.2, vObjectNormal);
+      float corner = pow(clamp(dot(vObjectNormal, vec3(0.0, 1.0, 0.0)), 0.0, 1.0), uCornerParam.y) * uCornerParam.x;
       
-      // Mix colors based on lighting direction and AO
-      vec3 lightDir = (viewMatrix * vec4(vec3(0.5, 0.5, 0.5), 0.0)).xyz;
-      float diff = max(dot(vObjectNormal, lightDir), 0.0);
-      vec3 light = mix(blue, orange, vObjectNormal.y * 0.5 + 0.5);
-      light = mix(light, white, pow(diff, 4.0));
+      // ✨ FIX: Simplified lighting model.
+      // We now provide a base texture, and let Three.js handle the actual lighting from scene lights.
+      vec3 baseColor = mix(blue, orange, vObjectNormal.y * 0.5 + 0.5);
       
-      vec3 finalColor = light * ao + corner;
+      // Apply AO and highlights to the base material color
+      vec3 finalColor = baseColor * ao * uLightIntensity + (corner * uLightIntensity);
 
-      diffuseColor.rgb = finalColor;
+      diffuseColor.rgb *= finalColor; // Multiply with existing color to blend with PBR material
       `
     );
   };
