@@ -1,61 +1,60 @@
-// Landscape.js — Desert terrain with animated wind ripples and heat shimmer
+// File: src/world/Landscape.js
 import * as THREE from 'three';
 
-export function createDesert(scene, clock) {
-  const size = 500;
-  const segments = 256;
+export default class Landscape {
+    constructor() {
+        console.log("Initializing new landscape design...");
+        const size = 500;
+        const segments = 256;
 
-  const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
-  geometry.rotateX(-Math.PI / 2);
+        this.geometry = new THREE.PlaneGeometry(size, size, segments, segments);
+        this.geometry.rotateX(-Math.PI / 2);
 
-  const duneAmp = 2.5;
-  const rippleAmp = 0.4;
-  const rippleFreq = 0.12;
+        const duneAmp = 2.5;
+        const rippleAmp = 0.4;
+        const rippleFreq = 0.12;
 
-  const positions = geometry.attributes.position;
-  const baseY = [];
+        const positions = this.geometry.attributes.position;
+        this.baseY = []; // Store base heights for animation
 
-  for (let i = 0; i < positions.count; i++) {
-    const x = positions.getX(i);
-    const z = positions.getZ(i);
+        for (let i = 0; i < positions.count; i++) {
+            const x = positions.getX(i);
+            const z = positions.getZ(i);
 
-    const dune = Math.sin(x * 0.005) * Math.cos(z * 0.005) * duneAmp;
-    const ripple = Math.sin(x * rippleFreq) * Math.sin(z * rippleFreq) * rippleAmp;
+            // Simple sine waves for dunes and ripples
+            const dune = Math.sin(x * 0.005) * Math.cos(z * 0.005) * duneAmp;
+            const ripple = Math.sin(x * rippleFreq) * Math.sin(z * rippleFreq) * rippleAmp;
 
-    const y = dune + ripple;
-    baseY.push(y);
-    positions.setY(i, y);
-  }
+            const y = dune + ripple;
+            this.baseY.push(y);
+            positions.setY(i, y);
+        }
 
-  geometry.computeVertexNormals();
+        this.geometry.computeVertexNormals();
 
-  const sandMaterial = new THREE.MeshStandardMaterial({
-    color: 0xeed9b6,
-    roughness: 0.95,
-    metalness: 0.05,
-  });
+        const material = new THREE.MeshStandardMaterial({
+            color: 0xeed9b6,
+            roughness: 0.95,
+            metalness: 0.05,
+        });
 
-  const terrain = new THREE.Mesh(geometry, sandMaterial);
-  terrain.receiveShadow = true;
-  scene.add(terrain);
-
-  // Lighting
-  const ambient = new THREE.AmbientLight(0xfff4e5, 0.6);
-  const sun = new THREE.DirectionalLight(0xffffff, 1.2);
-  sun.position.set(100, 200, 100);
-  sun.castShadow = true;
-  scene.add(ambient, sun);
-
-  // Wind ripple animation
-  terrain.userData.animate = () => {
-    const t = clock.getElapsedTime();
-    for (let i = 0; i < positions.count; i++) {
-      const x = positions.getX(i);
-      const z = positions.getZ(i);
-      const wind = Math.sin(x * 0.05 + t * 0.5) * Math.cos(z * 0.05 + t * 0.5) * 0.2;
-      positions.setY(i, baseY[i] + wind);
+        // The mesh is now stored as a property, as Game.js expects
+        this.mesh = new THREE.Mesh(this.geometry, material);
+        this.mesh.receiveShadow = true;
     }
-    positions.needsUpdate = true;
-    geometry.computeVertexNormals();
-  };
+
+    // This new update method will be called from the main game loop
+    update(time) {
+        const positions = this.geometry.attributes.position;
+        for (let i = 0; i < positions.count; i++) {
+            const x = positions.getX(i);
+            const z = positions.getZ(i);
+            // Animate wind ripples over time
+            const wind = Math.sin(x * 0.05 + time * 0.5) * Math.cos(z * 0.05 + time * 0.5) * 0.2;
+            positions.setY(i, this.baseY[i] + wind);
+        }
+        positions.needsUpdate = true;
+        // We must re-compute normals if we animate vertices, otherwise lighting looks wrong
+        this.geometry.computeVertexNormals();
+    }
 }
