@@ -42,6 +42,10 @@ const rockShader = {
 
     uniform vec2 uAoParam;
     uniform vec2 uCornerParam;
+    // ✨ ADDED: Uniforms for dynamic color control
+    uniform vec3 uColorDark;
+    uniform vec3 uColorBase;
+    uniform vec3 uColorHighlight;
     
     // GLSL functions ported from target shader
     float hash11(float p) { return fract(sin(p * 727.1)*435.545); }
@@ -78,7 +82,7 @@ const rockShader = {
             float d = fbm(p + dir * uAoParam.x, 3) * uAoParam.y;
             ao += d;
         }
-        return 1.0 - clamp(ao * invSamples * 0.5, 0.0, 1.0); // FIX: Scaled down AO effect
+        return 1.0 - clamp(ao * invSamples * 0.5, 0.0, 1.0);
     }
   `
 };
@@ -88,9 +92,13 @@ export function createProceduralRock({
   detail = 7,
   displacement = 0.4,
   seed = Math.random(),
-  aoParam = new THREE.Vector2(0.8, 1.5), // FIX: Tuned default AO params
+  aoParam = new THREE.Vector2(0.8, 1.5),
   cornerParam = new THREE.Vector2(0.25, 40.0),
   metalness = 0.1,
+  // ✨ ADDED: New color parameters with defaults
+  colorDark = 0x101015,
+  colorBase = 0x404045,
+  colorHighlight = 0x909095,
 } = {}) {
   
   const geometry = new THREE.SphereGeometry(radius, detail * 8, detail * 4);
@@ -99,7 +107,6 @@ export function createProceduralRock({
   const position = geometry.attributes.position;
   const deformNoise = new SimplexNoise(seed);
 
-  // Apply FBM noise displacement for a detailed and stable shape
   for (let i = 0; i < position.count; i++) {
     const p = new THREE.Vector3().fromBufferAttribute(position, i);
     const n = p.clone().normalize();
@@ -123,14 +130,18 @@ export function createProceduralRock({
     flatShading: false,
   });
 
+  // ✨ ADDED: Initialize the new color uniforms
   material.userData.uniforms = {
       uAoParam: { value: aoParam },
       uCornerParam: { value: cornerParam },
+      uColorDark: { value: new THREE.Color(colorDark) },
+      uColorBase: { value: new THREE.Color(colorBase) },
+      uColorHighlight: { value: new THREE.Color(colorHighlight) },
   };
 
   material.onBeforeCompile = shader => {
-    shader.uniforms.uAoParam = material.userData.uniforms.uAoParam;
-    shader.uniforms.uCornerParam = material.userData.uniforms.uCornerParam;
+    // Link all uniforms to the shader
+    Object.assign(shader.uniforms, material.userData.uniforms);
     
     shader.vertexShader = `
       varying vec3 vWorldPosition;
@@ -151,29 +162,14 @@ export function createProceduralRock({
       `#include <color_fragment>`,
       `#include <color_fragment>
       
-      // ✨ FIX: Complete rewrite of the final color calculation.
-      // This version is simpler, more stable, and works correctly with PBR lighting.
-      
-      // 1. Define base colors
-      vec3 color_dark = vec3(0.1, 0.1, 0.15); // Dark crevice color
-      vec3 color_base = vec3(0.4, 0.4, 0.45); // Main rock color
-      vec3 color_highlight = vec3(0.8, 0.85, 0.9); // Highlight color
-
-      // 2. Calculate Ambient Occlusion to find crevices
+      // ✨ CHANGED: Color calculation now uses the new uniforms instead of hardcoded values.
       float ao = calcAO(vWorldPosition * 0.2, vObjectNormal);
-      
-      // 3. Calculate a simple top-down highlight (like from the sky)
       float highlight = pow(clamp(dot(vObjectNormal, vec3(0.0, 1.0, 0.0)), 0.0, 1.0), 2.0);
 
-      // 4. Blend the colors
-      // Start with the base color
-      vec3 finalColor = color_base;
-      // Darken the crevices using AO
-      finalColor = mix(color_dark, finalColor, ao);
-      // Add highlights to the top surfaces
-      finalColor = mix(finalColor, color_highlight, highlight * 0.5);
+      vec3 finalColor = uColorBase;
+      finalColor = mix(uColorDark, finalColor, ao);
+      finalColor = mix(finalColor, uColorHighlight, highlight * 0.5);
       
-      // 5. Assign the final color. The scene's lights will illuminate this.
       diffuseColor.rgb = finalColor;
       `
     );
