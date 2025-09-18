@@ -16,7 +16,7 @@ export default class Camera {
         this.minDistance = 5;
         this.maxDistance = 15; // Increased max zoom out distance
         this.minHeight = 2;
-        this.maxHeight = 15; // Increased max height
+        this.maxHeight = 5; // Increased max height
         this.smoothing = 0.05; // Lower is smoother
     }
 
