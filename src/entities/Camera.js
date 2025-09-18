@@ -9,7 +9,7 @@ export default class Camera {
 
         // State (controlled by InputController)
         this.orbitAngle = Math.PI / 4; // Starting angle
-        this.zoomLevel = 0.5; // Starting zoom (0=in, 1=out)
+        this.zoomLevel = 15; // Starting zoom (0=in, 1=out)
 
         // Config
         this.minDistance = 15;
