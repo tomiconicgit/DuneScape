@@ -3,13 +3,9 @@ import * as THREE from 'three';
 
 export default class Player {
     constructor(scene) {
-        // The capsule's total height is 2 (1 for cylinder, 0.5 for each cap).
-        // Its origin is in the middle.
         const geometry = new THREE.CapsuleGeometry(0.5, 1, 4, 12);
         const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
         this.mesh = new THREE.Mesh(geometry, material);
-        
-        // ✨ FIX: Set y-position to half the capsule's height (1.0) to place it on the ground.
         this.mesh.position.set(0, 1.0, 0); 
         this.mesh.castShadow = true;
         scene.add(this.mesh);
@@ -19,22 +15,25 @@ export default class Player {
         this.speed = 4.0;
         this.tileSize = 1.0;
 
-        // ✨ NEW: Create a glowing red 'X' marker
+        // ✨ CHANGED: Made the 'X' marker larger for better visibility
         const xMarkerGeo = new THREE.BufferGeometry();
+        const markerSize = 0.75; // Was 0.5
         const xMarkerPoints = [
-            new THREE.Vector3(-0.5, 0, -0.5), new THREE.Vector3(0.5, 0, 0.5),
-            new THREE.Vector3(0.5, 0, -0.5), new THREE.Vector3(-0.5, 0, 0.5)
+            new THREE.Vector3(-markerSize, 0, -markerSize), new THREE.Vector3(markerSize, 0, markerSize),
+            new THREE.Vector3(markerSize, 0, -markerSize), new THREE.Vector3(-markerSize, 0, markerSize)
         ];
         xMarkerGeo.setFromPoints(xMarkerPoints);
-        const xMarkerMat = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 });
+        // Using a solid line material to ensure it's always visible and ignores linewidth limitations
+        const xMarkerMat = new THREE.LineBasicMaterial({ color: 0xff0000 });
         this.marker = new THREE.LineSegments(xMarkerGeo, xMarkerMat);
         this.marker.visible = false;
         scene.add(this.marker);
         
-        // ✨ NEW: Create the directional path line
+        // Create the directional path line
         const pathLineGeo = new THREE.BufferGeometry();
         pathLineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(2 * 3), 3));
-        const pathLineMat = new THREE.LineDashedMaterial({ color: 0xffffff, dashSize: 0.2, gapSize: 0.1 });
+        // ✨ CHANGED: Line color is now red to be more visible
+        const pathLineMat = new THREE.LineDashedMaterial({ color: 0xff0000, dashSize: 0.2, gapSize: 0.1 });
         this.pathLine = new THREE.Line(pathLineGeo, pathLineMat);
         this.pathLine.visible = false;
         scene.add(this.pathLine);
@@ -47,13 +46,11 @@ export default class Player {
         const startGridX = Math.round(this.mesh.position.x / this.tileSize);
         const startGridZ = Math.round(this.mesh.position.z / this.tileSize);
 
-        // Place marker at the center of the target tile, slightly above ground
         this.marker.position.set(targetGridX * this.tileSize, 0.1, targetGridZ * this.tileSize);
         this.marker.visible = true;
 
         this.path = this.calculatePath(startGridX, startGridZ, targetGridX, targetGridZ);
         
-        // Show and update the path line
         if (this.path.length > 0) {
             this.pathLine.visible = true;
             this.updatePathLine();
@@ -77,17 +74,14 @@ export default class Player {
 
     updatePathLine() {
         const positions = this.pathLine.geometry.attributes.position.array;
-        // Start point is the player's feet
         positions[0] = this.mesh.position.x;
-        positions[1] = 0.1; // slightly above ground
+        positions[1] = 0.1;
         positions[2] = this.mesh.position.z;
-        // End point is the marker's position
         positions[3] = this.marker.position.x;
         positions[4] = 0.1;
         positions[5] = this.marker.position.z;
 
         this.pathLine.geometry.attributes.position.needsUpdate = true;
-        // This is required for dashed lines
         this.pathLine.computeLineDistances();
     }
 
@@ -101,10 +95,9 @@ export default class Player {
         }
 
         const nextTile = this.path[0];
-        // ✨ FIX: Target y-position is now fixed at the correct height
         const targetPosition = new THREE.Vector3(
             nextTile.x * this.tileSize,
-            1.0, // Move along the correct y-plane
+            1.0,
             nextTile.y * this.tileSize
         );
 
@@ -120,7 +113,6 @@ export default class Player {
         this.mesh.position.add(direction.multiplyScalar(this.speed * deltaTime));
         this.mesh.lookAt(new THREE.Vector3(targetPosition.x, this.mesh.position.y, targetPosition.z));
         
-        // Update the directional line every frame
         this.updatePathLine();
     }
 }
