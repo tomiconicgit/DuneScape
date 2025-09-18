@@ -2,20 +2,20 @@
 import * as THREE from 'three';
 
 export default class Player {
-    constructor(scene, landscape) { // ✨ ADDED: landscape parameter
-        this.landscape = landscape; // ✨ ADDED: Store reference to landscape
-        this.raycaster = new THREE.Raycaster(); // ✨ ADDED: Raycaster for terrain following
+    constructor(scene, landscape) {
+        this.landscape = landscape;
+        this.raycaster = new THREE.Raycaster();
 
         const geometry = new THREE.CapsuleGeometry(0.5, 1, 4, 12);
         const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
         this.mesh = new THREE.Mesh(geometry, material);
         
-        // ✨ CHANGED: Player now starts on the quarry floor. Y is -9 (-10 depth + 1 player height).
         this.mesh.position.set(50, -9.0, 50); 
         
         this.mesh.castShadow = true;
         scene.add(this.mesh);
 
+        // ✨ FIX: Initialize this.path to an empty array. This was the cause of the crash.
         this.path = [];
         this.speed = 4.0;
         this.tileSize = 1.0;
@@ -47,7 +47,6 @@ export default class Player {
         const startGridX = Math.round(this.mesh.position.x / this.tileSize);
         const startGridZ = Math.round(this.mesh.position.z / this.tileSize);
 
-        // ✨ CHANGED: Place marker at the correct height (Y) of the clicked terrain point.
         this.marker.position.set(targetGridX * this.tileSize, targetPosition.y + 0.1, targetGridZ * this.tileSize);
         this.marker.visible = true;
 
@@ -60,12 +59,22 @@ export default class Player {
     }
 
     calculatePath(startX, startZ, endX, endZ) {
-        // ... (this function remains the same)
+        const path = [];
+        let currentX = startX;
+        let currentZ = startZ;
+
+        while (currentX !== endX || currentZ !== endZ) {
+            const dx = Math.sign(endX - currentX);
+            const dz = Math.sign(endZ - currentZ);
+            currentX += dx;
+            currentZ += dz;
+            path.push(new THREE.Vector2(currentX, currentZ));
+        }
+        return path;
     }
 
     updatePathLine() {
         const positions = this.pathLine.geometry.attributes.position.array;
-        // The path line should sit on the ground, so we subtract the player's height offset (1.0)
         positions[0] = this.mesh.position.x;
         positions[1] = this.mesh.position.y - 1.0 + 0.1; 
         positions[2] = this.mesh.position.z;
@@ -89,7 +98,7 @@ export default class Player {
         const nextTile = this.path[0];
         const targetPosition = new THREE.Vector3(
             nextTile.x * this.tileSize,
-            this.mesh.position.y, // We'll update Y separately using a raycast
+            this.mesh.position.y,
             nextTile.y * this.tileSize
         );
 
@@ -105,12 +114,10 @@ export default class Player {
              this.mesh.lookAt(new THREE.Vector3(targetPosition.x, this.mesh.position.y, targetPosition.z));
         }
         
-        // ✨ ADDED: Raycast down to stick the player to the ground
         const down = new THREE.Vector3(0, -1, 0);
         this.raycaster.set(this.mesh.position, down);
         const intersects = this.raycaster.intersectObject(this.landscape.mesh);
         if (intersects.length > 0) {
-            // Set player Y position to the ground height + 1.0 (for player height)
             this.mesh.position.y = intersects[0].point.y + 1.0;
         }
         
