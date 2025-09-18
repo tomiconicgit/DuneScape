@@ -1,160 +1,152 @@
 // File: src/world/assets/rock.js
 import * as THREE from 'three';
 
-// Simplex noise generator (for mesh deformation)
-class SimplexNoise {
-  constructor(seed = 0) {
-    this.p = new Uint8Array(512);
-    for (let i = 0; i < 256; i++) this.p[i] = i;
-    for (let i = 0; i < 256; i++) {
-      const r = i + Math.floor(seed * 256) % (256 - i);
-      [this.p[i], this.p[r]] = [this.p[r], this.p[i]];
+// A small JS library to mimic GLSL vector math for porting the SDF
+const GLSL = {
+    vec3: (x, y, z) => new THREE.Vector3(x, y, z),
+    add: (a, b) => a.clone().add(b),
+    sub: (a, b) => a.clone().sub(b),
+    mul: (a, s) => a.clone().multiplyScalar(s),
+    div: (a, s) => a.clone().divideScalar(s),
+    abs: (a) => new THREE.Vector3(Math.abs(a.x), Math.abs(a.y), Math.abs(a.z)),
+    min: (a, b) => Math.min(a, b),
+    max: (a, b) => Math.max(a, b),
+    clamp: (v, min, max) => Math.max(min, Math.min(max, v)),
+    fract: (n) => n - Math.floor(n),
+    hash11: (p) => GLSL.fract(Math.sin(p * 727.1) * 435.545),
+    noise_3: (p) => {
+        const i = new THREE.Vector3(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z));
+        const f = p.clone().sub(i);
+        const u = f.clone().multiply(f).multiply(GLSL.sub(GLSL.vec3(3,3,3), GLSL.mul(f, 2.0)));
+        const a = GLSL.hash11(i.x + i.y * 157.0 + 113.0 * i.z);
+        const b = GLSL.hash11(i.x + 1.0 + i.y * 157.0 + 113.0 * i.z);
+        const c = GLSL.hash11(i.x + i.y * 157.0 + 113.0 * i.z + 1.0);
+        const d = GLSL.hash11(i.x + 1.0 + i.y * 157.0 + 113.0 * i.z + 1.0);
+        return THREE.MathUtils.lerp(THREE.MathUtils.lerp(a, b, u.x), THREE.MathUtils.lerp(c, d, u.x), u.z);
+    },
+    fbm: (p, octaves) => {
+        let a = 0.0;
+        let v = 0.5;
+        for (let i = 0; i < octaves; i++) {
+            a += GLSL.noise_3(p) * v;
+            p.multiplyScalar(2.0);
+            v *= 0.5;
+        }
+        return a;
     }
-    for (let i = 0; i < 256; i++) this.p[i + 256] = this.p[i];
-  }
+};
 
-  noise3D(x, y, z) {
-    return Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453 % 1;
-  }
+// Ported SDF (Signed Distance Function) from the "Wet stone" shader
+function map(p, displacement) {
+    let d = p.length() - 1.0;
+    d += GLSL.fbm(GLSL.add(p, GLSL.vec3(0, 0, 0)), 5) * displacement;
+    return d;
 }
 
+// ✨ ADDED: New GLSL code ported from the "Wet stone" shader for advanced texturing
 const rockShader = {
-  uniforms: {
-    uTopColor: { value: new THREE.Color(0xaaaaaa) },
-    uBottomColor: { value: new THREE.Color(0x666666) },
-    uTextureScale: { value: 10.0 },
-    uWetness: { value: 0.0 },
-  },
-  shader: `
-    // Varyings and Uniforms to be injected
+    shader: `
     varying vec3 vWorldPosition;
-    varying float vHeight;
-    uniform vec3 uTopColor;
-    uniform vec3 uBottomColor;
-    uniform float uTextureScale;
-    uniform float uWetness;
-  
-    // GLSL noise function (ported from webgl-noise)
-    float mod289(float x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-    vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-    vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-    vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
-    vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
-    
-    float snoise(vec3 v) {
-      const vec2 C = vec2(1.0/6.0, 1.0/3.0);
-      const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
-      vec3 i  = floor(v + dot(v, C.yyy));
-      vec3 x0 = v - i + dot(i, C.xxx);
-      vec3 g = step(x0.yzx, x0.xyz);
-      vec3 l = 1.0 - g;
-      vec3 i1 = min(g.xyz, l.zxy);
-      vec3 i2 = max(g.xyz, l.zxy);
-      vec3 x1 = x0 - i1 + C.xxx;
-      vec3 x2 = x0 - i2 + C.yyy;
-      vec3 x3 = x0 - D.yyy;
-      i = mod289(i);
-      vec4 p = permute(permute(permute(
-                i.z + vec4(0.0, i1.z, i2.z, 1.0))
-              + i.y + vec4(0.0, i1.y, i2.y, 1.0))
-              + i.x + vec4(0.0, i1.x, i2.x, 1.0));
-      float n_ = 0.142857142857;
-      vec3 ns = n_ * D.wyz - D.xzx;
-      vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
-      vec4 x_ = floor(j * ns.z);
-      vec4 y_ = floor(j - 7.0 * x_);
-      vec4 x = x_ * ns.x + ns.yyyy;
-      vec4 y = y_ * ns.x + ns.yyyy;
-      vec4 h = 1.0 - abs(x) - abs(y);
-      vec4 b0 = vec4(x.xy, y.xy);
-      vec4 b1 = vec4(x.zw, y.zw);
-      vec4 s0 = floor(b0)*2.0 + 1.0;
-      vec4 s1 = floor(b1)*2.0 + 1.0;
-      vec4 sh = -step(h, vec4(0.0));
-      vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
-      vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
-      vec3 p0 = vec3(a0.xy,h.x);
-      vec3 p1 = vec3(a0.zw,h.y);
-      vec3 p2 = vec3(a1.xy,h.z);
-      vec3 p3 = vec3(a1.zw,h.w);
-      vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
-      p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
-      vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
-      m = m * m;
-      return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+    varying vec3 vObjectNormal;
+
+    uniform vec2 uAoParam;
+    uniform vec2 uCornerParam;
+    uniform float uLightIntensity;
+
+    // GLSL functions ported from target shader
+    float hash11(float p) { return fract(sin(p * 727.1)*435.545); }
+    vec3 hash31(float p) {
+        vec3 h = vec3(127.231, 491.7, 718.423) * p;
+        return fract(sin(h)*435.543);
+    }
+    float noise_3(in vec3 p) {
+        vec3 i = floor(p);
+        vec3 f = fract(p);
+        vec3 u = f*f*(3.0-2.0*f);
+        return mix(mix(mix(hash11(i.x+i.y*157.0+113.0*i.z),hash11(i.x+1.0+i.y*157.0+113.0*i.z),u.x),
+                       mix(hash11(i.x+i.y*157.0+113.0*i.z+1.0),hash11(i.x+1.0+i.y*157.0+113.0*i.z+1.0),u.x),u.z),
+                   mix(mix(hash11(i.x+i.y*157.0+113.0*i.z+157.0),hash11(i.x+1.0+i.y*157.0+113.0*i.z+157.0),u.x),
+                       mix(hash11(i.x+i.y*157.0+113.0*i.z+1.0+157.0),hash11(i.x+1.0+i.y*157.0+113.0*i.z+1.0+157.0),u.x),u.z),u.y);
+    }
+    float fbm(vec3 p, int octaves) {
+        float a = 0.0;
+        float v = 0.5;
+        for (int i = 0; i < octaves; i++) {
+            a += noise_3(p)*v;
+            p *= 2.0;
+            v *= 0.5;
+        }
+        return a;
+    }
+    // Ambient Occlusion approximation for a mesh
+    float calcAO(vec3 p, vec3 n) {
+        float ao = 0.0;
+        float invSamples = 1.0 / 4.0;
+        for (int i = 0; i < 4; i++) {
+            vec3 dir = reflect(hash31(float(i)*10.0), n);
+            dir = normalize(mix(dir, n, 0.5));
+            float d = fbm(p + dir * uAoParam.x, 3) * uAoParam.y;
+            ao += d;
+        }
+        return 1.0 - clamp(ao * invSamples, 0.0, 1.0);
     }
   `
 };
 
 export function createProceduralRock({
   radius = 1,
-  detail = 3,
-  roughness = 0.5,
-  noiseScale = 0.8,
-  seed = Math.random(),
-  topColor = 0xaaaaaa,
-  bottomColor = 0x666666,
-  textureScale = 10.0,
-  wetness = 0.0,
-  metalness = 0.0,
+  detail = 7, // Needs high detail for SDF to work well
+  displacement = 0.4,
+  seed = Math.random(), // Seed isn't used by new SDF, but kept for compatibility
+  aoParam = new THREE.Vector2(1.2, 3.5),
+  cornerParam = new THREE.Vector2(0.25, 40.0),
+  lightIntensity = 0.25,
+  metalness = 0.1,
 } = {}) {
-  const geometry = new THREE.IcosahedronGeometry(radius, detail);
-  const position = geometry.attributes.position;
-  const deformNoise = new SimplexNoise(seed);
-
-  let minY = Infinity;
-  let maxY = -Infinity;
-
-  for (let i = 0; i < position.count; i++) {
-    const vertex = new THREE.Vector3().fromBufferAttribute(position, i);
-    if (vertex.y < 0) vertex.y = 0;
-
-    const n = deformNoise.noise3D(vertex.x * noiseScale, vertex.y * noiseScale, vertex.z * noiseScale);
-    vertex.multiplyScalar(1 + n * roughness);
-    
-    position.setXYZ(i, vertex.x, vertex.y, vertex.z);
-
-    if (vertex.y < minY) minY = vertex.y;
-    if (vertex.y > maxY) maxY = vertex.y;
-  }
+  // Use a sphere for a better base shape for SDF
+  const geometry = new THREE.SphereGeometry(radius, detail * 16, detail * 8);
+  geometry.deleteAttribute('uv'); // Not needed
   
-  const heightData = [];
+  const position = geometry.attributes.position;
+  const normal = geometry.attributes.normal;
+
+  // Apply SDF displacement
   for (let i = 0; i < position.count; i++) {
-      const y = position.getY(i);
-      heightData.push((y - minY) / (maxY - minY + 0.001));
+    const p = new THREE.Vector3().fromBufferAttribute(position, i);
+    const d = map(GLSL.div(p, radius), displacement); // Normalize p for SDF
+    const n = new THREE.Vector3().fromBufferAttribute(normal, i);
+    p.add(n.multiplyScalar(d * radius));
+    position.setXYZ(i, p.x, p.y, p.z);
   }
-  geometry.setAttribute('aHeight', new THREE.Float32BufferAttribute(heightData, 1));
 
   geometry.computeVertexNormals();
 
   const material = new THREE.MeshStandardMaterial({
     metalness: metalness,
-    roughness: 0.8, 
-    flatShading: true,
+    roughness: 0.2, // Wet look
+    flatShading: false,
   });
-  
-  material.userData.uniforms = rockShader.uniforms;
-  material.userData.uniforms.uTopColor.value.set(topColor);
-  material.userData.uniforms.uBottomColor.value.set(bottomColor);
-  material.userData.uniforms.uTextureScale.value = textureScale;
-  material.userData.uniforms.uWetness.value = wetness;
+
+  material.userData.uniforms = {
+      uAoParam: { value: aoParam },
+      uCornerParam: { value: cornerParam },
+      uLightIntensity: { value: lightIntensity },
+  };
 
   material.onBeforeCompile = shader => {
-    shader.uniforms.uTopColor = material.userData.uniforms.uTopColor;
-    shader.uniforms.uBottomColor = material.userData.uniforms.uBottomColor;
-    shader.uniforms.uTextureScale = material.userData.uniforms.uTextureScale;
-    shader.uniforms.uWetness = material.userData.uniforms.uWetness;
+    shader.uniforms.uAoParam = material.userData.uniforms.uAoParam;
+    shader.uniforms.uCornerParam = material.userData.uniforms.uCornerParam;
+    shader.uniforms.uLightIntensity = material.userData.uniforms.uLightIntensity;
 
     shader.vertexShader = `
       varying vec3 vWorldPosition;
-      attribute float aHeight;
-      varying float vHeight;
+      varying vec3 vObjectNormal;
       ${shader.vertexShader}
     `.replace(
       `#include <begin_vertex>`,
       `#include <begin_vertex>
        vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
-       vHeight = aHeight;
+       vObjectNormal = normal;
       `
     );
 
@@ -165,27 +157,26 @@ export function createProceduralRock({
       `#include <color_fragment>`,
       `#include <color_fragment>
       
-      float noise = snoise(vWorldPosition * uTextureScale * 0.1) * 0.5 + 0.5;
-      vec3 heightGradient = mix(uBottomColor, uTopColor, vHeight);
-      vec3 finalColor = mix(heightGradient * 0.6, heightGradient * 1.2, noise);
+      // Base colors from the original shader
+      vec3 red = vec3(1.0,0.7,0.7) * uLightIntensity;
+      vec3 orange = vec3(1.0,0.67,0.43) * uLightIntensity;
+      vec3 blue = vec3(0.54,0.77,1.0) * uLightIntensity;
+      vec3 white = vec3(1.2,1.07,0.98) * uLightIntensity;
+      
+      // Calculate AO and corner highlights
+      float ao = calcAO(vWorldPosition*0.2, vObjectNormal);
+      float corner = pow(clamp(dot(vObjectNormal, (viewMatrix * vec4(1.0,1.0,1.0,0.0)).xyz), 0.0, 1.0), uCornerParam.y) * uCornerParam.x;
+      
+      // Mix colors based on lighting direction and AO
+      vec3 lightDir = (viewMatrix * vec4(vec3(0.5, 0.5, 0.5), 0.0)).xyz;
+      float diff = max(dot(vObjectNormal, lightDir), 0.0);
+      vec3 light = mix(blue, orange, vObjectNormal.y * 0.5 + 0.5);
+      light = mix(light, white, pow(diff, 4.0));
+      
+      vec3 finalColor = light * ao + corner;
+
       diffuseColor.rgb = finalColor;
       `
-    ).replace(
-        `#include <roughnessmap_fragment>`,
-        `
-        // ✨ FIX: Declare roughnessFactor and calculate the final value.
-        // This correctly replaces the entire original chunk.
-        float roughnessFactor = roughness;
-
-        // Apply wetness by reducing roughness (a wet surface is smooth)
-        roughnessFactor *= (1.0 - uWetness);
-        
-        // Add wet patches using noise for more realism
-        float wetNoise = snoise(vWorldPosition * 2.0) * 0.5 + 0.5;
-        if (wetNoise > 0.8) {
-            roughnessFactor *= (1.0 - uWetness * 0.9); // Make patches extra smooth
-        }
-        `
     );
   };
   
