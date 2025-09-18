@@ -28,21 +28,30 @@ export default class Player {
         this.miningTimer = 0;
         this.miningDuration = 4.0;
 
-        // ... (rest of constructor is unchanged)
+        const xMarkerGeo = new THREE.BufferGeometry();
+        const markerSize = 0.75;
+        const xMarkerPoints = [
+            new THREE.Vector3(-markerSize, 0, -markerSize), new THREE.Vector3(markerSize, 0, markerSize),
+            new THREE.Vector3(markerSize, 0, -markerSize), new THREE.Vector3(-markerSize, 0, markerSize)
+        ];
+        xMarkerGeo.setFromPoints(xMarkerPoints);
+        const xMarkerMat = new THREE.LineBasicMaterial({ color: 0xff0000 });
+        this.marker = new THREE.LineSegments(xMarkerGeo, xMarkerMat);
+        this.marker.visible = false;
+        scene.add(this.marker);
+        
+        const pathLineGeo = new THREE.BufferGeometry();
+        pathLineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(2 * 3), 3));
+        const pathLineMat = new THREE.LineDashedMaterial({ color: 0xff0000, dashSize: 0.2, gapSize: 0.1 });
+        this.pathLine = new THREE.Line(pathLineGeo, pathLineMat);
+        this.pathLine.visible = false;
+        scene.add(this.pathLine);
     }
 
     createCharacterRig() {
         const playerGroup = new THREE.Group();
-
-        const bodyMaterial = new THREE.MeshStandardMaterial({
-            color: 0x666688,
-            roughness: 0.8,
-            metalness: 0.1,
-        });
-        const jointMaterial = new THREE.MeshStandardMaterial({
-            color: 0x444455,
-            roughness: 0.9
-        });
+        const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x666688, roughness: 0.8, metalness: 0.1 });
+        const jointMaterial = new THREE.MeshStandardMaterial({ color: 0x444455, roughness: 0.9 });
         
         const torsoGeo = new THREE.BoxGeometry(1, 1.5, 0.5);
         const torso = new THREE.Mesh(torsoGeo, bodyMaterial);
@@ -106,7 +115,6 @@ export default class Player {
         torso.add(leftLeg.group);
         this.rig.leftLeg = { group: leftLeg.group, joint: leftLeg.joint };
 
-        // ✨ FIX: Recursively set all parts of the player model to Layer 1.
         playerGroup.traverse((child) => {
             if (child.isMesh) {
                 child.layers.set(1);
@@ -117,42 +125,195 @@ export default class Player {
     }
     
     startMining(targetRock) {
-        // ... (this function is unchanged)
+        if (this.state !== states.IDLE) return;
+        this.miningTarget = targetRock;
+        const direction = this.mesh.position.clone().sub(targetRock.position).normalize();
+        const destination = targetRock.position.clone().add(direction.multiplyScalar(2.0));
+        this.moveTo(destination);
     }
 
     moveTo(targetPosition) {
-        // ... (this function is unchanged)
+        this.miningTarget = this.state === states.MINING ? this.miningTarget : null;
+        this.isMining = false;
+        
+        const targetGridX = Math.round(targetPosition.x);
+        const targetGridZ = Math.round(targetPosition.z);
+        const startGridX = Math.round(this.mesh.position.x);
+        const startGridZ = Math.round(this.mesh.position.z);
+
+        this.marker.position.set(targetGridX, targetPosition.y + 0.1, targetGridZ);
+        this.marker.visible = true;
+
+        this.path = this.calculatePath(startGridX, startGridZ, targetGridX, targetGridZ);
+        
+        if (this.path.length > 0) {
+            this.state = states.WALKING;
+            this.pathLine.visible = true;
+            this.updatePathLine();
+        } else {
+            this.state = states.IDLE;
+            // If no path is found, hide the marker immediately
+            this.marker.visible = false;
+        }
     }
 
     calculatePath(startX, startZ, endX, endZ) {
-        // ... (this function is unchanged)
+        const grid = this.game.grid;
+        if (!grid) return [];
+
+        const openSet = [];
+        const closedSet = new Set();
+        const startNode = { x: startX, z: startZ, g: 0, h: 0, f: 0, parent: null };
+        const endNode = { x: endX, z: endZ };
+
+        openSet.push(startNode);
+        const getHeuristic = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.z - b.z);
+
+        while (openSet.length > 0) {
+            openSet.sort((a, b) => a.f - b.f);
+            const currentNode = openSet.shift();
+
+            if (currentNode.x === endNode.x && currentNode.z === endNode.z) {
+                const path = [];
+                let temp = currentNode;
+                while (temp) {
+                    path.push(new THREE.Vector2(temp.x, temp.z));
+                    temp = temp.parent;
+                }
+                return path.reverse();
+            }
+
+            closedSet.add(`${currentNode.x},${currentNode.z}`);
+
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dz = -1; dz <= 1; dz++) {
+                    if (dx === 0 && dz === 0) continue;
+                    const neighborX = currentNode.x + dx;
+                    const neighborZ = currentNode.z + dz;
+
+                    if (neighborX < 0 || neighborX >= grid.length || neighborZ < 0 || neighborZ >= grid[0].length || grid[neighborX][neighborZ] === 1) {
+                        continue;
+                    }
+
+                    if (closedSet.has(`${neighborX},${neighborZ}`)) continue;
+                    
+                    const gCost = currentNode.g + 1;
+                    let neighbor = openSet.find(n => n.x === neighborX && n.z === neighborZ);
+
+                    if (!neighbor || gCost < neighbor.g) {
+                        if (!neighbor) {
+                            neighbor = { x: neighborX, z: neighborZ };
+                            openSet.push(neighbor);
+                        }
+                        neighbor.g = gCost;
+                        neighbor.h = getHeuristic(neighbor, endNode);
+                        neighbor.f = neighbor.g + neighbor.h;
+                        neighbor.parent = currentNode;
+                    }
+                }
+            }
+        }
+        return [];
     }
 
     updatePathLine() {
-        // ... (this function is unchanged)
+        const positions = this.pathLine.geometry.attributes.position.array;
+        // ✨ FIX: Draw the line from the player's ground position (y=0 relative to the mesh group).
+        positions[0] = this.mesh.position.x;
+        positions[1] = this.mesh.position.y - 1.0; 
+        positions[2] = this.mesh.position.z;
+        positions[3] = this.marker.position.x;
+        positions[4] = this.marker.position.y;
+        positions[5] = this.marker.position.z;
+        this.pathLine.geometry.attributes.position.needsUpdate = true;
+        this.pathLine.computeLineDistances();
     }
 
     update(deltaTime) {
-        // ... (this function is unchanged)
+        this.animationTimer += deltaTime;
+
+        if (this.state === states.WALKING && this.path.length === 0) {
+            this.state = this.miningTarget ? states.MINING : states.IDLE;
+            this.miningTimer = 0;
+            this.marker.visible = false;
+            this.pathLine.visible = false;
+        }
+
+        if (this.state === states.WALKING) {
+            this.updateMovement(deltaTime);
+        }
+        
+        switch (this.state) {
+            case states.WALKING: this.updateWalkAnimation(); break;
+            case states.MINING: this.updateMineAnimation(); this.updateMineTimer(deltaTime); break;
+            default: this.updateIdleAnimation(); break;
+        }
     }
     
     updateMovement(deltaTime) {
-        // ... (this function is unchanged)
+        if (this.path.length === 0) return;
+
+        const nextTile = this.path[0];
+        const targetPosition = new THREE.Vector3(nextTile.x, this.mesh.position.y, nextTile.y);
+        const distance = this.mesh.position.clone().setY(0).distanceTo(targetPosition.clone().setY(0));
+        
+        if (distance < 0.1) {
+            this.mesh.position.x = targetPosition.x;
+            this.mesh.position.z = targetPosition.z;
+            this.path.shift();
+        } else {
+             const direction = targetPosition.clone().sub(this.mesh.position).normalize();
+             this.mesh.position.add(direction.multiplyScalar(this.speed * deltaTime));
+             this.mesh.lookAt(new THREE.Vector3(targetPosition.x, this.mesh.position.y, targetPosition.z));
+        }
+        this.updatePathLine();
     }
     
     updateMineTimer(deltaTime) {
-        // ... (this function is unchanged)
+        this.miningTimer += deltaTime;
+        if (this.miningTimer >= this.miningDuration) {
+            if (this.miningTarget && this.miningTarget.userData.onMined) {
+                this.miningTarget.userData.onMined();
+            }
+            this.miningTarget = null;
+            this.state = states.IDLE;
+        }
     }
 
     updateIdleAnimation() {
-        // ... (this function is unchanged)
+        const time = this.animationTimer * 2;
+        this.rig.torso.position.y = 0.75 + Math.sin(time) * 0.03;
+        this.rig.leftArm.group.rotation.x = Math.sin(time * 0.7) * 0.1;
+        this.rig.rightArm.group.rotation.x = Math.sin(time * 0.7 + Math.PI) * 0.1;
+        this.rig.head.rotation.y = Math.sin(time * 0.5) * 0.15;
     }
 
     updateWalkAnimation() {
-        // ... (this function is unchanged)
+        const time = this.animationTimer * 8;
+        const swing = Math.sin(time) * 0.5;
+        const kneeBend = Math.max(0, Math.sin(time + Math.PI / 2)) * 0.4;
+        this.rig.leftLeg.group.rotation.x = swing;
+        this.rig.rightLeg.group.rotation.x = -swing;
+        this.rig.leftLeg.joint.rotation.x = -kneeBend;
+        this.rig.rightLeg.joint.rotation.x = -kneeBend;
+        this.rig.leftArm.group.rotation.x = -swing * 0.5;
+        this.rig.rightArm.group.rotation.x = swing * 0.5;
+        this.rig.torso.position.y = 0.75 + Math.sin(time * 2) * 0.05;
     }
 
     updateMineAnimation() {
-        // ... (this function is unchanged)
+        if (!this.miningTarget) return;
+        this.mesh.lookAt(this.miningTarget.position);
+
+        const time = this.miningTimer * 4;
+        const swingAngle = -1.5 + (Math.sin(time) * 1.5);
+        this.rig.rightArm.group.rotation.x = swingAngle;
+        this.rig.leftArm.group.rotation.x = swingAngle * 0.8;
+        
+        const elbowBend = Math.max(0, Math.cos(time)) * -1.2;
+        this.rig.rightArm.joint.rotation.x = elbowBend;
+        this.rig.leftArm.joint.rotation.x = elbowBend;
+        
+        this.rig.torso.rotation.y = 0.2 + Math.sin(time) * -0.4;
     }
 }
