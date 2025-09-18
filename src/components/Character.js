@@ -11,7 +11,7 @@ export default class Character {
         
         this.mesh = new THREE.Mesh(geometry, material);
 
-        // Set the starting position to the center of the new town area
+        // Set the starting position to the center of the new Town area
         this.mesh.position.set(TOWN_AREA.x, height, TOWN_AREA.y);
         
         scene.add(this.mesh);
