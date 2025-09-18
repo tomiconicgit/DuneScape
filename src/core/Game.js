@@ -23,19 +23,23 @@ export default class Game {
         this.player = new Player(this.scene);
         this.camera = new Camera();
         
-        // ✨ CHANGED: Simplified config for the new, more stable shader
+        // ✨ CHANGED: Updated with the new default design and added color parameters
         this.rock = null;
         this.rockConfig = {
+            detail: 9,
+            displacement: 0.35,
+            aoParam: new THREE.Vector2(1.0, 1.4),
+            cornerParam: new THREE.Vector2(0.35, 40.0),
+            metalness: 0.3,
+            scaleX: 1.1,
+            scaleY: 1.0,
+            scaleZ: 1.4,
             radius: 1.5,
-            detail: 7,
-            displacement: 0.4,
             seed: Math.random(),
-            aoParam: new THREE.Vector2(0.8, 1.5), // Tuned AO defaults
-            cornerParam: new THREE.Vector2(0.25, 40.0),
-            metalness: 0.1,
-            scaleX: 1,
-            scaleY: 1,
-            scaleZ: 1,
+            // ✨ ADDED: New color hints for different ore types (default is Iron Ore)
+            colorDark: 0x3d2b1f,   // Dark brown
+            colorBase: 0xb7410e,   // Rusty red
+            colorHighlight: 0xd2a679, // Light tan
         };
         
         this.setupRenderer();
@@ -70,7 +74,8 @@ export default class Game {
 
         const needsRebuild = forceRebuild ||
             oldConfig.detail !== newConfig.detail ||
-            oldConfig.displacement !== newConfig.displacement;
+            oldConfig.displacement !== newConfig.displacement ||
+            oldConfig.seed !== newConfig.seed;
 
         if (needsRebuild) {
             if (this.rock) {
@@ -87,6 +92,11 @@ export default class Game {
             const uniforms = this.rock.material.userData.uniforms;
             uniforms.uAoParam.value.copy(this.rockConfig.aoParam);
             uniforms.uCornerParam.value.copy(this.rockConfig.cornerParam);
+            
+            // ✨ ADDED: Update color uniforms on the fly
+            uniforms.uColorDark.value.set(this.rockConfig.colorDark);
+            uniforms.uColorBase.value.set(this.rockConfig.colorBase);
+            uniforms.uColorHighlight.value.set(this.rockConfig.colorHighlight);
             
             this.rock.material.metalness = this.rockConfig.metalness;
             this.rock.scale.set(this.rockConfig.scaleX, this.rockConfig.scaleY, this.rockConfig.scaleZ);
