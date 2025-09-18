@@ -1,14 +1,17 @@
 // File: src/core/InputController.js
+import * as THREE from 'three';
 
 export default class InputController {
-    constructor(domElement, camera) {
+    constructor(domElement, camera, landscape, player) {
         this.domElement = domElement;
         this.camera = camera;
+        this.landscape = landscape;
+        this.player = player;
+        this.raycaster = new THREE.Raycaster();
 
         this.touchState = {
-            isPinching: false,
-            initialPinchDist: 0,
-            lastDragX: 0,
+            isDragging: false,
+            startPos: new THREE.Vector2(),
         };
         
         this.addEventListeners();
@@ -21,46 +24,46 @@ export default class InputController {
     }
 
     onTouchStart(event) {
-        if (event.touches.length === 1) {
-            this.touchState.lastDragX = event.touches[0].clientX;
-        } else if (event.touches.length === 2) {
-            this.touchState.isPinching = true;
-            this.touchState.initialPinchDist = this.getPinchDistance(event.touches);
-        }
+        this.touchState.isDragging = false;
+        // Store the starting position of the primary touch
+        this.touchState.startPos.set(event.touches[0].clientX, event.touches[0].clientY);
     }
 
     onTouchMove(event) {
         event.preventDefault();
+        // If the finger moves more than a small threshold, consider it a drag for the camera
+        const currentPos = new THREE.Vector2(event.touches[0].clientX, event.touches[0].clientY);
+        if (this.touchState.startPos.distanceTo(currentPos) > 10) {
+            this.touchState.isDragging = true;
+        }
 
-        // Handle Pinch to Zoom
-        if (this.touchState.isPinching && event.touches.length === 2) {
-            const currentPinchDist = this.getPinchDistance(event.touches);
-            const delta = this.touchState.initialPinchDist - currentPinchDist;
-            
-            // Update camera zoom level
-            this.camera.zoomLevel += delta * 0.002;
-            this.camera.zoomLevel = Math.max(0, Math.min(1, this.camera.zoomLevel)); // Clamp between 0 and 1
-            
-            this.touchState.initialPinchDist = currentPinchDist;
-
-        // Handle Drag to Orbit
-        } else if (!this.touchState.isPinching && event.touches.length === 1) {
-             const deltaX = event.touches[0].clientX - this.touchState.lastDragX;
-
-             // Update camera orbit angle
-             this.camera.orbitAngle -= deltaX * 0.01;
-
-             this.touchState.lastDragX = event.touches[0].clientX;
+        // Use the existing camera controls if dragging or pinching
+        if (this.touchState.isDragging || event.touches.length > 1) {
+            this.camera.handleTouchMove(event); // We'll move camera logic here later
         }
     }
     
-    onTouchEnd() {
-        this.touchState.isPinching = false;
+    onTouchEnd(event) {
+        // If it wasn't a drag and was a single touch, it's a tap
+        if (!this.touchState.isDragging && event.changedTouches.length === 1) {
+            this.handleTap(event.changedTouches[0]);
+        }
+        this.touchState.isDragging = false;
     }
 
-    getPinchDistance(touches) {
-        const dx = touches[0].clientX - touches[1].clientX;
-        const dy = touches[0].clientY - touches[1].clientY;
-        return Math.sqrt(dx * dx + dy * dy);
+    handleTap(touch) {
+        const tapPosition = new THREE.Vector2(
+            (touch.clientX / window.innerWidth) * 2 - 1,
+            -(touch.clientY / window.innerHeight) * 2 + 1
+        );
+
+        this.raycaster.setFromCamera(tapPosition, this.camera.threeCamera);
+        const intersects = this.raycaster.intersectObject(this.landscape.mesh);
+
+        if (intersects.length > 0) {
+            // We have an intersection point, tell the player to move there
+            const intersectionPoint = intersects[0].point;
+            this.player.moveTo(intersectionPoint);
+        }
     }
 }
