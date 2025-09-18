@@ -11,7 +11,6 @@ import Lighting from '../world/Lighting.js';
 import { createProceduralRock } from '../world/assets/rock.js';
 import DeveloperBar from '../ui/DeveloperBar.js';
 import { rockPresets } from '../world/assets/rockPresets.js';
-// ✨ FIX: Removed the import for the deleted 'rockLayout.js' file. This was causing the crash.
 
 export default class Game {
     constructor() {
@@ -23,15 +22,16 @@ export default class Game {
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         window.loader.updateStatus('Engine initialized...', 10);
         
+        // ✨ FIX: Initialize game state properties first.
+        this.buildMode = { active: false, selectedRockConfig: null, selectedRockName: null };
+        this.placedRocks = [];
+        this.mineableRocks = [];
+        
         this.setupInitialScene(); 
         
         this.player = new Player(this.scene);
         this.camera = new Camera();
         window.loader.updateStatus('Entities created...', 80);
-        
-        this.buildMode = { active: false, selectedRockConfig: null, selectedRockName: null };
-        this.placedRocks = [];
-        this.mineableRocks = [];
         
         this.setupRenderer();
         
@@ -69,7 +69,6 @@ export default class Game {
         this.procedurallyPlaceRocks();
     }
     
-    // ✨ FIX: Restored the procedural rock placement logic.
     procedurallyPlaceRocks() {
         const zones = {
             'Iron Ore': { bounds: { minX: 80, maxX: 95, minZ: 20, maxZ: 70 }, count: 10 },
