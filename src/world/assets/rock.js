@@ -1,8 +1,7 @@
 // File: src/world/assets/rock.js
 import * as THREE from 'three';
 
-// ✨ FIX: Reverted to a more stable and performant Simplex Noise for geometry deformation.
-// The complex SDF port was unstable and causing rendering failures.
+// Stable Simplex Noise for geometry deformation.
 class SimplexNoise {
   constructor(seed = 0) {
     this.p = new Uint8Array(512);
@@ -35,7 +34,7 @@ class SimplexNoise {
   }
 }
 
-// Kept the advanced GLSL shader for the "Wet stone" visual style
+// GLSL shader code for the "Wet stone" visual style
 const rockShader = {
     shader: `
     varying vec3 vWorldPosition;
@@ -43,8 +42,7 @@ const rockShader = {
 
     uniform vec2 uAoParam;
     uniform vec2 uCornerParam;
-    uniform float uLightIntensity;
-
+    
     // GLSL functions ported from target shader
     float hash11(float p) { return fract(sin(p * 727.1)*435.545); }
     vec3 hash31(float p) {
@@ -80,7 +78,7 @@ const rockShader = {
             float d = fbm(p + dir * uAoParam.x, 3) * uAoParam.y;
             ao += d;
         }
-        return 1.0 - clamp(ao * invSamples, 0.0, 1.0);
+        return 1.0 - clamp(ao * invSamples * 0.5, 0.0, 1.0); // FIX: Scaled down AO effect
     }
   `
 };
@@ -90,9 +88,8 @@ export function createProceduralRock({
   detail = 7,
   displacement = 0.4,
   seed = Math.random(),
-  aoParam = new THREE.Vector2(1.2, 3.5),
+  aoParam = new THREE.Vector2(0.8, 1.5), // FIX: Tuned default AO params
   cornerParam = new THREE.Vector2(0.25, 40.0),
-  lightIntensity = 0.25,
   metalness = 0.1,
 } = {}) {
   
@@ -129,14 +126,12 @@ export function createProceduralRock({
   material.userData.uniforms = {
       uAoParam: { value: aoParam },
       uCornerParam: { value: cornerParam },
-      uLightIntensity: { value: lightIntensity },
   };
 
   material.onBeforeCompile = shader => {
     shader.uniforms.uAoParam = material.userData.uniforms.uAoParam;
     shader.uniforms.uCornerParam = material.userData.uniforms.uCornerParam;
-    shader.uniforms.uLightIntensity = material.userData.uniforms.uLightIntensity;
-
+    
     shader.vertexShader = `
       varying vec3 vWorldPosition;
       varying vec3 vObjectNormal;
@@ -156,18 +151,29 @@ export function createProceduralRock({
       `#include <color_fragment>`,
       `#include <color_fragment>
       
-      vec3 orange = vec3(1.0, 0.67, 0.43);
-      vec3 blue = vec3(0.54, 0.77, 1.0);
+      // ✨ FIX: Complete rewrite of the final color calculation.
+      // This version is simpler, more stable, and works correctly with PBR lighting.
       
-      float ao = calcAO(vWorldPosition * 0.2, vObjectNormal);
-      float corner = pow(clamp(dot(vObjectNormal, vec3(0.0, 1.0, 0.0)), 0.0, 1.0), uCornerParam.y) * uCornerParam.x;
-      
-      vec3 baseColor = mix(blue, orange, vObjectNormal.y * 0.5 + 0.5);
-      
-      vec3 finalColor = baseColor * ao * uLightIntensity + (corner * uLightIntensity);
+      // 1. Define base colors
+      vec3 color_dark = vec3(0.1, 0.1, 0.15); // Dark crevice color
+      vec3 color_base = vec3(0.4, 0.4, 0.45); // Main rock color
+      vec3 color_highlight = vec3(0.8, 0.85, 0.9); // Highlight color
 
-      // ✨ FIX: Changed from multiplication (*=) to assignment (=).
-      // This correctly sets the material's base color before lighting is applied, fixing the black screen issue.
+      // 2. Calculate Ambient Occlusion to find crevices
+      float ao = calcAO(vWorldPosition * 0.2, vObjectNormal);
+      
+      // 3. Calculate a simple top-down highlight (like from the sky)
+      float highlight = pow(clamp(dot(vObjectNormal, vec3(0.0, 1.0, 0.0)), 0.0, 1.0), 2.0);
+
+      // 4. Blend the colors
+      // Start with the base color
+      vec3 finalColor = color_base;
+      // Darken the crevices using AO
+      finalColor = mix(color_dark, finalColor, ao);
+      // Add highlights to the top surfaces
+      finalColor = mix(finalColor, color_highlight, highlight * 0.5);
+      
+      // 5. Assign the final color. The scene's lights will illuminate this.
       diffuseColor.rgb = finalColor;
       `
     );
