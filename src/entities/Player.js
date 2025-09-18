@@ -127,7 +127,7 @@ export default class Player {
     }
 
     moveTo(targetPosition) {
-        this.miningTarget = this.isMining ? this.miningTarget : null;
+        this.miningTarget = this.state === states.MINING ? this.miningTarget : null;
         this.isMining = false;
         
         const targetGridX = Math.round(targetPosition.x);
@@ -210,8 +210,9 @@ export default class Player {
 
     updatePathLine() {
         const positions = this.pathLine.geometry.attributes.position.array;
+        // ✨ FIX: Draw the line from the player's feet (position.y - 1)
         positions[0] = this.mesh.position.x;
-        positions[1] = 0.1;
+        positions[1] = this.mesh.position.y - 1.0;
         positions[2] = this.mesh.position.z;
         positions[3] = this.marker.position.x;
         positions[4] = this.marker.position.y;
