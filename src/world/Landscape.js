@@ -51,7 +51,7 @@ export default class Landscape {
             // ✨ KEY CHANGE: Heights are drastically reduced for smooth, small slopes
             heightScale: {
                 base: 2,
-                dunes: 6,
+                dunes: 2,
                 secondaryDunes: 3,
                 ridges: 1,
                 detail: 0.8,
