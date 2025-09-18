@@ -10,6 +10,7 @@ import Sky from '../world/Sky.js';
 import Lighting from '../world/Lighting.js';
 import { createProceduralRock } from '../world/assets/rock.js';
 import DeveloperBar from '../ui/DeveloperBar.js';
+import { rockPresets } from '../world/assets/rockPresets.js';
 
 export default class Game {
     constructor() {
@@ -23,32 +24,30 @@ export default class Game {
         this.player = new Player(this.scene);
         this.camera = new Camera();
         
-        // ✨ CHANGED: Updated with the new default design and added color parameters
-        this.rock = null;
-        this.rockConfig = {
-            detail: 9,
-            displacement: 0.35,
-            aoParam: new THREE.Vector2(1.0, 1.4),
-            cornerParam: new THREE.Vector2(0.35, 40.0),
-            metalness: 0.3,
-            scaleX: 1.1,
-            scaleY: 1.0,
-            scaleZ: 1.4,
-            radius: 1.5,
-            seed: Math.random(),
-            // ✨ ADDED: New color hints for different ore types (default is Iron Ore)
-            colorDark: 0x3d2b1f,   // Dark brown
-            colorBase: 0xb7410e,   // Rusty red
-            colorHighlight: 0xd2a679, // Light tan
+        // ✨ ADDED: State management for build mode
+        this.buildMode = {
+            active: false,
+            selectedRockConfig: null,
         };
+        this.placedRocks = [];
+        this.previewRock = null;
+        this.pointer = new THREE.Vector2(); // For preview raycasting
+        this.raycaster = new THREE.Raycaster(); // For preview raycasting
         
         this.setupRenderer();
         this.setupInitialScene(); 
-        this.devBar = new DeveloperBar(this.rockConfig, this.updateRock.bind(this));
+        
+        // ✨ CHANGED: DeveloperBar is now a BuildBar
+        this.devBar = new DeveloperBar(this.handleBuildModeToggle.bind(this));
+        
         this.cameraController = new CameraController(this.renderer.domElement, this.camera);
-        this.playerController = new PlayerController(this.renderer.domElement, this.camera, this.landscape, this.player);
+        // ✨ CHANGED: Pass 'this' (the game instance) to the player controller
+        this.playerController = new PlayerController(this.renderer.domElement, this.camera, this.landscape, this.player, this);
+        
         this.camera.setTarget(this.player.mesh);
         window.addEventListener('resize', this.handleResize.bind(this));
+        // Add listener for preview rock movement
+        window.addEventListener('pointermove', this.onPointerMove.bind(this));
         this.debugger.log('Game initialized successfully.');
     }
 
@@ -65,41 +64,78 @@ export default class Game {
         this.sky = new Sky(this.scene, this.lighting);
         this.landscape = new Landscape(this.scene, this.lighting);
         this.scene.add(this.landscape.mesh);
-        this.updateRock(this.rockConfig, true);
+        
+        // Remove the single default rock
+    }
+    
+    // ✨ ADDED: Handler for pointer movement to update the preview rock
+    onPointerMove(event) {
+        this.pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+        this.pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
     }
 
-    updateRock(newConfig, forceRebuild = false) {
-        const oldConfig = this.rockConfig;
-        this.rockConfig = newConfig;
+    // ✨ ADDED: Central logic for enabling/disabling build mode
+    handleBuildModeToggle(mode, rockName = null) {
+        if (mode === 'enter' && rockName) {
+            this.buildMode.active = true;
+            this.buildMode.selectedRockConfig = rockPresets[rockName];
+            
+            // Create or update the preview rock
+            if (this.previewRock) this.scene.remove(this.previewRock);
+            this.previewRock = createProceduralRock(this.buildMode.selectedRockConfig);
+            this.previewRock.material.transparent = true;
+            this.previewRock.material.opacity = 0.6;
+            this.previewRock.scale.set(
+                this.buildMode.selectedRockConfig.scaleX,
+                this.buildMode.selectedRockConfig.scaleY,
+                this.buildMode.selectedRockConfig.scaleZ
+            );
+            this.scene.add(this.previewRock);
 
-        const needsRebuild = forceRebuild ||
-            oldConfig.detail !== newConfig.detail ||
-            oldConfig.displacement !== newConfig.displacement ||
-            oldConfig.seed !== newConfig.seed;
-
-        if (needsRebuild) {
-            if (this.rock) {
-                this.scene.remove(this.rock);
-                this.rock.geometry.dispose();
-                this.rock.material.dispose();
+        } else if (mode === 'exit') {
+            this.buildMode.active = false;
+            this.buildMode.selectedRockConfig = null;
+            if (this.previewRock) {
+                this.scene.remove(this.previewRock);
+                this.previewRock = null;
             }
-            this.rock = createProceduralRock(this.rockConfig);
-            this.rock.position.set(3, 0, 2);
-            this.scene.add(this.rock);
         }
+    }
+    
+    // ✨ ADDED: Logic to place a new rock in the world
+    placeRock(position) {
+        if (!this.buildMode.active) return;
         
-        if (this.rock) {
-            const uniforms = this.rock.material.userData.uniforms;
-            uniforms.uAoParam.value.copy(this.rockConfig.aoParam);
-            uniforms.uCornerParam.value.copy(this.rockConfig.cornerParam);
-            
-            // ✨ ADDED: Update color uniforms on the fly
-            uniforms.uColorDark.value.set(this.rockConfig.colorDark);
-            uniforms.uColorBase.value.set(this.rockConfig.colorBase);
-            uniforms.uColorHighlight.value.set(this.rockConfig.colorHighlight);
-            
-            this.rock.material.metalness = this.rockConfig.metalness;
-            this.rock.scale.set(this.rockConfig.scaleX, this.rockConfig.scaleY, this.rockConfig.scaleZ);
+        const newRock = createProceduralRock(this.buildMode.selectedRockConfig);
+        
+        // Snap to grid
+        const gridX = Math.round(position.x);
+        const gridZ = Math.round(position.z);
+        
+        newRock.position.set(gridX, 0, gridZ);
+        newRock.scale.set(
+            this.buildMode.selectedRockConfig.scaleX,
+            this.buildMode.selectedRockConfig.scaleY,
+            this.buildMode.selectedRockConfig.scaleZ
+        );
+
+        this.scene.add(newRock);
+        this.placedRocks.push(newRock);
+    }
+    
+    // ✨ ADDED: Logic to update the preview rock's position
+    updatePreviewRock() {
+        if (!this.buildMode.active || !this.previewRock) return;
+
+        this.raycaster.setFromCamera(this.pointer, this.camera.threeCamera);
+        const intersects = this.raycaster.intersectObject(this.landscape.mesh);
+
+        if (intersects.length > 0) {
+            this.previewRock.visible = true;
+            const pos = intersects[0].point;
+            this.previewRock.position.set(Math.round(pos.x), 0, Math.round(pos.z));
+        } else {
+            this.previewRock.visible = false;
         }
     }
     
@@ -114,11 +150,15 @@ export default class Game {
 
     animate() {
         requestAnimationFrame(this.animate.bind(this));
-        
         const deltaTime = this.clock.getDelta();
-
         this.camera.update();
-        this.player.update(deltaTime);
+
+        // If in build mode, pause player and update preview rock
+        if (this.buildMode.active) {
+            this.updatePreviewRock();
+        } else {
+            this.player.update(deltaTime);
+        }
         
         this.renderer.render(this.scene, this.camera.threeCamera);
     }
