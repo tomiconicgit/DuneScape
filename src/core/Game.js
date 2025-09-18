@@ -11,7 +11,7 @@ import Lighting from '../world/Lighting.js';
 import { createProceduralRock } from '../world/assets/rock.js';
 import DeveloperBar from '../ui/DeveloperBar.js';
 import { rockPresets } from '../world/assets/rockPresets.js';
-import { permanentRocks } from '../world/assets/rockLayout.js'; // Import the permanent layout
+import { permanentRocks } from '../world/assets/rockLayout.js';
 
 export default class Game {
     constructor() {
@@ -22,8 +22,11 @@ export default class Game {
         this.scene = new THREE.Scene();
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         
+        // ✨ FIX: Corrected the order of initialization.
+        // 1. The scene and its objects must be set up first.
         this.setupInitialScene(); 
         
+        // 2. The player is created now, receiving the landscape it depends on.
         this.player = new Player(this.scene, this.landscape);
         this.camera = new Camera();
         
@@ -34,6 +37,7 @@ export default class Game {
         };
         this.placedRocks = [];
         
+        // 3. The renderer and controllers are set up last.
         this.setupRenderer();
         
         this.devBar = new DeveloperBar(
@@ -63,11 +67,9 @@ export default class Game {
         this.landscape = new Landscape(this.scene, this.lighting);
         this.scene.add(this.landscape.mesh);
 
-        // ✨ CHANGED: Call a single function to populate the world from the layout file.
         this.populatePermanentRocks();
     }
     
-    // ✨ CHANGED: Simplified function to place rocks from the pre-designed layout.
     populatePermanentRocks() {
         for (const rock of permanentRocks) {
             const preset = rockPresets[rock.type];
@@ -81,7 +83,6 @@ export default class Game {
 
             newRock.position.set(rock.position.x, rock.position.y, rock.position.z);
             
-            // Apply scale from preset and optional override from layout
             const scale = rock.scale || 1.0;
             newRock.scale.set(
                 config.scaleX * scale, 
@@ -124,7 +125,26 @@ export default class Game {
     }
 
     copyLayout() {
-        // ... (This function remains unchanged and will work for any new rocks you place)
+        if (this.placedRocks.length === 0) {
+            this.debugger.log('No rocks have been placed to copy.');
+            return;
+        }
+
+        const layoutData = this.placedRocks.map(rockData => {
+            const pos = rockData.mesh.position;
+            return {
+                type: rockData.type,
+                position: { x: pos.x, y: pos.y, z: pos.z }
+            };
+        });
+
+        const layoutString = `const permanentRocks = ${JSON.stringify(layoutData, null, 4)};`;
+        navigator.clipboard.writeText(layoutString).then(() => {
+            this.debugger.log('Rock layout copied to clipboard!');
+        }).catch(err => {
+            this.debugger.error('Failed to copy layout.');
+            console.error(err);
+        });
     }
     
     handleResize() {
