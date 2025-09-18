@@ -1,49 +1,66 @@
 // File: src/core/Game.js
 import * as THREE from 'three';
 import Landscape from '../world/Landscape.js';
+import Player from '../entities/Player.js';
+import Camera from '../entities/Camera.js';
+import InputController from './InputController.js';
+import Debugger from '../ui/Debugger.js';
 
 export default class Game {
     constructor() {
-        this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        // Must be first to catch all initialization errors
+        this.debugger = new Debugger();
+        this.debugger.log('Game starting...');
 
+        this.scene = new THREE.Scene();
+        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        
+        this.player = new Player(this.scene);
+        this.camera = new Camera();
+        this.input = new InputController(this.renderer.domElement, this.camera);
+        
         this.setupRenderer();
-        this.setupCamera();
         this.setupInitialScene();
 
+        // Set camera target after player is created
+        this.camera.setTarget(this.player.mesh);
+
         window.addEventListener('resize', this.handleResize.bind(this));
+        this.debugger.log('Game initialized successfully.');
     }
 
     setupRenderer() {
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(this.renderer.domElement);
-    }
-
-    setupCamera() {
-        this.camera.position.set(50, 50, 50);
-        this.camera.lookAt(0, 0, 0);
     }
     
     setupInitialScene() {
-        // Basic lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        this.scene.background = new THREE.Color(0x87CEEB); // Sky blue
+        this.scene.fog = new THREE.Fog(0x87CEEB, 100, 400);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
         this.scene.add(ambientLight);
 
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-        directionalLight.position.set(100, 100, 50);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        directionalLight.position.set(-100, 150, -50);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        directionalLight.shadow.camera.left = -250;
+        directionalLight.shadow.camera.right = 250;
+        directionalLight.shadow.camera.top = 250;
+        directionalLight.shadow.camera.bottom = -250;
         this.scene.add(directionalLight);
 
-        // Create the landscape
         this.landscape = new Landscape();
         this.scene.add(this.landscape.mesh);
     }
 
     handleResize() {
-        this.camera.aspect = window.innerWidth / window.innerHeight;
-        this.camera.updateProjectionMatrix();
+        this.camera.handleResize();
         this.renderer.setSize(window.innerWidth, window.innerHeight);
     }
 
@@ -54,8 +71,9 @@ export default class Game {
     animate() {
         requestAnimationFrame(this.animate.bind(this));
         
-        // In the future, game logic updates will go here.
+        // Update controls and camera every frame
+        this.camera.update();
         
-        this.renderer.render(this.scene, this.camera);
+        this.renderer.render(this.scene, this.camera.threeCamera);
     }
 }
