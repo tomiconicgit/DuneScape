@@ -8,6 +8,7 @@ import PlayerController from './PlayerController.js';
 import Debugger from '../ui/Debugger.js';
 import Sky from '../world/Sky.js';
 import Lighting from '../world/Lighting.js';
+import { createProceduralRock } from '../world/assets/rock.js';
 
 export default class Game {
     constructor() {
@@ -47,6 +48,11 @@ export default class Game {
         this.sky = new Sky(this.scene, this.lighting);
         this.landscape = new Landscape(this.scene, this.lighting);
         this.scene.add(this.landscape.mesh);
+
+        // ✨ ADDED: Create and position the procedural rock
+        const rock = createProceduralRock({ radius: 1.5, detail: 4, roughness: 0.7 });
+        rock.position.set(3, 0, 2); // Positioned next to the player's start (0,0,0)
+        this.scene.add(rock);
     }
     
     handleResize() {
