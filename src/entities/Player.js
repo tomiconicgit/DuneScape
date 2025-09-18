@@ -12,15 +12,15 @@ export default class Player {
         this.mesh.castShadow = true;
         scene.add(this.mesh);
 
+        // ✨ FIX: Initialize this.path to an empty array. This was the cause of the crash.
         this.path = [];
         this.speed = 4.0;
         this.tileSize = 1.0;
 
-        // ✨ ADDED: State management for the mining action
         this.isMining = false;
         this.miningTarget = null;
         this.miningTimer = 0;
-        this.miningDuration = 4.0; // 4 seconds
+        this.miningDuration = 4.0;
 
         const xMarkerGeo = new THREE.BufferGeometry();
         const markerSize = 0.75;
@@ -42,14 +42,11 @@ export default class Player {
         scene.add(this.pathLine);
     }
     
-    // ✨ ADDED: New method to initiate the mining action
     startMining(targetRock) {
-        // Can't start a new action if already busy
         if (this.path.length > 0 || this.isMining) return;
         
         this.miningTarget = targetRock;
         
-        // Find a spot 1.5 units away from the rock to stand on
         const direction = this.mesh.position.clone().sub(targetRock.position).normalize();
         const destination = targetRock.position.clone().add(direction.multiplyScalar(1.5));
         
@@ -57,7 +54,6 @@ export default class Player {
     }
 
     moveTo(targetPosition) {
-        // Reset mining state if we start walking
         this.isMining = false;
         this.miningTarget = null;
         this.miningTimer = 0;
@@ -79,37 +75,50 @@ export default class Player {
     }
 
     calculatePath(startX, startZ, endX, endZ) {
-        // ... (this function remains the same)
+        const path = [];
+        let currentX = startX;
+        let currentZ = startZ;
+
+        while (currentX !== endX || currentZ !== endZ) {
+            const dx = Math.sign(endX - currentX);
+            const dz = Math.sign(endZ - currentZ);
+            currentX += dx;
+            currentZ += dz;
+            path.push(new THREE.Vector2(currentX, currentZ));
+        }
+        return path;
     }
 
     updatePathLine() {
-        // ... (this function remains the same)
+        const positions = this.pathLine.geometry.attributes.position.array;
+        positions[0] = this.mesh.position.x;
+        positions[1] = this.mesh.position.y - 1.0 + 0.1;
+        positions[2] = this.mesh.position.z;
+        positions[3] = this.marker.position.x;
+        positions[4] = this.marker.position.y;
+        positions[5] = this.marker.position.z;
+
+        this.pathLine.geometry.attributes.position.needsUpdate = true;
+        this.pathLine.computeLineDistances();
     }
 
     update(deltaTime) {
-        // ✨ CHANGED: The update loop is now a state machine
-        
-        // State 1: Mining
         if (this.isMining) {
-            // Face the rock
             this.mesh.lookAt(this.miningTarget.position);
             
             this.miningTimer += deltaTime;
             if (this.miningTimer >= this.miningDuration) {
-                // Mining is complete, call the rock's callback
                 if (this.miningTarget.userData.onMined) {
                     this.miningTarget.userData.onMined();
                 }
                 
-                // Reset state to idle
                 this.isMining = false;
                 this.miningTarget = null;
                 this.miningTimer = 0;
             }
-            return; // Don't do anything else while mining
+            return;
         }
         
-        // State 2: Walking
         if (this.path.length > 0) {
             const nextTile = this.path[0];
             const targetPosition = new THREE.Vector3(nextTile.x, this.mesh.position.y, nextTile.y);
@@ -126,7 +135,6 @@ export default class Player {
             }
             this.updatePathLine();
             
-            // If the path is now empty, check if we arrived at a mining target
             if (this.path.length === 0 && this.miningTarget) {
                 this.isMining = true;
                 this.marker.visible = false;
@@ -135,7 +143,6 @@ export default class Player {
             return;
         }
 
-        // State 3: Idle
         if (this.marker.visible) {
             this.marker.visible = false;
             this.pathLine.visible = false;
