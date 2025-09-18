@@ -10,12 +10,12 @@ export default class Player {
         const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
         this.mesh = new THREE.Mesh(geometry, material);
         
-        this.mesh.position.set(50, -9.0, 50); 
+        // ✨ CHANGED: Player now starts on the top level of the mine, at the slope entrance.
+        this.mesh.position.set(50, 1.0, 62); 
         
         this.mesh.castShadow = true;
         scene.add(this.mesh);
 
-        // ✨ FIX: Initialize this.path to an empty array. This was the cause of the crash.
         this.path = [];
         this.speed = 4.0;
         this.tileSize = 1.0;
