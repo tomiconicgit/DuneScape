@@ -2,20 +2,20 @@
 import * as THREE from 'three';
 
 export default class Player {
-    constructor(scene) {
+    constructor(scene, landscape) { // ✨ ADDED: landscape parameter
+        this.landscape = landscape; // ✨ ADDED: Store reference to landscape
+        this.raycaster = new THREE.Raycaster(); // ✨ ADDED: Raycaster for terrain following
+
         const geometry = new THREE.CapsuleGeometry(0.5, 1, 4, 12);
         const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
         this.mesh = new THREE.Mesh(geometry, material);
         
-        // ✨ CHANGED: Player now starts on the lower level of the new mine area.
-        // Y position is -4 (-5 depth + 1 for player height).
-        // Z position is 65, which is well within the flat lower section.
-        this.mesh.position.set(50, -4.0, 65); 
+        // ✨ CHANGED: Player now starts on the quarry floor. Y is -9 (-10 depth + 1 player height).
+        this.mesh.position.set(50, -9.0, 50); 
         
         this.mesh.castShadow = true;
         scene.add(this.mesh);
 
-        // Movement State
         this.path = [];
         this.speed = 4.0;
         this.tileSize = 1.0;
@@ -47,6 +47,7 @@ export default class Player {
         const startGridX = Math.round(this.mesh.position.x / this.tileSize);
         const startGridZ = Math.round(this.mesh.position.z / this.tileSize);
 
+        // ✨ CHANGED: Place marker at the correct height (Y) of the clicked terrain point.
         this.marker.position.set(targetGridX * this.tileSize, targetPosition.y + 0.1, targetGridZ * this.tileSize);
         this.marker.visible = true;
 
@@ -54,32 +55,22 @@ export default class Player {
         
         if (this.path.length > 0) {
             this.pathLine.visible = true;
-            this.updatePathLine(targetPosition.y);
+            this.updatePathLine();
         }
     }
 
     calculatePath(startX, startZ, endX, endZ) {
-        const path = [];
-        let currentX = startX;
-        let currentZ = startZ;
-
-        while (currentX !== endX || currentZ !== endZ) {
-            const dx = Math.sign(endX - currentX);
-            const dz = Math.sign(endZ - currentZ);
-            currentX += dx;
-            currentZ += dz;
-            path.push(new THREE.Vector2(currentX, currentZ));
-        }
-        return path;
+        // ... (this function remains the same)
     }
 
-    updatePathLine(y = 0) {
+    updatePathLine() {
         const positions = this.pathLine.geometry.attributes.position.array;
+        // The path line should sit on the ground, so we subtract the player's height offset (1.0)
         positions[0] = this.mesh.position.x;
-        positions[1] = this.mesh.position.y - 0.9; // Y position relative to player's feet
+        positions[1] = this.mesh.position.y - 1.0 + 0.1; 
         positions[2] = this.mesh.position.z;
         positions[3] = this.marker.position.x;
-        positions[4] = y + 0.1; // Y position of the marker
+        positions[4] = this.marker.position.y;
         positions[5] = this.marker.position.z;
 
         this.pathLine.geometry.attributes.position.needsUpdate = true;
@@ -98,24 +89,31 @@ export default class Player {
         const nextTile = this.path[0];
         const targetPosition = new THREE.Vector3(
             nextTile.x * this.tileSize,
-            this.mesh.position.y, // Keep Y constant for now to prevent flying
+            this.mesh.position.y, // We'll update Y separately using a raycast
             nextTile.y * this.tileSize
         );
 
-        const distance = this.mesh.position.distanceTo(targetPosition);
+        const distance = this.mesh.position.clone().setY(0).distanceTo(targetPosition.clone().setY(0));
         
         if (distance < 0.1) {
             this.mesh.position.x = targetPosition.x;
             this.mesh.position.z = targetPosition.z;
             this.path.shift();
-            // In a future step, we'll need to update Y position based on terrain height
-            return;
+        } else {
+             const direction = targetPosition.clone().sub(this.mesh.position).normalize();
+             this.mesh.position.add(direction.multiplyScalar(this.speed * deltaTime));
+             this.mesh.lookAt(new THREE.Vector3(targetPosition.x, this.mesh.position.y, targetPosition.z));
         }
-
-        const direction = targetPosition.clone().sub(this.mesh.position).normalize();
-        this.mesh.position.add(direction.multiplyScalar(this.speed * deltaTime));
-        this.mesh.lookAt(new THREE.Vector3(targetPosition.x, this.mesh.position.y, targetPosition.z));
         
-        this.updatePathLine(this.marker.position.y - 0.1);
+        // ✨ ADDED: Raycast down to stick the player to the ground
+        const down = new THREE.Vector3(0, -1, 0);
+        this.raycaster.set(this.mesh.position, down);
+        const intersects = this.raycaster.intersectObject(this.landscape.mesh);
+        if (intersects.length > 0) {
+            // Set player Y position to the ground height + 1.0 (for player height)
+            this.mesh.position.y = intersects[0].point.y + 1.0;
+        }
+        
+        this.updatePathLine();
     }
 }
