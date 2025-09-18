@@ -18,7 +18,7 @@ class SimplexNoise {
   }
 }
 
-// ✨ ADDED: GLSL shader code for procedural texturing
+// ✨ CHANGED: Updated the shader code to fix errors and improve integration
 const rockShader = {
   uniforms: {
     uTopColor: { value: new THREE.Color(0xaaaaaa) },
@@ -27,8 +27,17 @@ const rockShader = {
     uWetness: { value: 0.0 },
   },
   shader: `
+    // Varyings and Uniforms to be injected
+    varying vec3 vWorldPosition;
+    varying float vHeight; // <-- FIX: Added missing varying for fragment shader
+    uniform vec3 uTopColor;
+    uniform vec3 uBottomColor;
+    uniform float uTextureScale;
+    uniform float uWetness;
+  
     // GLSL noise function (ported from webgl-noise)
     float mod289(float x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+    vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; } // <-- FIX: Added missing vec3 overload
     vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
     vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
     vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
@@ -75,13 +84,6 @@ const rockShader = {
       m = m * m;
       return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
     }
-    
-    // Varyings and Uniforms to be injected
-    varying vec3 vWorldPosition;
-    uniform vec3 uTopColor;
-    uniform vec3 uBottomColor;
-    uniform float uTextureScale;
-    uniform float uWetness;
   `
 };
 
@@ -91,7 +93,6 @@ export function createProceduralRock({
   roughness = 0.5,
   noiseScale = 0.8,
   seed = Math.random(),
-  // ✨ CHANGED: Parameters now control the shader
   topColor = 0xaaaaaa,
   bottomColor = 0x666666,
   textureScale = 10.0,
@@ -118,24 +119,21 @@ export function createProceduralRock({
     if (vertex.y > maxY) maxY = vertex.y;
   }
   
-  // Pass height data to shader via vertex attributes
   const heightData = [];
   for (let i = 0; i < position.count; i++) {
       const y = position.getY(i);
-      heightData.push((y - minY) / (maxY - minY + 0.001)); // Normalized height
+      heightData.push((y - minY) / (maxY - minY + 0.001));
   }
   geometry.setAttribute('aHeight', new THREE.Float32BufferAttribute(heightData, 1));
 
   geometry.computeVertexNormals();
 
-  // ✨ CHANGED: Material is now driven by a custom shader via onBeforeCompile
   const material = new THREE.MeshStandardMaterial({
     metalness: metalness,
-    roughness: 0.8, // Base roughness
-    flatShading: true, // Flat shading is now handled by geometry normals
+    roughness: 0.8, 
+    flatShading: true,
   });
   
-  // Store custom uniforms for easy access later
   material.userData.uniforms = rockShader.uniforms;
   material.userData.uniforms.uTopColor.value.set(topColor);
   material.userData.uniforms.uBottomColor.value.set(bottomColor);
@@ -143,13 +141,11 @@ export function createProceduralRock({
   material.userData.uniforms.uWetness.value = wetness;
 
   material.onBeforeCompile = shader => {
-    // Link our custom uniforms to the compiled shader
     shader.uniforms.uTopColor = material.userData.uniforms.uTopColor;
     shader.uniforms.uBottomColor = material.userData.uniforms.uBottomColor;
     shader.uniforms.uTextureScale = material.userData.uniforms.uTextureScale;
     shader.uniforms.uWetness = material.userData.uniforms.uWetness;
 
-    // Inject varyings and attributes
     shader.vertexShader = `
       varying vec3 vWorldPosition;
       attribute float aHeight;
@@ -163,7 +159,6 @@ export function createProceduralRock({
       `
     );
 
-    // Inject the main procedural texturing code
     shader.fragmentShader = `
       ${rockShader.shader}
       ${shader.fragmentShader}
@@ -180,37 +175,22 @@ export function createProceduralRock({
       // Mix gradient with noise for a textured look
       vec3 finalColor = mix(heightGradient * 0.6, heightGradient * 1.2, noise);
       diffuseColor.rgb = finalColor;
-      
-      // Apply wetness by reducing roughness
-      // A wet surface is smooth (low roughness)
-      float finalRoughness = roughnessFactor * (1.0 - uWetness);
-      
-      // Add wet patches using noise for more realism
-      float wetNoise = snoise(vWorldPosition * 2.0) * 0.5 + 0.5;
-      if (wetNoise > 0.8) {
-          finalRoughness *= (1.0 - uWetness * 0.9); // Make patches extra smooth
-      }
-      
-      // Output to PBR channels
-      gl_FragColor = vec4(diffuseColor.rgb, 1.0);
-      
-      // We are replacing the rest of the PBR calculations, so use a return
-      // The below are simplified PBR outputs
-      vec4 outColor = vec4(diffuseColor.rgb, 1.0);
-      #include <premultiplied_alpha_fragment>
-      #include <tonemapping_fragment>
-      #include <encodings_fragment>
-      gl_FragColor = outColor;
-      return; // Stop further processing by three.js default shader
       `
     ).replace(
         `#include <roughnessmap_fragment>`,
         `
-        float finalRoughness = roughness * (1.0 - uWetness);
+        // Base roughness is taken from the material
+        float finalRoughness = roughness;
+
+        // Apply wetness by reducing roughness (a wet surface is smooth)
+        finalRoughness *= (1.0 - uWetness);
+        
+        // Add wet patches using noise for more realism
         float wetNoise = snoise(vWorldPosition * 2.0) * 0.5 + 0.5;
         if (wetNoise > 0.8) {
             finalRoughness *= (1.0 - uWetness * 0.9); // Make patches extra smooth
         }
+        
         roughnessFactor = finalRoughness;
         `
     );
