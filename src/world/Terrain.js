@@ -1,84 +1,60 @@
 import * as THREE from 'three';
 import { SimplexNoise } from 'three/addons/math/SimplexNoise.js';
-import { MINE_AREA, TOWN_AREA, OASIS_AREA, trailNetwork } from './WorldData.js';
-
-// The helper method is unchanged and correct
-THREE.Vector2.prototype.distanceToSegment = function(v, w) { /* ... */ };
+import { MINE_AREA, TOWN_AREA, OASIS_AREA } from './WorldData.js';
 
 export default class Terrain {
     constructor(scene) {
         const size = 800;
-        const segments = 512;
+        const segments = 256; // Reduced segments for better performance
 
         const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
-        const positions = geometry.attributes.position;
-        geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(positions.count * 3), 3));
+        
+        // --- NEW: PBR Sand Texture ---
+        const textureLoader = new THREE.TextureLoader();
+        const colorMap = textureLoader.load('https://cdn.jsdelivr.net/gh/Sean-Bradley/Fifa-Soccer-Class-2022@3a45c34/public/img/Sand 002_COLOR.jpg');
+        const normalMap = textureLoader.load('https://cdn.jsdelivr.net/gh/Sean-Bradley/Fifa-Soccer-Class-2022@3a45c34/public/img/Sand 002_NORM.jpg');
+        const roughnessMap = textureLoader.load('https://cdn.jsdelivr.net/gh/Sean-Bradley/Fifa-Soccer-Class-2022@3a45c34/public/img/Sand 002_ROUGH.jpg');
 
-        // --- FIX: Switched to MeshStandardMaterial for better lighting and color rendering ---
+        // Allow textures to repeat across the large surface
+        for (let map of [colorMap, normalMap, roughnessMap]) {
+            map.wrapS = THREE.RepeatWrapping;
+            map.wrapT = THREE.RepeatWrapping;
+            map.repeat.set(200, 200); // How many times the texture repeats
+        }
+        
+        // Use MeshStandardMaterial for realistic lighting with textures
         const material = new THREE.MeshStandardMaterial({
-            color: 0xffffff,
-            vertexColors: true,
-            roughness: 0.9, // Give the sand a rough, non-shiny look
-            metalness: 0.0
+            map: colorMap,
+            normalMap: normalMap,
+            roughnessMap: roughnessMap,
+            color: 0xf0e0b0 // Base color tint
         });
-        // --- END FIX ---
 
         const simplex = new SimplexNoise();
-        const colors = geometry.attributes.color;
+        const positions = geometry.attributes.position;
         const vertex = new THREE.Vector3();
-        const tempVec2 = new THREE.Vector2();
-
         const slopeHeight = 1.5;
-        const sandColor = new THREE.Color(0xf0e0b0);
-        const darkSandColor = new THREE.Color(0xd8c0a0);
-        const trailColor = new THREE.Color(0xa88f6c);
-
-        const TRAIL_WIDTH = 3;
-        const TRAIL_DEPTH = 0.8;
-        const trails = Object.values(trailNetwork).map(curve => curve.getPoints(100));
-        
-        const areas = [TOWN_AREA, MINE_AREA, OASIS_AREA];
         
         for (let i = 0; i < positions.count; i++) {
             vertex.fromBufferAttribute(positions, i);
             let finalHeight = simplex.noise(vertex.x * 0.01, vertex.y * 0.01) * slopeHeight;
-            let finalColor = sandColor.clone();
             
-            const point = new THREE.Vector2(vertex.x, vertex.y);
-            let onTrail = false;
-
-            let minTrailDist = Infinity;
-            for (const trail of trails) {
-                for (let j = 0; j < trail.length - 1; j++) {
-                    minTrailDist = Math.min(minTrailDist, tempVec2.distanceToSegment(new THREE.Vector2(trail[j].x, trail[j].y), new THREE.Vector2(trail[j+1].x, trail[j+1].y)));
-                }
-            }
-            if (minTrailDist < TRAIL_WIDTH) {
-                onTrail = true;
-                const depressionFactor = 1.0 - (minTrailDist / TRAIL_WIDTH);
-                finalHeight -= TRAIL_DEPTH * Math.sin(depressionFactor * Math.PI);
-                finalColor.lerp(trailColor, depressionFactor);
-            }
-
-            if (!onTrail) {
-                for (const area of areas) {
-                    const rect = new THREE.Box2(
-                        new THREE.Vector2(area.x - area.width / 2, area.y - area.depth / 2),
-                        new THREE.Vector2(area.x + area.width / 2, area.y + area.depth / 2)
-                    );
-                    const blendDistance = 8;
-                    const distToArea = rect.distanceToPoint(point);
-                    if (distToArea < blendDistance) {
-                        const blendFactor = 1.0 - (distToArea / blendDistance);
-                        finalHeight = THREE.MathUtils.lerp(finalHeight, area.height, blendFactor);
-                        if (area === MINE_AREA) {
-                            finalColor.lerp(darkSandColor, blendFactor);
-                        }
-                    }
+            // Flatten designated areas
+            const areas = [TOWN_AREA, MINE_AREA, OASIS_AREA];
+            for (const area of areas) {
+                const rect = new THREE.Box2(
+                    new THREE.Vector2(area.x - area.width / 2, area.y - area.depth / 2),
+                    new THREE.Vector2(area.x + area.width / 2, area.y + area.depth / 2)
+                );
+                const point = new THREE.Vector2(vertex.x, vertex.y);
+                const blendDistance = 8;
+                const distToArea = rect.distanceToPoint(point);
+                if (distToArea < blendDistance) {
+                    const blendFactor = 1.0 - (distToArea / blendDistance);
+                    finalHeight = THREE.MathUtils.lerp(finalHeight, area.height, blendFactor);
                 }
             }
 
-            colors.setXYZ(i, finalColor.r, finalColor.g, finalColor.b);
             positions.setZ(i, finalHeight);
         }
 
