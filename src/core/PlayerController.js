@@ -10,10 +10,42 @@ export default class PlayerController {
         this.landscape = landscape;
         this.raycaster = new THREE.Raycaster();
 
-        // ... (rest of constructor is unchanged)
+        this.touchState = {
+            isDragging: false,
+            startPos: new THREE.Vector2(),
+        };
+
+        this.addEventListeners();
     }
 
-    // ... (event listeners are unchanged)
+    addEventListeners() {
+        this.domElement.addEventListener('touchstart', this.onTouchStart.bind(this), { passive: false });
+        this.domElement.addEventListener('touchmove', this.onTouchMove.bind(this), { passive: false });
+        this.domElement.addEventListener('touchend', this.onTouchEnd.bind(this), { passive: false });
+    }
+
+    onTouchStart(event) {
+        if (event.touches.length === 1) {
+            this.touchState.isDragging = false;
+            this.touchState.startPos.set(event.touches[0].clientX, event.touches[0].clientY);
+        }
+    }
+
+    onTouchMove(event) {
+        if (event.touches.length === 1) {
+            const currentPos = new THREE.Vector2(event.touches[0].clientX, event.touches[0].clientY);
+            if (this.touchState.startPos.distanceTo(currentPos) > 10) {
+                this.touchState.isDragging = true;
+            }
+        }
+    }
+    
+    onTouchEnd(event) {
+        if (!this.touchState.isDragging && event.changedTouches.length === 1 && event.touches.length === 0) {
+            this.handleTap(event.changedTouches[0]);
+        }
+        this.touchState.isDragging = false;
+    }
 
     handleTap(touch) {
         const tapPosition = new THREE.Vector2(
@@ -23,23 +55,34 @@ export default class PlayerController {
 
         this.raycaster.setFromCamera(tapPosition, this.camera.threeCamera);
         
-        // ✨ FIX: Cleaned up the list of targets to ensure rocks are detected correctly.
-        const landscapeMeshes = this.landscape.mesh.children;
-        const targets = [...landscapeMeshes, ...this.game.mineableRocks];
-        const intersects = this.raycaster.intersectObjects(targets, false); // recursive is false
+        // ✨ FIX: Raycast against the entire scene to reliably find all objects.
+        const intersects = this.raycaster.intersectObjects(this.game.scene.children, true);
 
-        if (intersects.length > 0) {
-            const firstHit = intersects[0];
-            const hitObject = firstHit.object;
+        // Find the first valid target (a rock or the landscape)
+        let landscapeIntersection = null;
 
-            if (this.game.buildMode.active) {
-                this.game.placeRock(firstHit.point);
-            } else {
-                if (hitObject.userData && hitObject.userData.isMineable) {
-                    this.player.startMining(hitObject);
-                } else {
-                    this.player.moveTo(firstHit.point);
+        for (const intersect of intersects) {
+            // If we hit a mineable rock, that takes priority.
+            if (intersect.object.userData.isMineable) {
+                if (!this.game.buildMode.active) {
+                    this.player.startMining(intersect.object);
                 }
+                return; // Action taken, stop processing
+            }
+            // If we hit the landscape, store it but keep looking for rocks closer to the camera.
+            if (this.landscape.mesh.children.includes(intersect.object)) {
+                if (!landscapeIntersection) {
+                    landscapeIntersection = intersect;
+                }
+            }
+        }
+
+        // If we found a landscape intersection and no rocks were clicked, handle movement/building.
+        if (landscapeIntersection) {
+            if (this.game.buildMode.active) {
+                this.game.placeRock(landscapeIntersection.point);
+            } else {
+                this.player.moveTo(landscapeIntersection.point);
             }
         }
     }
