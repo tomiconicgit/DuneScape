@@ -22,7 +22,8 @@ export default class Game {
         this.scene = new THREE.Scene();
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         
-        // ✨ FIX: Corrected initialization order. Player must be created before the scene is fully populated.
+        this.setupInitialScene(); 
+        
         this.player = new Player(this.scene);
         this.camera = new Camera();
         
@@ -34,7 +35,6 @@ export default class Game {
         this.placedRocks = [];
         
         this.setupRenderer();
-        this.setupInitialScene(); 
         
         this.devBar = new DeveloperBar(
             this.handleBuildModeToggle.bind(this),
@@ -149,6 +149,16 @@ export default class Game {
     }
 
     start() {
+        // ✨ ADDED: Hide the loading screen once the game is ready to start
+        const loadingScreen = document.getElementById('loading-screen');
+        if (loadingScreen) {
+            loadingScreen.classList.add('fade-out');
+            // Remove the element from the DOM after the animation finishes
+            setTimeout(() => {
+                loadingScreen.remove();
+            }, 1000); // Duration must match the CSS transition
+        }
+        
         this.animate();
     }
 
