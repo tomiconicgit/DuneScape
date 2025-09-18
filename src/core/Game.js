@@ -23,34 +23,30 @@ export default class Game {
         this.player = new Player(this.scene);
         this.camera = new Camera();
         
-        // ✨ ADDED: State management for the procedural rock
+        // ✨ CHANGED: Updated rock config with new shader-driven properties
         this.rock = null;
         this.rockConfig = {
             radius: 1.5,
-            detail: 4,
+            detail: 5,
             roughness: 0.7,
             noiseScale: 0.8,
             seed: Math.random(),
-            color: 0x888888,
-            materialRoughness: 1,
-            metalness: 0,
-            flatShading: true,
+            topColor: 0xafb4b8, // Lighter grey
+            bottomColor: 0x616161, // Darker grey
+            textureScale: 15.0,
+            wetness: 0.0,
+            metalness: 0.1,
             scaleX: 1,
             scaleY: 1,
             scaleZ: 1,
         };
         
         this.setupRenderer();
-        this.setupInitialScene(); // Must be before controllers to create landscape
-
-        // ✨ ADDED: Instantiate the DeveloperBar UI
+        this.setupInitialScene(); 
         this.devBar = new DeveloperBar(this.rockConfig, this.updateRock.bind(this));
-
         this.cameraController = new CameraController(this.renderer.domElement, this.camera);
         this.playerController = new PlayerController(this.renderer.domElement, this.camera, this.landscape, this.player);
-
         this.camera.setTarget(this.player.mesh);
-
         window.addEventListener('resize', this.handleResize.bind(this));
         this.debugger.log('Game initialized successfully.');
     }
@@ -68,17 +64,13 @@ export default class Game {
         this.sky = new Sky(this.scene, this.lighting);
         this.landscape = new Landscape(this.scene, this.lighting);
         this.scene.add(this.landscape.mesh);
-
-        // ✨ CHANGED: Use the new update/rebuild function
         this.updateRock(this.rockConfig, true);
     }
 
-    // ✨ ADDED: A comprehensive function to update or fully rebuild the rock
     updateRock(newConfig, forceRebuild = false) {
         const oldConfig = this.rockConfig;
         this.rockConfig = newConfig;
 
-        // Determine if geometry needs to be rebuilt
         const needsRebuild = forceRebuild ||
             oldConfig.radius !== newConfig.radius ||
             oldConfig.detail !== newConfig.detail ||
@@ -87,7 +79,6 @@ export default class Game {
             oldConfig.seed !== newConfig.seed;
 
         if (needsRebuild) {
-            // Remove old rock and dispose of its assets to prevent memory leaks
             if (this.rock) {
                 this.scene.remove(this.rock);
                 this.rock.geometry.dispose();
@@ -98,18 +89,15 @@ export default class Game {
             this.scene.add(this.rock);
         }
 
-        // Update properties that don't require a full rebuild
+        // ✨ CHANGED: Update shader uniforms and material properties efficiently
         if (this.rock) {
-            this.rock.material.color.set(this.rockConfig.color);
-            this.rock.material.roughness = this.rockConfig.materialRoughness;
-            this.rock.material.metalness = this.rockConfig.metalness;
+            const uniforms = this.rock.material.userData.uniforms;
+            uniforms.uTopColor.value.set(this.rockConfig.topColor);
+            uniforms.uBottomColor.value.set(this.rockConfig.bottomColor);
+            uniforms.uTextureScale.value = this.rockConfig.textureScale;
+            uniforms.uWetness.value = this.rockConfig.wetness;
             
-            // Re-assigning flatShading requires a material update
-            if (this.rock.material.flatShading !== this.rockConfig.flatShading) {
-                 this.rock.material.flatShading = this.rockConfig.flatShading;
-                 this.rock.material.needsUpdate = true;
-            }
-
+            this.rock.material.metalness = this.rockConfig.metalness;
             this.rock.scale.set(this.rockConfig.scaleX, this.rockConfig.scaleY, this.rockConfig.scaleZ);
         }
     }
@@ -125,12 +113,9 @@ export default class Game {
 
     animate() {
         requestAnimationFrame(this.animate.bind(this));
-        
         const deltaTime = this.clock.getDelta();
-
         this.camera.update();
         this.player.update(deltaTime);
-        
         this.renderer.render(this.scene, this.camera.threeCamera);
     }
 }
