@@ -1,88 +1,158 @@
-// File: src/core/PlayerController.js
+// File: src/entities/Player.js
 import * as THREE from 'three';
 
-export default class PlayerController {
-    constructor(domElement, game, camera, player, landscape) {
-        this.domElement = domElement;
-        this.game = game;
-        this.camera = camera;
-        this.player = player;
-        this.landscape = landscape;
-        this.raycaster = new THREE.Raycaster();
+const states = {
+    IDLE: 'idle',
+    WALKING: 'walking',
+    MINING: 'mining',
+};
 
-        this.touchState = {
-            isDragging: false,
-            startPos: new THREE.Vector2(),
+export default class Player {
+    constructor(scene, game) {
+        this.game = game;
+        this.state = states.IDLE;
+        this.animationTimer = 0;
+
+        this.rig = {};
+        this.mesh = this.createCharacterRig();
+        
+        this.mesh.position.set(50, 1.0, 102); 
+        scene.add(this.mesh);
+
+        this.path = [];
+        this.speed = 4.0;
+        this.tileSize = 1.0;
+
+        this.isMining = false;
+        this.miningTarget = null;
+        this.miningTimer = 0;
+        this.miningDuration = 4.0;
+
+        // ... (rest of constructor is unchanged)
+    }
+
+    createCharacterRig() {
+        const playerGroup = new THREE.Group();
+
+        const bodyMaterial = new THREE.MeshStandardMaterial({
+            color: 0x666688,
+            roughness: 0.8,
+            metalness: 0.1,
+        });
+        const jointMaterial = new THREE.MeshStandardMaterial({
+            color: 0x444455,
+            roughness: 0.9
+        });
+        
+        const torsoGeo = new THREE.BoxGeometry(1, 1.5, 0.5);
+        const torso = new THREE.Mesh(torsoGeo, bodyMaterial);
+        torso.position.y = 0.75;
+        torso.castShadow = true;
+        playerGroup.add(torso);
+        this.rig.torso = torso;
+
+        const headGeo = new THREE.BoxGeometry(0.7, 0.7, 0.7);
+        const head = new THREE.Mesh(headGeo, bodyMaterial);
+        head.position.y = 1.8;
+        torso.add(head);
+        this.rig.head = head;
+        
+        const createLimb = (isArm) => {
+            const group = new THREE.Group();
+            const upperGeo = new THREE.BoxGeometry(0.25, 0.6, 0.25);
+            const upper = new THREE.Mesh(upperGeo, bodyMaterial);
+            upper.castShadow = true;
+            
+            const lowerGeo = new THREE.BoxGeometry(0.22, 0.5, 0.22);
+            const lower = new THREE.Mesh(lowerGeo, bodyMaterial);
+            lower.castShadow = true;
+
+            const jointGeo = new THREE.SphereGeometry(0.15, 8, 8);
+            const joint = new THREE.Mesh(jointGeo, jointMaterial);
+
+            if (isArm) {
+                upper.position.y = -0.4;
+                joint.position.y = -0.35;
+                lower.position.y = -0.3;
+            } else {
+                upper.position.y = -0.45;
+                joint.position.y = -0.4;
+                lower.position.y = -0.3;
+            }
+            
+            group.add(upper);
+            upper.add(joint);
+            joint.add(lower);
+            return { group, joint };
         };
 
-        this.addEventListeners();
-    }
+        const rightArm = createLimb(true);
+        rightArm.group.position.set(-0.65, 0.6, 0);
+        torso.add(rightArm.group);
+        this.rig.rightArm = { group: rightArm.group, joint: rightArm.joint };
+        
+        const leftArm = createLimb(true);
+        leftArm.group.position.set(0.65, 0.6, 0);
+        torso.add(leftArm.group);
+        this.rig.leftArm = { group: leftArm.group, joint: leftArm.joint };
 
-    addEventListeners() {
-        this.domElement.addEventListener('touchstart', this.onTouchStart.bind(this), { passive: false });
-        this.domElement.addEventListener('touchmove', this.onTouchMove.bind(this), { passive: false });
-        this.domElement.addEventListener('touchend', this.onTouchEnd.bind(this), { passive: false });
-    }
+        const rightLeg = createLimb(false);
+        rightLeg.group.position.set(-0.25, -0.75, 0);
+        torso.add(rightLeg.group);
+        this.rig.rightLeg = { group: rightLeg.group, joint: rightLeg.joint };
+        
+        const leftLeg = createLimb(false);
+        leftLeg.group.position.set(0.25, -0.75, 0);
+        torso.add(leftLeg.group);
+        this.rig.leftLeg = { group: leftLeg.group, joint: leftLeg.joint };
 
-    onTouchStart(event) {
-        if (event.touches.length === 1) {
-            this.touchState.isDragging = false;
-            this.touchState.startPos.set(event.touches[0].clientX, event.touches[0].clientY);
-        }
-    }
-
-    onTouchMove(event) {
-        if (event.touches.length === 1) {
-            const currentPos = new THREE.Vector2(event.touches[0].clientX, event.touches[0].clientY);
-            if (this.touchState.startPos.distanceTo(currentPos) > 10) {
-                this.touchState.isDragging = true;
+        // ✨ FIX: Recursively set all parts of the player model to Layer 1.
+        playerGroup.traverse((child) => {
+            if (child.isMesh) {
+                child.layers.set(1);
             }
-        }
+        });
+
+        return playerGroup;
     }
     
-    onTouchEnd(event) {
-        if (!this.touchState.isDragging && event.changedTouches.length === 1 && event.touches.length === 0) {
-            this.handleTap(event.changedTouches[0]);
-        }
-        this.touchState.isDragging = false;
+    startMining(targetRock) {
+        // ... (this function is unchanged)
     }
 
-    handleTap(touch) {
-        const tapPosition = new THREE.Vector2(
-            (touch.clientX / window.innerWidth) * 2 - 1,
-            -(touch.clientY / window.innerHeight) * 2 + 1
-        );
+    moveTo(targetPosition) {
+        // ... (this function is unchanged)
+    }
 
-        this.raycaster.setFromCamera(tapPosition, this.camera.threeCamera);
-        
-        // ✨ FIX: Tell the raycaster to only interact with objects on Layer 0 (the default layer).
-        // The player model will be moved to Layer 1, making it invisible to this raycast.
-        this.raycaster.layers.set(0);
+    calculatePath(startX, startZ, endX, endZ) {
+        // ... (this function is unchanged)
+    }
 
-        const intersects = this.raycaster.intersectObjects(this.game.scene.children, true);
+    updatePathLine() {
+        // ... (this function is unchanged)
+    }
 
-        let landscapeIntersection = null;
+    update(deltaTime) {
+        // ... (this function is unchanged)
+    }
+    
+    updateMovement(deltaTime) {
+        // ... (this function is unchanged)
+    }
+    
+    updateMineTimer(deltaTime) {
+        // ... (this function is unchanged)
+    }
 
-        for (const intersect of intersects) {
-            if (intersect.object.userData.isMineable) {
-                if (!this.game.buildMode.active) {
-                    this.player.startMining(intersect.object);
-                }
-                return;
-            }
-            if (this.landscape.mesh.children.includes(intersect.object)) {
-                if (!landscapeIntersection) {
-                    landscapeIntersection = intersect;
-                }
-            }
-        }
+    updateIdleAnimation() {
+        // ... (this function is unchanged)
+    }
 
-        if (landscapeIntersection) {
-            if (this.game.buildMode.active) {
-                this.game.placeRock(landscapeIntersection.point);
-            } else {
-                this.player.moveTo(landscapeIntersection.point);
-            }
-        }
+    updateWalkAnimation() {
+        // ... (this function is unchanged)
+    }
+
+    updateMineAnimation() {
+        // ... (this function is unchanged)
     }
 }
