@@ -82,6 +82,7 @@ export default class PlayerController {
             if (this.game.buildMode.active) {
                 this.game.placeRock(landscapeIntersection.point);
             } else {
+                this.player.cancelActions();
                 this.player.moveTo(landscapeIntersection.point);
             }
         }
