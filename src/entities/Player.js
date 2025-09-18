@@ -6,7 +6,10 @@ export default class Player {
         const geometry = new THREE.CapsuleGeometry(0.5, 1, 4, 12);
         const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
         this.mesh = new THREE.Mesh(geometry, material);
-        this.mesh.position.set(0, 1.0, 0); 
+        
+        // ✨ CHANGED: Player now starts in the center of the new mine area
+        this.mesh.position.set(50, 1.0, 50); 
+        
         this.mesh.castShadow = true;
         scene.add(this.mesh);
 
@@ -15,24 +18,20 @@ export default class Player {
         this.speed = 4.0;
         this.tileSize = 1.0;
 
-        // ✨ CHANGED: Made the 'X' marker larger for better visibility
         const xMarkerGeo = new THREE.BufferGeometry();
-        const markerSize = 0.75; // Was 0.5
+        const markerSize = 0.75;
         const xMarkerPoints = [
             new THREE.Vector3(-markerSize, 0, -markerSize), new THREE.Vector3(markerSize, 0, markerSize),
             new THREE.Vector3(markerSize, 0, -markerSize), new THREE.Vector3(-markerSize, 0, markerSize)
         ];
         xMarkerGeo.setFromPoints(xMarkerPoints);
-        // Using a solid line material to ensure it's always visible and ignores linewidth limitations
         const xMarkerMat = new THREE.LineBasicMaterial({ color: 0xff0000 });
         this.marker = new THREE.LineSegments(xMarkerGeo, xMarkerMat);
         this.marker.visible = false;
         scene.add(this.marker);
         
-        // Create the directional path line
         const pathLineGeo = new THREE.BufferGeometry();
         pathLineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(2 * 3), 3));
-        // ✨ CHANGED: Line color is now red to be more visible
         const pathLineMat = new THREE.LineDashedMaterial({ color: 0xff0000, dashSize: 0.2, gapSize: 0.1 });
         this.pathLine = new THREE.Line(pathLineGeo, pathLineMat);
         this.pathLine.visible = false;
