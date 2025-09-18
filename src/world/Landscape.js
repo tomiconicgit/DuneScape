@@ -42,18 +42,18 @@ export default class Landscape {
             noiseScale: {
                 base: 0.01,
                 dunes: 0.02,
-                secondaryDunes: 0.05,
-                ridges: 0.08,
+                secondaryDunes: 0.01,
+                ridges: 0.01,
                 detail: 0.2,
-                microRipples: 0.5,
+                microRipples: 0.1,
                 sandGrains: 4.0
             },
             // ✨ KEY CHANGE: Re-balanced heights for small, smooth slopes.
             heightScale: {
                 base: 2.0,
-                dunes: 5.0,         // Primary dunes are the main feature
+                dunes: 2,         // Primary dunes are the main feature
                 secondaryDunes: 1.5,// Secondary dunes are smaller
-                ridges: 0.5,        // Ridges are very subtle
+                ridges: 0.1,        // Ridges are very subtle
                 detail: 0.25,
                 microRipples: 0.1,
                 sandGrains: 0.02
