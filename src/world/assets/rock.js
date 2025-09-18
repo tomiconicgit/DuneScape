@@ -18,7 +18,6 @@ class SimplexNoise {
   }
 }
 
-// ✨ CHANGED: Updated the shader code to fix errors and improve integration
 const rockShader = {
   uniforms: {
     uTopColor: { value: new THREE.Color(0xaaaaaa) },
@@ -29,7 +28,7 @@ const rockShader = {
   shader: `
     // Varyings and Uniforms to be injected
     varying vec3 vWorldPosition;
-    varying float vHeight; // <-- FIX: Added missing varying for fragment shader
+    varying float vHeight;
     uniform vec3 uTopColor;
     uniform vec3 uBottomColor;
     uniform float uTextureScale;
@@ -37,7 +36,7 @@ const rockShader = {
   
     // GLSL noise function (ported from webgl-noise)
     float mod289(float x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-    vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; } // <-- FIX: Added missing vec3 overload
+    vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
     vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
     vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
     vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
@@ -166,32 +165,26 @@ export function createProceduralRock({
       `#include <color_fragment>`,
       `#include <color_fragment>
       
-      // Procedural texture based on world position
       float noise = snoise(vWorldPosition * uTextureScale * 0.1) * 0.5 + 0.5;
-      
-      // Height-based color gradient
       vec3 heightGradient = mix(uBottomColor, uTopColor, vHeight);
-      
-      // Mix gradient with noise for a textured look
       vec3 finalColor = mix(heightGradient * 0.6, heightGradient * 1.2, noise);
       diffuseColor.rgb = finalColor;
       `
     ).replace(
         `#include <roughnessmap_fragment>`,
         `
-        // Base roughness is taken from the material
-        float finalRoughness = roughness;
+        // ✨ FIX: Declare roughnessFactor and calculate the final value.
+        // This correctly replaces the entire original chunk.
+        float roughnessFactor = roughness;
 
         // Apply wetness by reducing roughness (a wet surface is smooth)
-        finalRoughness *= (1.0 - uWetness);
+        roughnessFactor *= (1.0 - uWetness);
         
         // Add wet patches using noise for more realism
         float wetNoise = snoise(vWorldPosition * 2.0) * 0.5 + 0.5;
         if (wetNoise > 0.8) {
-            finalRoughness *= (1.0 - uWetness * 0.9); // Make patches extra smooth
+            roughnessFactor *= (1.0 - uWetness * 0.9); // Make patches extra smooth
         }
-        
-        roughnessFactor = finalRoughness;
         `
     );
   };
