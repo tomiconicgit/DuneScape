@@ -7,8 +7,10 @@ export default class Player {
         const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
         this.mesh = new THREE.Mesh(geometry, material);
         
-        // ✨ CHANGED: Player now starts in the center of the new mine area
-        this.mesh.position.set(50, 1.0, 50); 
+        // ✨ CHANGED: Player now starts on the lower level of the new mine area.
+        // Y position is -4 (-5 depth + 1 for player height).
+        // Z position is 65, which is well within the flat lower section.
+        this.mesh.position.set(50, -4.0, 65); 
         
         this.mesh.castShadow = true;
         scene.add(this.mesh);
@@ -45,14 +47,14 @@ export default class Player {
         const startGridX = Math.round(this.mesh.position.x / this.tileSize);
         const startGridZ = Math.round(this.mesh.position.z / this.tileSize);
 
-        this.marker.position.set(targetGridX * this.tileSize, 0.1, targetGridZ * this.tileSize);
+        this.marker.position.set(targetGridX * this.tileSize, targetPosition.y + 0.1, targetGridZ * this.tileSize);
         this.marker.visible = true;
 
         this.path = this.calculatePath(startGridX, startGridZ, targetGridX, targetGridZ);
         
         if (this.path.length > 0) {
             this.pathLine.visible = true;
-            this.updatePathLine();
+            this.updatePathLine(targetPosition.y);
         }
     }
 
@@ -71,13 +73,13 @@ export default class Player {
         return path;
     }
 
-    updatePathLine() {
+    updatePathLine(y = 0) {
         const positions = this.pathLine.geometry.attributes.position.array;
         positions[0] = this.mesh.position.x;
-        positions[1] = 0.1;
+        positions[1] = this.mesh.position.y - 0.9; // Y position relative to player's feet
         positions[2] = this.mesh.position.z;
         positions[3] = this.marker.position.x;
-        positions[4] = 0.1;
+        positions[4] = y + 0.1; // Y position of the marker
         positions[5] = this.marker.position.z;
 
         this.pathLine.geometry.attributes.position.needsUpdate = true;
@@ -96,15 +98,17 @@ export default class Player {
         const nextTile = this.path[0];
         const targetPosition = new THREE.Vector3(
             nextTile.x * this.tileSize,
-            1.0,
+            this.mesh.position.y, // Keep Y constant for now to prevent flying
             nextTile.y * this.tileSize
         );
 
         const distance = this.mesh.position.distanceTo(targetPosition);
         
         if (distance < 0.1) {
-            this.mesh.position.copy(targetPosition);
+            this.mesh.position.x = targetPosition.x;
+            this.mesh.position.z = targetPosition.z;
             this.path.shift();
+            // In a future step, we'll need to update Y position based on terrain height
             return;
         }
 
@@ -112,6 +116,6 @@ export default class Player {
         this.mesh.position.add(direction.multiplyScalar(this.speed * deltaTime));
         this.mesh.lookAt(new THREE.Vector3(targetPosition.x, this.mesh.position.y, targetPosition.z));
         
-        this.updatePathLine();
+        this.updatePathLine(this.marker.position.y - 0.1);
     }
 }
