@@ -1,34 +1,35 @@
 // File: src/world/Landscape.js
 import * as THREE from 'three';
 
-// A self-contained Perlin noise implementation.
+// A self-contained, high-quality Perlin noise implementation from the reference code.
 class PerlinNoise {
-    constructor() {
-        this.perm = new Uint8Array(512);
-        const p = new Uint8Array(256);
-        for (let i = 0; i < 256; i++) p[i] = i;
-        let n = 256;
-        while(n-- > 1) {
-            const k = Math.floor((n + 1) * Math.random());
-            [p[n], p[k]] = [p[k], p[n]];
+    constructor(seed = Math.random()) {
+        const p = new Array(256).fill(0).map((_, i) => i);
+        for (let i = 255; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [p[i], p[j]] = [p[j], p[i]];
         }
-        for (let i = 0; i < 512; i++) this.perm[i] = p[i & 255];
+        this.perm = new Uint8Array(512);
+        for(let i=0; i < 512; i++) this.perm[i] = p[i & 255];
     }
     fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
-    lerp(a, b, t) { return (1 - t) * a + t * b; }
-    grad(hash, x, y) {
-        const h = hash & 7;
-        const u = h < 4 ? x : y;
-        const v = h < 4 ? y : x;
-        return ((h & 1) ? -u : u) + ((h & 2) ? -v : v);
+    lerp(a, b, t) { return a + t * (b - a); }
+    grad(hash, x, y, z) {
+        const h = hash & 15;
+        const u = h < 8 ? x : y;
+        const v = h < 4 ? y : (h === 12 || h === 14 ? x : z);
+        return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
     }
-    noise(x, y) {
-        const X = Math.floor(x) & 255, Y = Math.floor(y) & 255;
-        x -= Math.floor(x); y -= Math.floor(y);
-        const u = this.fade(x), v = this.fade(y);
-        const A = this.perm[X] + Y, B = this.perm[X + 1] + Y;
-        return this.lerp(v, this.lerp(u, this.grad(this.perm[A], x, y), this.grad(this.perm[B], x - 1, y)),
-                           this.lerp(u, this.grad(this.perm[A + 1], x, y - 1), this.grad(this.perm[B + 1], x - 1, y - 1)));
+    noise(x, y, z = 0) {
+        const X = Math.floor(x) & 255, Y = Math.floor(y) & 255, Z = Math.floor(z) & 255;
+        x -= Math.floor(x); y -= Math.floor(y); z -= Math.floor(z);
+        const u = this.fade(x), v = this.fade(y), w = this.fade(z);
+        const A = this.perm[X] + Y, AA = this.perm[A] + Z, AB = this.perm[A + 1] + Z;
+        const B = this.perm[X + 1] + Y, BA = this.perm[B] + Z, BB = this.perm[B + 1] + Z;
+        return this.lerp(w, this.lerp(v, this.lerp(u, this.grad(this.perm[AA], x, y, z), this.grad(this.perm[BA], x-1, y, z)),
+                                      this.lerp(u, this.grad(this.perm[AB], x, y-1, z), this.grad(this.perm[BB], x-1, y-1, z))),
+                              this.lerp(v, this.lerp(u, this.grad(this.perm[AA+1], x, y, z-1), this.grad(this.perm[BA+1], x-1, y, z-1)),
+                                      this.lerp(u, this.grad(this.perm[AB+1], x, y-1, z-1), this.grad(this.perm[BB+1], x-1, y-1, z-1))));
     }
 }
 
@@ -36,113 +37,160 @@ export default class Landscape {
     constructor() {
         this.config = {
             size: 500,
-            resolution: 150,
+            resolution: 196,
+            // ✨ KEY CHANGE: Noise scales are increased 10x to suit our 500-unit world
             noiseScale: {
-                dunes: 0.01,
-                detail: 0.05,
+                base: 0.003,
+                dunes: 0.008,
+                secondaryDunes: 0.015,
+                ridges: 0.03,
+                detail: 0.1,
+                microRipples: 0.4,
+                sandGrains: 3.0
             },
+            // ✨ KEY CHANGE: Heights are drastically reduced for smooth, small slopes
             heightScale: {
-                dunes: 10, // Moderate height for rolling dunes
-                detail: 2,
-            }
+                base: 2,
+                dunes: 6,
+                secondaryDunes: 3,
+                ridges: 1,
+                detail: 0.8,
+                microRipples: 0.2,
+                sandGrains: 0.03
+            },
+            // ✨ KEY CHANGE: Colors are lightened by mixing with white
+            sandColors: [
+                new THREE.Color(0xec9e5c).lerp(new THREE.Color(0xffffff), 0.3), // Base sand
+                new THREE.Color(0xd4884a).lerp(new THREE.Color(0xffffff), 0.3), // Darker
+                new THREE.Color(0xf7b777).lerp(new THREE.Color(0xffffff), 0.3), // Lighter
+                new THREE.Color(0xb7703e).lerp(new THREE.Color(0xffffff), 0.3), // Shadow
+                new THREE.Color(0xffc890).lerp(new THREE.Color(0xffffff), 0.3)  // Highlight
+            ],
+            duneDirection: Math.PI * 0.25
         };
 
-        this.noise = new PerlinNoise();
-        this.createMesh();
-        this.generateGeometry();
+        this.initNoise();
+        this.generate();
     }
 
-    createMesh() {
-        this.geometry = new THREE.PlaneGeometry(
-            this.config.size, this.config.size,
-            this.config.resolution, this.config.resolution
-        );
-        this.geometry.rotateX(-Math.PI / 2);
+    initNoise() {
+        this.baseNoise = new PerlinNoise();
+        this.duneNoise = new PerlinNoise();
+        this.secondaryDuneNoise = new PerlinNoise();
+        this.ridgeNoise = new PerlinNoise();
+        this.detailNoise = new PerlinNoise();
+        this.colorNoise = new PerlinNoise();
+        this.microRipplesNoise = new PerlinNoise();
+        this.sandGrainsNoise = new PerlinNoise();
+    }
 
-        const rippleNormalMap = this.createRippleNormalMap();
+    generate() {
+        console.log("Generating smooth, curved landscape...");
+        
+        const geometry = new THREE.PlaneGeometry(this.config.size, this.config.size, this.config.resolution, this.config.resolution);
+        geometry.rotateX(-Math.PI / 2);
 
-        // Use a PBR material for realistic lighting
-        this.material = new THREE.MeshStandardMaterial({
-            color: 0xeacda3, // A realistic, pale sand color
-            roughness: 0.85, // Sand is not shiny
-            metalness: 0.1,
-            normalMap: rippleNormalMap,
-            normalScale: new THREE.Vector2(0.5, 0.5), // Adjust strength of the ripples
+        const vertices = geometry.attributes.position.array;
+        const colors = new Float32Array(vertices.length);
+
+        for (let i = 0; i < vertices.length; i += 3) {
+            const x = vertices[i];
+            const z = vertices[i + 2];
+
+            // --- Height Generation ---
+            let height = this.baseNoise.noise(x * this.config.noiseScale.base, z * this.config.noiseScale.base) * this.config.heightScale.base;
+            height += this.getDirectionalDuneHeight(x, z);
+            height += this.detailNoise.noise(x * this.config.noiseScale.detail, z * this.config.noiseScale.detail) * this.config.heightScale.detail;
+
+            const windDirection = this.config.duneDirection;
+            const alignedX = x * Math.cos(windDirection) + z * Math.sin(windDirection);
+            const alignedZ = -x * Math.sin(windDirection) + z * Math.cos(windDirection);
+            const microRipples = this.microRipplesNoise.noise(alignedX * this.config.noiseScale.microRipples, alignedZ * this.config.noiseScale.microRipples * 5) * this.config.heightScale.microRipples;
+            height += microRipples;
+            height += this.sandGrainsNoise.noise(x * this.config.noiseScale.sandGrains, z * this.config.noiseScale.sandGrains) * this.config.heightScale.sandGrains;
+            
+            vertices[i + 1] = height;
+
+            // --- Color Generation ---
+            const colorNoise = this.colorNoise.noise(x * this.config.noiseScale.base * 2, z * this.config.noiseScale.base * 2);
+            const heightFactor = Math.max(0, Math.min(1, height / 10)); // Normalized height for color
+            let finalColor = this.config.sandColors[0].clone();
+
+            finalColor.lerp(this.config.sandColors[1], Math.max(0, 0.5 - heightFactor)); // Darker in valleys
+            finalColor.lerp(this.config.sandColors[2], Math.max(0, heightFactor - 0.5)); // Lighter on peaks
+            finalColor.lerp(colorNoise > 0 ? this.config.sandColors[4] : this.config.sandColors[3], Math.abs(colorNoise) * 0.3);
+
+            colors[i] = finalColor.r;
+            colors[i + 1] = finalColor.g;
+            colors[i + 2] = finalColor.b;
+        }
+
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        geometry.computeVertexNormals();
+        
+        const normalMap = this.createProceduralNormalMap();
+        const material = new THREE.MeshPhongMaterial({
+            vertexColors: true,
+            shininess: 0,
+            normalMap: normalMap,
+            normalScale: new THREE.Vector2(0.2, 0.2)
         });
 
-        this.mesh = new THREE.Mesh(this.geometry, this.material);
+        this.mesh = new THREE.Mesh(geometry, material);
         this.mesh.receiveShadow = true;
         this.mesh.castShadow = true;
+        console.log("Landscape generation complete.");
+    }
+    
+    getDirectionalDuneHeight(x, z) {
+        const direction = this.config.duneDirection;
+        const rotX = x * Math.cos(direction) + z * Math.sin(direction);
+        const rotZ = -x * Math.sin(direction) + z * Math.cos(direction);
+        
+        let duneHeight = this.duneNoise.noise(rotX * this.config.noiseScale.dunes, rotZ * this.config.noiseScale.dunes * 0.5) * this.config.heightScale.dunes;
+        duneHeight += this.secondaryDuneNoise.noise(rotX * this.config.noiseScale.secondaryDunes, rotZ * this.config.noiseScale.secondaryDunes) * this.config.heightScale.secondaryDunes;
+        
+        const ridges = this.ridgeNoise.noise(rotX * this.config.noiseScale.ridges, rotZ * this.config.noiseScale.ridges);
+        const smoothedRidge = Math.pow(Math.abs(ridges * 2 - 1), 1.0 + 0.7 * 2.0);
+        duneHeight += smoothedRidge * this.config.heightScale.ridges * 0.4;
+        
+        return duneHeight;
     }
 
-    generateGeometry() {
-        console.log("Generating realistic dune geometry...");
-        const vertices = this.geometry.attributes.position.array;
-
-        for (let i = 0; i < vertices.length / 3; i++) {
-            const x = vertices[i * 3];
-            const z = vertices[i * 3 + 2];
-
-            // Generate height for the large, rolling dunes
-            const duneHeight = this.noise.noise(x * this.config.noiseScale.dunes, z * this.config.noiseScale.dunes) * this.config.heightScale.dunes;
-            const detailHeight = this.noise.noise(x * this.config.noiseScale.detail, z * this.config.noiseScale.detail) * this.config.heightScale.detail;
-            
-            vertices[i * 3 + 1] = duneHeight + detailHeight;
-        }
-
-        this.geometry.attributes.position.needsUpdate = true;
-        this.geometry.computeVertexNormals();
-        console.log("Dune geometry complete.");
-    }
-
-    /**
-     * Creates a procedural normal map texture to simulate fine sand ripples.
-     */
-    createRippleNormalMap() {
+    createProceduralNormalMap() {
         const size = 512;
         const data = new Uint8Array(size * size * 4);
-        const rippleNoise = new PerlinNoise();
-        const grainNoise = new PerlinNoise();
-
+        const normalStrength = 1.5;
+        
         for (let y = 0; y < size; y++) {
             for (let x = 0; x < size; x++) {
-                // Use multiple noise layers for the ripple effect
-                // The key is stretching the noise in one direction to create lines
-                const ripple1 = rippleNoise.noise(x * 0.05, y * 0.5);
-                const ripple2 = rippleNoise.noise(x * 0.1, y * 1.0);
-                const grain = grainNoise.noise(x * 0.8, y * 0.8) * 0.25; // Fine grain
+                const nx = x / size, ny = y / size;
+                const windDirection = this.config.duneDirection;
+                const windAlignedX = nx * Math.cos(windDirection) + ny * Math.sin(windDirection);
+                const windAlignedY = -nx * Math.sin(windDirection) + ny * Math.cos(windDirection);
+
+                const getHeight = (ax, ay) => this.microRipplesNoise.noise(ax * 35, ay * 12) * 1.8 + this.sandGrainsNoise.noise(ax * 200, ay * 200) * 0.2;
+
+                const hL = getHeight(windAlignedX - 1/size, windAlignedY);
+                const hR = getHeight(windAlignedX + 1/size, windAlignedY);
+                const hD = getHeight(windAlignedX, windAlignedY - 1/size);
+                const hU = getHeight(windAlignedX, windAlignedY + 1/size);
+
+                const normal = new THREE.Vector3(hL - hR, hD - hU, 2 / size).normalize();
                 
-                // Combine noise layers to get a height value
-                const combinedHeight = ripple1 + ripple2 + grain;
-
-                // Calculate normals by sampling adjacent points
-                const sample = (offsetX, offsetY) => {
-                    const r1 = rippleNoise.noise((x + offsetX) * 0.05, (y + offsetY) * 0.5);
-                    const r2 = rippleNoise.noise((x + offsetX) * 0.1, (y + offsetY) * 1.0);
-                    const g = grainNoise.noise((x + offsetX) * 0.8, (y + offsetY) * 0.8) * 0.25;
-                    return r1 + r2 + g;
-                };
-
-                const normal = new THREE.Vector3(
-                    sample(-1, 0) - sample(1, 0), // Difference in X
-                    0.05, // Small vertical component, controls "strength"
-                    sample(0, -1) - sample(0, 1)  // Difference in Z (Y for texture)
-                ).normalize();
-
-                const index = (y * size + x) * 4;
-                data[index]     = (normal.x * 0.5 + 0.5) * 255;
-                data[index + 1] = (normal.z * 0.5 + 0.5) * 255; // Green channel for Z in world space
-                data[index + 2] = (normal.y * 0.5 + 0.5) * 255; // Blue channel for Y (up)
-                data[index + 3] = 255;
+                const idx = (y * size + x) * 4;
+                data[idx] = (normal.x * 0.5 + 0.5) * 255 * normalStrength;
+                data[idx + 1] = (normal.y * 0.5 + 0.5) * 255 * normalStrength;
+                data[idx + 2] = (1.0) * 255;
+                data[idx + 3] = 255;
             }
         }
-
+        
         const texture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
         texture.wrapS = THREE.RepeatWrapping;
         texture.wrapT = THREE.RepeatWrapping;
-        texture.repeat.set(this.config.size / 20, this.config.size / 20); // Repeat the texture over the terrain
+        texture.repeat.set(30, 30);
         texture.needsUpdate = true;
-        
         return texture;
     }
 }
