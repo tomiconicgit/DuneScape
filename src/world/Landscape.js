@@ -41,20 +41,20 @@ export default class Landscape {
             // ✨ KEY CHANGE: Corrected noise scales for smaller, more frequent features.
             noiseScale: {
                 base: 0.01,
-                dunes: 0.02,
+                dunes: 0.01,
                 secondaryDunes: 0.01,
                 ridges: 0.01,
-                detail: 0.2,
+                detail: 0.1,
                 microRipples: 0.1,
-                sandGrains: 4.0
+                sandGrains: 0.1,
             },
             // ✨ KEY CHANGE: Re-balanced heights for small, smooth slopes.
             heightScale: {
-                base: 2.0,
-                dunes: 2,         // Primary dunes are the main feature
-                secondaryDunes: 1.5,// Secondary dunes are smaller
+                base: 0.1,
+                dunes: 0.1,         // Primary dunes are the main feature
+                secondaryDunes: 0.1,// Secondary dunes are smaller
                 ridges: 0.1,        // Ridges are very subtle
-                detail: 0.25,
+                detail: 0.1,
                 microRipples: 0.1,
                 sandGrains: 0.02
             },
