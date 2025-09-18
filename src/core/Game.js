@@ -24,14 +24,12 @@ export default class Game {
         this.player = new Player(this.scene);
         this.camera = new Camera();
         
+        // ✨ CHANGED: Simplified build mode state. No preview rock.
         this.buildMode = {
             active: false,
             selectedRockConfig: null,
         };
         this.placedRocks = [];
-        this.previewRock = null;
-        this.pointer = new THREE.Vector2();
-        this.raycaster = new THREE.Raycaster();
         
         this.setupRenderer();
         this.setupInitialScene(); 
@@ -43,7 +41,6 @@ export default class Game {
         
         this.camera.setTarget(this.player.mesh);
         window.addEventListener('resize', this.handleResize.bind(this));
-        window.addEventListener('pointermove', this.onPointerMove.bind(this));
         this.debugger.log('Game initialized successfully.');
     }
 
@@ -51,7 +48,8 @@ export default class Game {
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFSoftSoftShadowMap;
+        // ✨ FIX: Corrected typo from PCFSoftSoftShadowMap to PCFSoftShadowMap
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(this.renderer.domElement);
     }
     
@@ -62,69 +60,36 @@ export default class Game {
         this.scene.add(this.landscape.mesh);
     }
     
-    onPointerMove(event) {
-        this.pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
-        this.pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
-    }
-
+    // ✨ CHANGED: Simplified the build mode toggle. It no longer creates a preview rock.
     handleBuildModeToggle(mode, rockName = null) {
         if (mode === 'enter' && rockName) {
             this.buildMode.active = true;
             this.buildMode.selectedRockConfig = rockPresets[rockName];
-            
-            if (this.previewRock) this.scene.remove(this.previewRock);
-            this.previewRock = createProceduralRock(this.buildMode.selectedRockConfig);
-            this.previewRock.material.transparent = true;
-            this.previewRock.material.opacity = 0.6;
-            this.previewRock.scale.set(
-                this.buildMode.selectedRockConfig.scaleX,
-                this.buildMode.selectedRockConfig.scaleY,
-                this.buildMode.selectedRockConfig.scaleZ
-            );
-            this.scene.add(this.previewRock);
-
         } else if (mode === 'exit') {
             this.buildMode.active = false;
             this.buildMode.selectedRockConfig = null;
-            if (this.previewRock) {
-                this.scene.remove(this.previewRock);
-                this.previewRock = null;
-            }
         }
     }
     
     placeRock(position) {
         if (!this.buildMode.active) return;
         
-        const newRock = createProceduralRock(this.buildMode.selectedRockConfig);
+        // Use a random seed for each new rock to ensure variety
+        const config = { ...this.buildMode.selectedRockConfig, seed: Math.random() };
+        const newRock = createProceduralRock(config);
         
         const gridX = Math.round(position.x);
         const gridZ = Math.round(position.z);
         
         newRock.position.set(gridX, 0, gridZ);
         newRock.scale.set(
-            this.buildMode.selectedRockConfig.scaleX,
-            this.buildMode.selectedRockConfig.scaleY,
-            this.buildMode.selectedRockConfig.scaleZ
+            config.scaleX,
+            config.scaleY,
+            config.scaleZ
         );
 
         this.scene.add(newRock);
         this.placedRocks.push(newRock);
-    }
-    
-    updatePreviewRock() {
-        if (!this.buildMode.active || !this.previewRock) return;
-
-        this.raycaster.setFromCamera(this.pointer, this.camera.threeCamera);
-        const intersects = this.raycaster.intersectObject(this.landscape.mesh);
-
-        if (intersects.length > 0) {
-            this.previewRock.visible = true;
-            const pos = intersects[0].point;
-            this.previewRock.position.set(Math.round(pos.x), 0, Math.round(pos.z));
-        } else {
-            this.previewRock.visible = false;
-        }
     }
     
     handleResize() {
@@ -141,9 +106,9 @@ export default class Game {
         const deltaTime = this.clock.getDelta();
         this.camera.update();
 
-        if (this.buildMode.active) {
-            this.updatePreviewRock();
-        } else {
+        // ✨ FIX: If build mode is active, player movement is paused. Otherwise, it runs.
+        // This correctly restores the touch-to-move mechanic.
+        if (!this.buildMode.active) {
             this.player.update(deltaTime);
         }
         
