@@ -15,7 +15,7 @@ export default class Camera {
         this.minDistance = 15;
         this.maxDistance = 15;
         this.cameraHeight = 5; // ✨ ADD THIS: Set a fixed height for the camera
-        this.smoothing = 0.05;
+        this.smoothing = 0.01;
     }
 
     setTarget(target) {
