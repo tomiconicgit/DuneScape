@@ -123,9 +123,14 @@ export default class Player {
 
         return playerGroup;
     }
+
+    cancelActions() {
+        this.miningTarget = null;
+        this.isMining = false;
+        this.miningTimer = 0;
+    }
     
     startMining(targetRock) {
-        if (this.state !== states.IDLE) return;
         this.miningTarget = targetRock;
         const direction = this.mesh.position.clone().sub(targetRock.position).normalize();
         const destination = targetRock.position.clone().add(direction.multiplyScalar(2.0));
@@ -133,7 +138,6 @@ export default class Player {
     }
 
     moveTo(targetPosition) {
-        this.miningTarget = this.state === states.MINING ? this.miningTarget : null;
         this.isMining = false;
         
         const targetGridX = Math.round(targetPosition.x);
