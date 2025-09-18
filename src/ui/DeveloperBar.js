@@ -13,22 +13,23 @@ export default class DeveloperBar {
     }
 
     initStyles() {
+        // ✨ CHANGED: Updated styles to position the bar at the top and wrap buttons.
         const style = document.createElement('style');
         style.textContent = `
             .build-bar {
                 position: fixed;
-                bottom: 20px;
-                left: 50%;
-                transform: translateX(-50%);
+                top: 0;
+                left: 0;
+                width: 100%;
                 background-color: rgba(0, 0, 0, 0.7);
                 color: #fff;
                 font-family: monospace;
                 font-size: 14px;
                 z-index: 10000;
                 display: flex;
+                flex-wrap: wrap; /* Allows buttons to go to the next line */
                 gap: 5px;
                 padding: 5px;
-                border-radius: 8px;
                 box-shadow: 0 2px 5px rgba(0,0,0,0.5);
             }
             .build-bar button {
@@ -46,9 +47,6 @@ export default class DeveloperBar {
                 background-color: #5a5;
                 border-color: #7c7;
                 color: #fff;
-            }
-            .build-bar button.exit {
-                background-color: #a55;
             }
         `;
         document.head.appendChild(style);
@@ -70,35 +68,33 @@ export default class DeveloperBar {
             button.dataset.rockName = rockName;
             this.container.appendChild(button);
         }
-
-        // Add an exit button
-        const exitButton = document.createElement('button');
-        exitButton.textContent = 'Exit';
-        exitButton.className = 'exit';
-        exitButton.dataset.action = 'exit';
-        this.container.appendChild(exitButton);
     }
     
     setupEventListeners() {
+        // ✨ CHANGED: Rewritten logic to make each rock button a toggle.
         this.container.addEventListener('click', (e) => {
             const button = e.target.closest('button');
-            if (!button) return;
-
-            // Deactivate previous button
-            if (this.activeButton) {
-                this.activeButton.classList.remove('active');
-            }
+            if (!button || !button.dataset.rockName) return;
 
             const rockName = button.dataset.rockName;
-            const action = button.dataset.action;
 
-            if (action === 'exit') {
-                this.buildModeCallback('exit');
+            // If the clicked button is already active, deactivate it.
+            if (button === this.activeButton) {
+                this.activeButton.classList.remove('active');
                 this.activeButton = null;
-            } else if (rockName) {
+                this.buildModeCallback('exit'); // Exit build mode
+            } 
+            // Otherwise, activate the new button.
+            else {
+                // Deactivate the previously active button, if any.
+                if (this.activeButton) {
+                    this.activeButton.classList.remove('active');
+                }
+
+                // Activate the new button
                 button.classList.add('active');
                 this.activeButton = button;
-                this.buildModeCallback('enter', rockName);
+                this.buildModeCallback('enter', rockName); // Enter build mode with the selected rock
             }
         });
     }
