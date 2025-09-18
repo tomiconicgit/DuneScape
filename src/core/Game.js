@@ -22,12 +22,8 @@ export default class Game {
         this.scene = new THREE.Scene();
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         
-        // ✨ FIX: Corrected the order of initialization.
-        // 1. The scene and its objects must be set up first.
-        this.setupInitialScene(); 
-        
-        // 2. The player is created now, receiving the landscape it depends on.
-        this.player = new Player(this.scene, this.landscape);
+        // ✨ FIX: Corrected initialization order. Player must be created before the scene is fully populated.
+        this.player = new Player(this.scene);
         this.camera = new Camera();
         
         this.buildMode = {
@@ -37,8 +33,8 @@ export default class Game {
         };
         this.placedRocks = [];
         
-        // 3. The renderer and controllers are set up last.
         this.setupRenderer();
+        this.setupInitialScene(); 
         
         this.devBar = new DeveloperBar(
             this.handleBuildModeToggle.bind(this),
