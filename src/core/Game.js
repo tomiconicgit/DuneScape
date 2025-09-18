@@ -24,29 +24,25 @@ export default class Game {
         this.player = new Player(this.scene);
         this.camera = new Camera();
         
-        // ✨ ADDED: State management for build mode
         this.buildMode = {
             active: false,
             selectedRockConfig: null,
         };
         this.placedRocks = [];
         this.previewRock = null;
-        this.pointer = new THREE.Vector2(); // For preview raycasting
-        this.raycaster = new THREE.Raycaster(); // For preview raycasting
+        this.pointer = new THREE.Vector2();
+        this.raycaster = new THREE.Raycaster();
         
         this.setupRenderer();
         this.setupInitialScene(); 
         
-        // ✨ CHANGED: DeveloperBar is now a BuildBar
         this.devBar = new DeveloperBar(this.handleBuildModeToggle.bind(this));
         
         this.cameraController = new CameraController(this.renderer.domElement, this.camera);
-        // ✨ CHANGED: Pass 'this' (the game instance) to the player controller
         this.playerController = new PlayerController(this.renderer.domElement, this.camera, this.landscape, this.player, this);
         
         this.camera.setTarget(this.player.mesh);
         window.addEventListener('resize', this.handleResize.bind(this));
-        // Add listener for preview rock movement
         window.addEventListener('pointermove', this.onPointerMove.bind(this));
         this.debugger.log('Game initialized successfully.');
     }
@@ -55,7 +51,7 @@ export default class Game {
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.shadowMap.type = THREE.PCFSoftSoftShadowMap;
         document.body.appendChild(this.renderer.domElement);
     }
     
@@ -64,23 +60,18 @@ export default class Game {
         this.sky = new Sky(this.scene, this.lighting);
         this.landscape = new Landscape(this.scene, this.lighting);
         this.scene.add(this.landscape.mesh);
-        
-        // Remove the single default rock
     }
     
-    // ✨ ADDED: Handler for pointer movement to update the preview rock
     onPointerMove(event) {
         this.pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
         this.pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
     }
 
-    // ✨ ADDED: Central logic for enabling/disabling build mode
     handleBuildModeToggle(mode, rockName = null) {
         if (mode === 'enter' && rockName) {
             this.buildMode.active = true;
             this.buildMode.selectedRockConfig = rockPresets[rockName];
             
-            // Create or update the preview rock
             if (this.previewRock) this.scene.remove(this.previewRock);
             this.previewRock = createProceduralRock(this.buildMode.selectedRockConfig);
             this.previewRock.material.transparent = true;
@@ -102,13 +93,11 @@ export default class Game {
         }
     }
     
-    // ✨ ADDED: Logic to place a new rock in the world
     placeRock(position) {
         if (!this.buildMode.active) return;
         
         const newRock = createProceduralRock(this.buildMode.selectedRockConfig);
         
-        // Snap to grid
         const gridX = Math.round(position.x);
         const gridZ = Math.round(position.z);
         
@@ -123,7 +112,6 @@ export default class Game {
         this.placedRocks.push(newRock);
     }
     
-    // ✨ ADDED: Logic to update the preview rock's position
     updatePreviewRock() {
         if (!this.buildMode.active || !this.previewRock) return;
 
@@ -153,7 +141,6 @@ export default class Game {
         const deltaTime = this.clock.getDelta();
         this.camera.update();
 
-        // If in build mode, pause player and update preview rock
         if (this.buildMode.active) {
             this.updatePreviewRock();
         } else {
