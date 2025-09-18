@@ -21,22 +21,25 @@ export default class Game {
         this.scene = new THREE.Scene();
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         
-        // ✨ CHANGED: setupInitialScene must run first to create the landscape
         this.setupInitialScene(); 
         
-        // ✨ CHANGED: Pass the landscape to the player for terrain following
         this.player = new Player(this.scene, this.landscape);
         this.camera = new Camera();
         
         this.buildMode = {
             active: false,
             selectedRockConfig: null,
+            selectedRockName: null, // ✨ ADDED: Track the name of the selected rock
         };
-        this.placedRocks = [];
+        this.placedRocks = []; // ✨ CHANGED: Will now store { type, mesh }
         
         this.setupRenderer();
         
-        this.devBar = new DeveloperBar(this.handleBuildModeToggle.bind(this));
+        // ✨ CHANGED: Pass the new copyLayout function to the developer bar
+        this.devBar = new DeveloperBar(
+            this.handleBuildModeToggle.bind(this),
+            this.copyLayout.bind(this)
+        );
         
         this.cameraController = new CameraController(this.renderer.domElement, this.camera);
         this.playerController = new PlayerController(this.renderer.domElement, this, this.camera, this.player, this.landscape);
@@ -65,9 +68,11 @@ export default class Game {
         if (mode === 'enter' && rockName) {
             this.buildMode.active = true;
             this.buildMode.selectedRockConfig = rockPresets[rockName];
+            this.buildMode.selectedRockName = rockName; // ✨ ADDED: Store the selected rock name
         } else if (mode === 'exit') {
             this.buildMode.active = false;
             this.buildMode.selectedRockConfig = null;
+            this.buildMode.selectedRockName = null;
         }
     }
     
@@ -80,11 +85,43 @@ export default class Game {
         const gridX = Math.round(position.x);
         const gridZ = Math.round(position.z);
         
-        newRock.position.set(gridX, position.y, gridZ); // Place rock at the correct terrain height
+        newRock.position.set(gridX, position.y, gridZ);
         newRock.scale.set(config.scaleX, config.scaleY, config.scaleZ);
 
         this.scene.add(newRock);
-        this.placedRocks.push(newRock);
+        
+        // ✨ CHANGED: Store the rock's type along with its mesh object
+        this.placedRocks.push({
+            type: this.buildMode.selectedRockName,
+            mesh: newRock
+        });
+    }
+
+    // ✨ ADDED: New function to generate and copy the layout data
+    copyLayout() {
+        if (this.placedRocks.length === 0) {
+            this.debugger.log('No rocks to copy.');
+            return;
+        }
+
+        const layoutData = this.placedRocks.map(rockData => {
+            return {
+                type: rockData.type,
+                position: {
+                    x: rockData.mesh.position.x,
+                    y: rockData.mesh.position.y,
+                    z: rockData.mesh.position.z,
+                }
+            };
+        });
+
+        const layoutString = `const permanentRocks = ${JSON.stringify(layoutData, null, 4)};`;
+        navigator.clipboard.writeText(layoutString).then(() => {
+            this.debugger.log('Rock layout copied to clipboard!');
+        }).catch(err => {
+            this.debugger.error('Failed to copy layout.');
+            console.error(err);
+        });
     }
     
     handleResize() {
