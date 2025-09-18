@@ -3,8 +3,8 @@ import * as THREE from 'three';
 import Landscape from '../world/Landscape.js';
 import Player from '../entities/Player.js';
 import Camera from '../entities/Camera.js';
-import CameraController from './CameraController.js';
-import PlayerController from './PlayerController.js';
+import CameraController from './CameraController.js'; // ✨ RESTORED
+import PlayerController from './PlayerController.js'; // ✨ RESTORED
 import Debugger from '../ui/Debugger.js';
 import Sky from '../world/Sky.js';
 import Lighting from '../world/Lighting.js';
@@ -24,7 +24,7 @@ export default class Game {
         this.player = new Player(this.scene);
         this.camera = new Camera();
         
-        // ✨ CHANGED: Simplified build mode state. No preview rock.
+        // Simplified build mode state
         this.buildMode = {
             active: false,
             selectedRockConfig: null,
@@ -36,8 +36,9 @@ export default class Game {
         
         this.devBar = new DeveloperBar(this.handleBuildModeToggle.bind(this));
         
+        // ✨ RESTORED: Instantiate the two separate controllers as originally intended.
         this.cameraController = new CameraController(this.renderer.domElement, this.camera);
-        this.playerController = new PlayerController(this.renderer.domElement, this.camera, this.landscape, this.player, this);
+        this.playerController = new PlayerController(this.renderer.domElement, this, this.camera, this.player, this.landscape);
         
         this.camera.setTarget(this.player.mesh);
         window.addEventListener('resize', this.handleResize.bind(this));
@@ -60,7 +61,7 @@ export default class Game {
         this.scene.add(this.landscape.mesh);
     }
     
-    // ✨ CHANGED: Simplified the build mode toggle. It no longer creates a preview rock.
+    // ✨ FIX: Simplified build mode toggle to ONLY handle game state.
     handleBuildModeToggle(mode, rockName = null) {
         if (mode === 'enter' && rockName) {
             this.buildMode.active = true;
@@ -74,7 +75,6 @@ export default class Game {
     placeRock(position) {
         if (!this.buildMode.active) return;
         
-        // Use a random seed for each new rock to ensure variety
         const config = { ...this.buildMode.selectedRockConfig, seed: Math.random() };
         const newRock = createProceduralRock(config);
         
@@ -82,11 +82,7 @@ export default class Game {
         const gridZ = Math.round(position.z);
         
         newRock.position.set(gridX, 0, gridZ);
-        newRock.scale.set(
-            config.scaleX,
-            config.scaleY,
-            config.scaleZ
-        );
+        newRock.scale.set(config.scaleX, config.scaleY, config.scaleZ);
 
         this.scene.add(newRock);
         this.placedRocks.push(newRock);
@@ -106,8 +102,7 @@ export default class Game {
         const deltaTime = this.clock.getDelta();
         this.camera.update();
 
-        // ✨ FIX: If build mode is active, player movement is paused. Otherwise, it runs.
-        // This correctly restores the touch-to-move mechanic.
+        // If build mode is NOT active, update the player. This pauses movement correctly.
         if (!this.buildMode.active) {
             this.player.update(deltaTime);
         }
