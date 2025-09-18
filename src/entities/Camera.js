@@ -5,7 +5,6 @@ export default class Camera {
     constructor() {
         this.target = null;
         
-        // ✨ CHANGED: Increased the camera's far view distance from 2000 to 5000
         this.threeCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
 
         // State (controlled by InputController)
@@ -14,10 +13,9 @@ export default class Camera {
 
         // Config
         this.minDistance = 5;
-        this.maxDistance = 15; // Increased max zoom out distance
-        this.minHeight = 2;
-        this.maxHeight = 5; // Increased max height
-        this.smoothing = 0.05; // Lower is smoother
+        this.maxDistance = 15;
+        this.cameraHeight = 5; // ✨ ADD THIS: Set a fixed height for the camera
+        this.smoothing = 0.05;
     }
 
     setTarget(target) {
@@ -30,7 +28,9 @@ export default class Camera {
 
         // Calculate the ideal camera position based on state
         const distance = this.minDistance + this.zoomLevel * (this.maxDistance - this.minDistance);
-        const height = this.minHeight + this.zoomLevel * (this.maxHeight - this.minHeight);
+        
+        // ✨ CHANGE THIS: Use the fixed cameraHeight property directly
+        const height = this.cameraHeight; 
 
         const targetPosition = this.target.position;
         const idealPosition = new THREE.Vector3();
