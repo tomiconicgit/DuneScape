@@ -1,48 +1,41 @@
 // File: src/world/assets/rock.js
 import * as THREE from 'three';
 
-// A small JS library to mimic GLSL vector math for porting the SDF
-const GLSL = {
-    vec3: (x, y, z) => new THREE.Vector3(x, y, z),
-    add: (a, b) => a.clone().add(b),
-    sub: (a, b) => a.clone().sub(b),
-    mul: (a, s) => a.clone().multiplyScalar(s),
-    div: (a, s) => a.clone().divideScalar(s),
-    abs: (a) => new THREE.Vector3(Math.abs(a.x), Math.abs(a.y), Math.abs(a.z)),
-    min: (a, b) => Math.min(a, b),
-    max: (a, b) => Math.max(a, b),
-    clamp: (v, min, max) => Math.max(min, Math.min(max, v)),
-    fract: (n) => n - Math.floor(n),
-    hash11: (p) => GLSL.fract(Math.sin(p * 727.1) * 435.545),
-    noise_3: (p) => {
-        const i = new THREE.Vector3(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z));
-        const f = p.clone().sub(i);
-        const u = f.clone().multiply(f).multiply(GLSL.sub(GLSL.vec3(3,3,3), GLSL.mul(f, 2.0)));
-        const a = GLSL.hash11(i.x + i.y * 157.0 + 113.0 * i.z);
-        const b = GLSL.hash11(i.x + 1.0 + i.y * 157.0 + 113.0 * i.z);
-        const c = GLSL.hash11(i.x + i.y * 157.0 + 113.0 * i.z + 1.0);
-        const d = GLSL.hash11(i.x + 1.0 + i.y * 157.0 + 113.0 * i.z + 1.0);
-        return THREE.MathUtils.lerp(THREE.MathUtils.lerp(a, b, u.x), THREE.MathUtils.lerp(c, d, u.x), u.z);
-    },
-    fbm: (p, octaves) => {
-        let a = 0.0;
-        let v = 0.5;
-        for (let i = 0; i < octaves; i++) {
-            a += GLSL.noise_3(p) * v;
-            p.multiplyScalar(2.0);
-            v *= 0.5;
-        }
-        return a;
+// ✨ FIX: Reverted to a more stable and performant Simplex Noise for geometry deformation.
+// The complex SDF port was unstable and causing rendering failures.
+class SimplexNoise {
+  constructor(seed = 0) {
+    this.p = new Uint8Array(512);
+    for (let i = 0; i < 256; i++) this.p[i] = i;
+    for (let i = 0; i < 256; i++) {
+      const r = i + Math.floor(Math.sin(seed + i) * 128 + 128) % (256 - i);
+      [this.p[i], this.p[r]] = [this.p[r], this.p[i]];
     }
-};
+    for (let i = 0; i < 256; i++) this.p[i + 256] = this.p[i];
+  }
 
-// Ported SDF (Signed Distance Function) from the "Wet stone" shader
-function map(p, displacement) {
-    let d = p.length() - 1.0;
-    d += GLSL.fbm(GLSL.add(p, GLSL.vec3(0, 0, 0)), 5) * displacement;
-    return d;
+  noise3D(x, y, z) {
+    const X = Math.floor(x) & 255, Y = Math.floor(y) & 255, Z = Math.floor(z) & 255;
+    x -= Math.floor(x); y -= Math.floor(y); z -= Math.floor(z);
+    const u = this.fade(x), v = this.fade(y), w = this.fade(z);
+    const A = this.p[X] + Y, AA = this.p[A] + Z, AB = this.p[A + 1] + Z,
+          B = this.p[X + 1] + Y, BA = this.p[B] + Z, BB = this.p[B + 1] + Z;
+    return this.lerp(w, this.lerp(v, this.lerp(u, this.grad(this.p[AA], x, y, z), this.grad(this.p[BA], x - 1, y, z)),
+                                     this.lerp(u, this.grad(this.p[AB], x, y - 1, z), this.grad(this.p[BB], x - 1, y - 1, z))),
+                       this.lerp(v, this.lerp(u, this.grad(this.p[AA + 1], x, y, z - 1), this.grad(this.p[BA + 1], x - 1, y, z - 1)),
+                                     this.lerp(u, this.grad(this.p[AB + 1], x, y - 1, z - 1), this.grad(this.p[BB + 1], x - 1, y - 1, z - 1))));
+  }
+
+  fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+  lerp(t, a, b) { return a + t * (b - a); }
+  grad(hash, x, y, z) {
+    const h = hash & 15;
+    const u = h < 8 ? x : y, v = h < 4 ? y : h === 12 || h === 14 ? x : z;
+    return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
+  }
 }
 
+// Kept the advanced GLSL shader for the "Wet stone" visual style
 const rockShader = {
     shader: `
     varying vec3 vWorldPosition;
@@ -102,18 +95,26 @@ export function createProceduralRock({
   lightIntensity = 0.25,
   metalness = 0.1,
 } = {}) {
-  // ✨ FIX: Drastically reduced segment count to prevent browser freezing on startup.
+  
   const geometry = new THREE.SphereGeometry(radius, detail * 8, detail * 4);
   geometry.deleteAttribute('uv');
   
   const position = geometry.attributes.position;
-  const normal = geometry.attributes.normal;
+  const deformNoise = new SimplexNoise(seed);
 
+  // Apply FBM noise displacement for a detailed and stable shape
   for (let i = 0; i < position.count; i++) {
     const p = new THREE.Vector3().fromBufferAttribute(position, i);
-    const d = map(GLSL.div(p, radius), displacement);
-    const n = new THREE.Vector3().fromBufferAttribute(normal, i);
-    p.add(n.multiplyScalar(d * radius));
+    const n = p.clone().normalize();
+    let noiseValue = 0;
+    let frequency = 1.5;
+    let amplitude = 0.5;
+    for(let j = 0; j < 5; j++) {
+        noiseValue += deformNoise.noise3D(p.x * frequency, p.y * frequency, p.z * frequency) * amplitude;
+        frequency *= 2.0;
+        amplitude *= 0.5;
+    }
+    p.add(n.multiplyScalar(noiseValue * displacement * radius));
     position.setXYZ(i, p.x, p.y, p.z);
   }
 
@@ -155,22 +156,19 @@ export function createProceduralRock({
       `#include <color_fragment>`,
       `#include <color_fragment>
       
-      // Base colors from the original shader
       vec3 orange = vec3(1.0, 0.67, 0.43);
       vec3 blue = vec3(0.54, 0.77, 1.0);
       
-      // Calculate AO and corner highlights
       float ao = calcAO(vWorldPosition * 0.2, vObjectNormal);
       float corner = pow(clamp(dot(vObjectNormal, vec3(0.0, 1.0, 0.0)), 0.0, 1.0), uCornerParam.y) * uCornerParam.x;
       
-      // ✨ FIX: Simplified lighting model.
-      // We now provide a base texture, and let Three.js handle the actual lighting from scene lights.
       vec3 baseColor = mix(blue, orange, vObjectNormal.y * 0.5 + 0.5);
       
-      // Apply AO and highlights to the base material color
       vec3 finalColor = baseColor * ao * uLightIntensity + (corner * uLightIntensity);
 
-      diffuseColor.rgb *= finalColor; // Multiply with existing color to blend with PBR material
+      // ✨ FIX: Changed from multiplication (*=) to assignment (=).
+      // This correctly sets the material's base color before lighting is applied, fixing the black screen issue.
+      diffuseColor.rgb = finalColor;
       `
     );
   };
