@@ -6,7 +6,7 @@ import Camera from '../entities/Camera.js';
 import InputController from './InputController.js';
 import Debugger from '../ui/Debugger.js';
 import Sky from '../world/Sky.js';
-import Lighting from '../world/Lighting.js'; // ✨ ADDED: Import the new Lighting class
+import Lighting from '../world/Lighting.js';
 
 export default class Game {
     constructor() {
@@ -19,10 +19,12 @@ export default class Game {
         
         this.player = new Player(this.scene);
         this.camera = new Camera();
-        this.input = new InputController(this.renderer.domElement, this.camera);
         
         this.setupRenderer();
-        this.setupInitialScene();
+        this.setupInitialScene(); // Must be before InputController to create landscape
+
+        // ✨ CHANGED: Pass landscape and player to the input controller
+        this.input = new InputController(this.renderer.domElement, this.camera, this.landscape, this.player);
 
         this.camera.setTarget(this.player.mesh);
 
@@ -39,15 +41,8 @@ export default class Game {
     }
     
     setupInitialScene() {
-        // ✨ REPLACED: The entire scene setup is now modular.
-        
-        // 1. Set up the lighting system
         this.lighting = new Lighting(this.scene);
-
-        // 2. Set up the sky, which uses the lighting info
         this.sky = new Sky(this.scene, this.lighting);
-
-        // 3. Set up the landscape, which also uses lighting info
         this.landscape = new Landscape(this.scene, this.lighting);
         this.scene.add(this.landscape.mesh);
     }
@@ -64,8 +59,12 @@ export default class Game {
     animate() {
         requestAnimationFrame(this.animate.bind(this));
         
-        // ✨ UPDATED: Removed update calls for static landscape and sky
+        const deltaTime = this.clock.getDelta();
+
         this.camera.update();
+        
+        // ✨ ADDED: Update the player's movement each frame
+        this.player.update(deltaTime);
         
         this.renderer.render(this.scene, this.camera.threeCamera);
     }
