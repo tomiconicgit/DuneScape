@@ -23,16 +23,15 @@ export default class Game {
         this.player = new Player(this.scene);
         this.camera = new Camera();
         
-        // ✨ CHANGED: New config to match the default "Wet stone" shader parameters
+        // ✨ CHANGED: Simplified config for the new, more stable shader
         this.rock = null;
         this.rockConfig = {
             radius: 1.5,
             detail: 7,
             displacement: 0.4,
             seed: Math.random(),
-            aoParam: new THREE.Vector2(1.2, 3.5),
+            aoParam: new THREE.Vector2(0.8, 1.5), // Tuned AO defaults
             cornerParam: new THREE.Vector2(0.25, 40.0),
-            lightIntensity: 0.25,
             metalness: 0.1,
             scaleX: 1,
             scaleY: 1,
@@ -50,18 +49,25 @@ export default class Game {
     }
 
     setupRenderer() {
-        // ... (function remains the same)
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(this.renderer.domElement);
     }
     
     setupInitialScene() {
-        // ... (function remains the same)
+        this.lighting = new Lighting(this.scene);
+        this.sky = new Sky(this.scene, this.lighting);
+        this.landscape = new Landscape(this.scene, this.lighting);
+        this.scene.add(this.landscape.mesh);
+        this.updateRock(this.rockConfig, true);
     }
 
     updateRock(newConfig, forceRebuild = false) {
         const oldConfig = this.rockConfig;
         this.rockConfig = newConfig;
 
-        // ✨ CHANGED: Rebuild is now triggered by geometry-defining parameters
         const needsRebuild = forceRebuild ||
             oldConfig.detail !== newConfig.detail ||
             oldConfig.displacement !== newConfig.displacement;
@@ -76,13 +82,11 @@ export default class Game {
             this.rock.position.set(3, 0, 2);
             this.scene.add(this.rock);
         }
-
-        // ✨ CHANGED: Update shader uniforms and material properties efficiently
+        
         if (this.rock) {
             const uniforms = this.rock.material.userData.uniforms;
             uniforms.uAoParam.value.copy(this.rockConfig.aoParam);
             uniforms.uCornerParam.value.copy(this.rockConfig.cornerParam);
-            uniforms.uLightIntensity.value = this.rockConfig.lightIntensity;
             
             this.rock.material.metalness = this.rockConfig.metalness;
             this.rock.scale.set(this.rockConfig.scaleX, this.rockConfig.scaleY, this.rockConfig.scaleZ);
@@ -90,14 +94,22 @@ export default class Game {
     }
     
     handleResize() {
-        // ... (function remains the same)
+        this.camera.handleResize();
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
     }
 
     start() {
-        // ... (function remains the same)
+        this.animate();
     }
 
     animate() {
-        // ... (function remains the same)
+        requestAnimationFrame(this.animate.bind(this));
+        
+        const deltaTime = this.clock.getDelta();
+
+        this.camera.update();
+        this.player.update(deltaTime);
+        
+        this.renderer.render(this.scene, this.camera.threeCamera);
     }
 }
