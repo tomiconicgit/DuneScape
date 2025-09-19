@@ -105,6 +105,7 @@ export default class DeveloperBar {
       this.addRangeLive(sec, 'Radial Seg', 4, 48, 1, a.radialSeg, (v)=>{ a.radialSeg = Math.round(v); this.player.rebuildArms(); });
       this.addRangeLive(sec, 'Height Seg', 1, 12, 1, a.heightSeg, (v)=>{ a.heightSeg = Math.round(v); this.player.rebuildArms(); });
       this.addRangeLive(sec, 'Subdivision', 0, 3, 1, a.subdiv, (v)=>{ a.subdiv = Math.round(v); this.player.rebuildArms(); });
+      // ✨ FIX: Changed this.player.rebuildLegs() to this.player.rebuildArms()
       this.addRangeLive(sec, 'Thickness XZ', 0.6, 1.8, 0.01, a.thicknessXZ, (v)=>{ a.thicknessXZ = v; this.player.rebuildArms(); });
     });
 
