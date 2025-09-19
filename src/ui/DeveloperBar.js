@@ -37,16 +37,9 @@ export default class DeveloperBar {
                 padding: 5px 0 10px 10px;
                 border-left: 2px solid #444;
             }
-            .dev-panel input[type=range] {
-                width: 100%;
-            }
-            .dev-control {
-                margin: 5px 0;
-            }
-            .dev-control label {
-                display: block;
-                margin-bottom: 2px;
-            }
+            .dev-panel input[type=range] { width: 100%; }
+            .dev-control { margin: 5px 0; }
+            .dev-control label { display:block; margin-bottom:2px; }
         `;
         document.head.appendChild(style);
     }
@@ -56,7 +49,6 @@ export default class DeveloperBar {
         this.container.className = 'dev-panel';
         document.body.appendChild(this.container);
 
-        // === SECTIONS ===
         this.addSection("Body", [
             { name: "Torso Width", min: 0.5, max: 2, step: 0.01, target: this.player.rig.torsoMesh.scale, axis: "x" },
             { name: "Torso Height", min: 0.5, max: 2, step: 0.01, target: this.player.rig.torsoMesh.scale, axis: "y" },
@@ -82,7 +74,6 @@ export default class DeveloperBar {
             { name: "Breathing Strength", min: 0, max: 0.1, step: 0.001, onChange: (val)=> this.player.idleBreathAmp = val },
         ]);
 
-        // Expand/collapse behavior
         this.container.querySelectorAll("h3").forEach(header=>{
             header.addEventListener("click",()=>{
                 const section = header.nextElementSibling;
