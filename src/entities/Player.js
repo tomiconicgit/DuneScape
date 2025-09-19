@@ -1,6 +1,6 @@
 // File: src/entities/Player.js
 import * as THREE from 'three';
-import { SubdivisionModifier } from 'three/examples/jsm/modifiers/SubdivisionModifier.js';
+import { SubdivisionModifier } from 'three/addons/modifiers/SubdivisionModifier.js';
 
 const states = { IDLE: 'idle', WALKING: 'walking', MINING: 'mining' };
 
