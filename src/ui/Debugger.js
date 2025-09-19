@@ -31,7 +31,7 @@ export default class Debugger {
             display: 'flex',
             flexDirection: 'column',
             borderTop: '1px solid #444',
-            pointerEvents: 'none', // ✨ FIXED: Tell the container to ignore touch/click events.
+            pointerEvents: 'none',
         });
 
         Object.assign(this.logElement.style, {
@@ -41,7 +41,7 @@ export default class Debugger {
             flexGrow: '1',
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-all',
-            pointerEvents: 'auto', // ✨ FIXED: Re-enable events for the scrollable log area.
+            pointerEvents: 'auto',
         });
 
         Object.assign(this.copyButton.style, {
@@ -51,7 +51,7 @@ export default class Debugger {
             border: 'none',
             cursor: 'pointer',
             flexShrink: '0',
-            pointerEvents: 'auto', // ✨ FIXED: Re-enable events for the button.
+            pointerEvents: 'auto',
         });
         this.copyButton.innerText = 'Copy Log';
     }
@@ -93,29 +93,46 @@ export default class Debugger {
         this.logElement.scrollTop = this.logElement.scrollHeight;
     }
 
+    // ✨ FIXED: This entire method is rewritten to be more robust.
     overrideConsole() {
         const oldLog = console.log;
         const oldWarn = console.warn;
         const oldError = console.error;
 
+        const formatArg = (arg) => {
+            // If it's an error, use its stack trace for the most detail
+            if (arg instanceof Error) {
+                return arg.stack || arg.message;
+            }
+            // If it's a non-null object, try to stringify it safely
+            if (typeof arg === 'object' && arg !== null) {
+                try {
+                    return JSON.stringify(arg, null, 2); // Pretty-print JSON
+                } catch (e) {
+                    return '[Unserializable Object]'; // Fallback for cyclic structures
+                }
+            }
+            // Otherwise, return as is
+            return arg;
+        };
+
         console.log = (...args) => {
             oldLog.apply(console, args);
-            this.log(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' '));
+            this.log(args.map(formatArg).join(' '));
         };
         console.warn = (...args) => {
             oldWarn.apply(console, args);
-            this.warn(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' '));
+            this.warn(args.map(formatArg).join(' '));
         };
         console.error = (...args) => {
             oldError.apply(console, args);
-            this.error(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' '));
+            this.error(args.map(formatArg).join(' '));
         };
     }
 
     catchGlobalErrors() {
         window.onerror = (message, source, lineno, colno, error) => {
             this.error(`UNCAUGHT ERROR: ${message}\nSource: ${source}\nLine: ${lineno}, Col: ${colno}`);
-            // Prevent the default browser error handler
             return true;
         };
         
