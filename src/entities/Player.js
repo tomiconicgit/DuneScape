@@ -55,11 +55,11 @@ export default class Player {
 
         this.mixer = new THREE.AnimationMixer(this.mesh);
         
+        // ✨ FIXED: Updated to use your three animation files.
         const animationPaths = {
             idle: 'assets/animations/Idle.glb',
             walk: 'assets/animations/Walking.glb',
-            mine: 'assets/animations/HeavyWeaponSwing.glb',
-            sitting: 'assets/animations/SittingIdle.glb'
+            mine: 'assets/animations/HeavyWeaponSwing.glb'
         };
 
         const animationPromises = Object.values(animationPaths).map(path => loader.loadAsync(path));
@@ -70,7 +70,6 @@ export default class Player {
             const key = animationKeys[index];
             const clip = animGltf.animations[0];
             
-            // ✅ FIXED: Add a check to ensure the animation exists before using it.
             if (!clip) {
                 throw new Error(`Animation file for '${key}' (${animationPaths[key]}) contains no animations.`);
             }
@@ -98,8 +97,6 @@ export default class Player {
     }
   }
 
-  // (The rest of the file is unchanged and omitted for brevity)
-  
   playAction(name) {
     if (this.activeAction?.name === name || !this.actions[name]) return;
     const newAction = this.actions[name];
@@ -134,7 +131,7 @@ export default class Player {
             break;
     }
   }
-
+  
   showTapMarkerAt(position) {
     this.tapMarker.position.copy(position);
     this.tapMarker.position.y += 0.1;
