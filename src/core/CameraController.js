@@ -6,12 +6,9 @@ export default class CameraController {
         this.domElement = domElement;
         this.camera = camera;
 
-        // State for camera-specific touch gestures
         this.touchState = {
             isDragging: false,
-            isPinching: false,
             lastDragX: 0,
-            initialPinchDist: 0,
             startPos: new THREE.Vector2(),
         };
 
@@ -25,21 +22,17 @@ export default class CameraController {
     }
 
     onTouchStart(event) {
-        this.touchState.isDragging = false;
-        this.touchState.startPos.set(event.touches[0].clientX, event.touches[0].clientY);
-
         if (event.touches.length === 1) {
-            // Setup for a potential drag-to-orbit
+            this.touchState.isDragging = false;
+            this.touchState.startPos.set(event.touches[0].clientX, event.touches[0].clientY);
             this.touchState.lastDragX = event.touches[0].clientX;
-        } else if (event.touches.length === 2) {
-            // Setup for pinch-to-zoom
-            this.touchState.isPinching = true;
-            this.touchState.initialPinchDist = this.getPinchDistance(event.touches);
         }
     }
 
     onTouchMove(event) {
         event.preventDefault();
+        
+        if (event.touches.length !== 1) return;
 
         // Determine if a single touch has moved enough to be considered a drag
         const currentPos = new THREE.Vector2(event.touches[0].clientX, event.touches[0].clientY);
@@ -47,19 +40,8 @@ export default class CameraController {
             this.touchState.isDragging = true;
         }
 
-        // Handle Pinch to Zoom
-        if (event.touches.length === 2) {
-            this.touchState.isPinching = true;
-            const currentPinchDist = this.getPinchDistance(event.touches);
-            const delta = this.touchState.initialPinchDist - currentPinchDist;
-            
-            this.camera.zoomLevel += delta * 0.002;
-            this.camera.zoomLevel = Math.max(0, Math.min(1, this.camera.zoomLevel));
-            
-            this.touchState.initialPinchDist = currentPinchDist;
-
-        // Handle Drag to Orbit (only if not pinching)
-        } else if (this.touchState.isDragging && event.touches.length === 1) {
+        // Handle Drag to Orbit
+        if (this.touchState.isDragging) {
              const deltaX = event.touches[0].clientX - this.touchState.lastDragX;
              this.camera.orbitAngle -= deltaX * 0.01;
              this.touchState.lastDragX = event.touches[0].clientX;
@@ -67,14 +49,6 @@ export default class CameraController {
     }
     
     onTouchEnd(event) {
-        // Reset camera-specific states
         this.touchState.isDragging = false;
-        this.touchState.isPinching = false;
-    }
-
-    getPinchDistance(touches) {
-        const dx = touches[0].clientX - touches[1].clientX;
-        const dy = touches[0].clientY - touches[1].clientY;
-        return Math.sqrt(dx * dx + dy * dy);
     }
 }
