@@ -60,12 +60,11 @@ export default class PlayerController {
         let landscapeIntersection = null;
 
         for (const intersect of intersects) {
-            // If we hit a mineable rock, that takes priority.
             if (intersect.object.userData.isMineable) {
+                this.player.setHighlightedObject(intersect.object); // ✨ ADDED
                 this.player.startMining(intersect.object);
-                return; // Action taken, stop processing
+                return; 
             }
-            // If we hit the landscape, store it but keep looking for rocks closer to the camera.
             if (this.landscape.mesh.children.includes(intersect.object)) {
                 if (!landscapeIntersection) {
                     landscapeIntersection = intersect;
@@ -73,8 +72,9 @@ export default class PlayerController {
             }
         }
 
-        // If we found a landscape intersection and no rocks were clicked, handle movement.
         if (landscapeIntersection) {
+            this.player.setHighlightedObject(null); // ✨ ADDED
+            this.player.showTapMarkerAt(landscapeIntersection.point); // ✨ ADDED
             this.player.cancelActions();
             this.player.moveTo(landscapeIntersection.point);
         }
