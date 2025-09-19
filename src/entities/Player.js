@@ -23,7 +23,7 @@ export default class Player {
     // Mining
     this.miningTarget = null;
     this.miningTimer = 0;
-    this.miningDuration = 4.0; // Corresponds to swinging animation
+    this.miningDuration = 2.0; // Default, will be updated from animation clip
     
     // Tap Marker and Highlight management
     const markerGeo = new THREE.RingGeometry(0, 0.5, 32);
@@ -39,59 +39,68 @@ export default class Player {
   async loadModel() {
     const loader = new GLTFLoader();
     
-    // Optional: DRACOLoader for compressed models
+    // Set up DracoLoader for compressed models
     const dracoLoader = new DRACOLoader();
     dracoLoader.setDecoderPath('https://unpkg.com/three@0.158.0/examples/jsm/libs/draco/');
     loader.setDRACOLoader(dracoLoader);
 
     try {
-        const gltf = await loader.loadAsync('src/entities/modelgame.glb');
+        // --- 1. Load the main character model ---
+        const gltf = await loader.loadAsync('src/entities/Arissa.glb');
         this.mesh = gltf.scene;
-        this.mesh.position.set(50, 0, 102); // Set initial position
+        this.mesh.position.set(50, 0, 102);
         
-        // Scale and configure shadows
-        this.mesh.scale.set(0.8, 0.8, 0.8); // Adjust scale if needed
+        // Adjust scale and configure shadows
+        this.mesh.scale.set(1.0, 1.0, 1.0); // ✨ Adjust scale for Arissa if needed
         this.mesh.traverse(child => {
             if (child.isMesh) {
                 child.castShadow = true;
                 child.layers.set(1);
             }
         });
+        this.scene.add(this.mesh);
 
-        // Set up animation mixer
+        // --- 2. Set up Animation Mixer ---
         this.mixer = new THREE.AnimationMixer(this.mesh);
         
-        // ✨ IMPORTANT: Match these names to your animation names in the GLB file!
-        const animationMap = {
-            idle: 'Idle_Loop',
-            walk: 'Walk_Loop',
-            mine: 'Swinging_Hammer'
+        // --- 3. Load all animation files in parallel ---
+        const animationPaths = {
+            idle: 'src/entities/animations/Idle.glb',
+            walk: 'src/entities/animations/Walking.glb',
+            mine: 'src/entities/animations/HeavyWeaponSwing.glb',
+            sitting: 'src/entities/animations/SittingIdle.glb'
         };
 
-        gltf.animations.forEach(clip => {
-            for (const key in animationMap) {
-                if (clip.name === animationMap[key]) {
-                    const action = this.mixer.clipAction(clip);
-                    if (key === 'mine') {
-                        action.setLoop(THREE.LoopOnce); // Play once
-                        action.clampWhenFinished = true;
-                    } else {
-                        action.setLoop(THREE.LoopRepeat);
-                    }
-                    this.actions[key] = action;
-                }
+        const animationPromises = Object.values(animationPaths).map(path => loader.loadAsync(path));
+        const animationGltfs = await Promise.all(animationPromises);
+        
+        const animationKeys = Object.keys(animationPaths);
+        animationGltfs.forEach((animGltf, index) => {
+            const key = animationKeys[index];
+            const clip = animGltf.animations[0]; // Assuming one animation per file
+            
+            const action = this.mixer.clipAction(clip);
+            
+            if (key === 'mine') {
+                action.setLoop(THREE.LoopOnce);
+                action.clampWhenFinished = true;
+                // Get the real duration from the animation clip
+                this.miningDuration = clip.duration;
+            } else {
+                action.setLoop(THREE.LoopRepeat);
             }
+            this.actions[key] = action;
         });
 
         console.log("Player model and animations loaded.", this.actions);
-        this.scene.add(this.mesh);
         
-        // Start in IDLE state
+        // --- 4. Start in IDLE state ---
         this.activeAction = this.actions.idle;
         this.activeAction.play();
 
     } catch (error) {
-        console.error("Failed to load player model:", error);
+        console.error("Failed to load player model or animations:", error);
+        throw error;
     }
   }
 
@@ -102,13 +111,13 @@ export default class Player {
     this.activeAction = newAction;
 
     if (oldAction) {
-        oldAction.fadeOut(0.2);
+        oldAction.fadeOut(0.3);
     }
     
     newAction.reset();
     newAction.setEffectiveTimeScale(1);
     newAction.setEffectiveWeight(1);
-    newAction.fadeIn(0.2);
+    newAction.fadeIn(0.3);
     newAction.play();
   }
 
@@ -129,6 +138,8 @@ export default class Player {
             break;
     }
   }
+
+  // (The rest of the file remains the same, so it is omitted for brevity)
 
   showTapMarkerAt(position) {
     this.tapMarker.position.copy(position);
@@ -238,7 +249,6 @@ export default class Player {
     }
   }
   
-  // (calculatePath remains the same, so it is omitted for brevity)
   calculatePath(startX, startZ, endX, endZ) {
     const grid = this.game.grid;
     if (!grid) return [];
