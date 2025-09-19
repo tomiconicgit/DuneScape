@@ -15,7 +15,8 @@ export default class Player {
 
     this.rig = {};
     this.mesh = this.createCharacterRig();
-    this.mesh.position.set(50, 0.9, 102);
+
+    this.mesh.position.set(50, 0.9, 102); // world position
     scene.add(this.mesh);
 
     this.path = [];
@@ -27,165 +28,239 @@ export default class Player {
     this.miningTimer = 0;
     this.miningDuration = 4.0;
 
-    // --- marker + path line (debug) ---
-    const markerGeo = new THREE.BufferGeometry();
-    markerGeo.setFromPoints([
-      new THREE.Vector3(-0.5, 0, -0.5),
-      new THREE.Vector3(0.5, 0, 0.5),
-      new THREE.Vector3(0.5, 0, -0.5),
-      new THREE.Vector3(-0.5, 0, 0.5)
-    ]);
-    this.marker = new THREE.LineSegments(
-      markerGeo,
-      new THREE.LineBasicMaterial({ color: 0xff0000 })
-    );
+    // Marker & path visuals (unchanged)
+    const xMarkerGeo = new THREE.BufferGeometry();
+    const markerSize = 0.75;
+    const xMarkerPoints = [
+      new THREE.Vector3(-markerSize, 0, -markerSize), new THREE.Vector3(markerSize, 0, markerSize),
+      new THREE.Vector3(markerSize, 0, -markerSize), new THREE.Vector3(-markerSize, 0, markerSize)
+    ];
+    xMarkerGeo.setFromPoints(xMarkerPoints);
+    const xMarkerMat = new THREE.LineBasicMaterial({ color: 0xff0000 });
+    this.marker = new THREE.LineSegments(xMarkerGeo, xMarkerMat);
     this.marker.visible = false;
     scene.add(this.marker);
 
-    const pathGeo = new THREE.BufferGeometry();
-    pathGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
-    this.pathLine = new THREE.Line(
-      pathGeo,
-      new THREE.LineDashedMaterial({ color: 0xff0000, dashSize: 0.2, gapSize: 0.1 })
-    );
+    const pathLineGeo = new THREE.BufferGeometry();
+    pathLineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(2 * 3), 3));
+    const pathLineMat = new THREE.LineDashedMaterial({ color: 0xff0000, dashSize: 0.2, gapSize: 0.1 });
+    this.pathLine = new THREE.Line(pathLineGeo, pathLineMat);
     this.pathLine.visible = false;
     scene.add(this.pathLine);
   }
 
-  // --- utility: limb builder with skinning ---
-  createSkinnedLimb(boneChain, length = 1.0, radius = 0.15, color = 0x666688) {
-    const geometry = new THREE.CylinderGeometry(radius, radius, length, 8, 16);
-    geometry.translate(0, -length / 2, 0);
-
-    const skinIndices = [];
-    const skinWeights = [];
-    const posAttr = geometry.attributes.position;
-
-    for (let i = 0; i < posAttr.count; i++) {
-      const y = posAttr.getY(i);
-      if (y > -length * 0.25) {
-        skinIndices.push(0, 1, 0, 0);
-        skinWeights.push(0.6, 0.4, 0, 0);
-      } else if (y > -length * 0.75) {
-        skinIndices.push(1, 2, 0, 0);
-        skinWeights.push(0.6, 0.4, 0, 0);
-      } else {
-        skinIndices.push(1, 2, 0, 0);
-        skinWeights.push(0.2, 0.8, 0, 0);
-      }
-    }
-
-    geometry.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndices, 4));
-    geometry.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeights, 4));
-
-    const material = new THREE.MeshStandardMaterial({ color, skinning: true });
-    const skinnedMesh = new THREE.SkinnedMesh(geometry, material);
-    const skeleton = new THREE.Skeleton(boneChain);
-    skinnedMesh.add(boneChain[0]);
-    skinnedMesh.bind(skeleton);
-    skinnedMesh.userData.skeleton = skeleton;
-    return skinnedMesh;
-  }
-
-  // --- character rig ---
+  // --- Build a Mixamo-like bone hierarchy and attach simple geometry to bones ---
   createCharacterRig() {
     const root = new THREE.Group();
+    root.name = 'playerRoot';
 
-    // bones
-    const hips = new THREE.Bone(); hips.position.y = 0.9;
-    const spine = new THREE.Bone(); spine.position.y = 0.25;
-    const spine1 = new THREE.Bone(); spine1.position.y = 0.25;
-    const spine2 = new THREE.Bone(); spine2.position.y = 0.25;
-    const neck = new THREE.Bone(); neck.position.y = 0.18;
-    const head = new THREE.Bone(); head.position.y = 0.2;
+    // simple material
+    const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x666688, roughness: 0.8, metalness: 0.1 });
 
-    hips.add(spine); spine.add(spine1); spine1.add(spine2); spine2.add(neck); neck.add(head);
+    // helper to create bones with names matching Mixamo convention
+    const makeBone = (name, pos = new THREE.Vector3()) => {
+      const b = new THREE.Bone();
+      b.name = name;
+      b.position.copy(pos);
+      return b;
+    };
 
-    const leftShoulder = new THREE.Bone(); leftShoulder.position.set(0.35, 0.18, 0);
-    const leftArm = new THREE.Bone(); leftArm.position.set(0, -0.18, 0);
-    const leftForeArm = new THREE.Bone(); leftForeArm.position.set(0, -0.28, 0);
-    const leftHand = new THREE.Bone(); leftHand.position.set(0, -0.16, 0);
-    spine2.add(leftShoulder); leftShoulder.add(leftArm); leftArm.add(leftForeArm); leftForeArm.add(leftHand);
+    // HIPS (root of skeleton)
+    const hips = makeBone('mixamorig1Hips', new THREE.Vector3(0, 0.75, 0));
+    root.add(hips);
+    this.rig.hips = hips;
 
-    const rightShoulder = new THREE.Bone(); rightShoulder.position.set(-0.35, 0.18, 0);
-    const rightArm = new THREE.Bone(); rightArm.position.set(0, -0.18, 0);
-    const rightForeArm = new THREE.Bone(); rightForeArm.position.set(0, -0.28, 0);
-    const rightHand = new THREE.Bone(); rightHand.position.set(0, -0.16, 0);
-    spine2.add(rightShoulder); rightShoulder.add(rightArm); rightArm.add(rightForeArm); rightForeArm.add(rightHand);
+    // SPINE chain
+    const spine = makeBone('mixamorig1Spine', new THREE.Vector3(0, 0.25, 0));
+    const spine1 = makeBone('mixamorig1Spine1', new THREE.Vector3(0, 0.25, 0));
+    const spine2 = makeBone('mixamorig1Spine2', new THREE.Vector3(0, 0.22, 0));
+    const neck = makeBone('mixamorig1Neck', new THREE.Vector3(0, 0.18, 0));
+    const head = makeBone('mixamorig1Head', new THREE.Vector3(0, 0.2, 0));
 
-    const leftUpLeg = new THREE.Bone(); leftUpLeg.position.set(0.22, -0.4, 0);
-    const leftLeg = new THREE.Bone(); leftLeg.position.y = -0.4;
-    const leftFoot = new THREE.Bone(); leftFoot.position.y = -0.2;
-    hips.add(leftUpLeg); leftUpLeg.add(leftLeg); leftLeg.add(leftFoot);
+    hips.add(spine);
+    spine.add(spine1);
+    spine1.add(spine2);
+    spine2.add(neck);
+    neck.add(head);
 
-    const rightUpLeg = new THREE.Bone(); rightUpLeg.position.set(-0.22, -0.4, 0);
-    const rightLeg = new THREE.Bone(); rightLeg.position.y = -0.4;
-    const rightFoot = new THREE.Bone(); rightFoot.position.y = -0.2;
-    hips.add(rightUpLeg); rightUpLeg.add(rightLeg); rightLeg.add(rightFoot);
+    this.rig.spine = spine;
+    this.rig.spine1 = spine1;
+    this.rig.spine2 = spine2;
+    this.rig.neck = neck;
+    this.rig.head = head;
 
-    // torso mesh
-    const torsoGeo = new THREE.BoxGeometry(0.8, 1.2, 0.5, 4, 4, 4);
-    torsoGeo.translate(0, 0.6, 0);
-    const torsoSI = [], torsoSW = [];
-    for (let i = 0; i < torsoGeo.attributes.position.count; i++) {
-      const y = torsoGeo.attributes.position.getY(i);
-      if (y < 0.6) { torsoSI.push(0,1,0,0); torsoSW.push(0.7,0.3,0,0); }
-      else { torsoSI.push(1,0,0,0); torsoSW.push(1,0,0,0); }
-    }
-    torsoGeo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(torsoSI, 4));
-    torsoGeo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(torsoSW, 4));
-    const torsoMat = new THREE.MeshStandardMaterial({ color: 0x777799, skinning: true });
-    const torsoMesh = new THREE.SkinnedMesh(torsoGeo, torsoMat);
-    torsoMesh.add(hips);
-    const torsoSkel = new THREE.Skeleton([hips, spine, spine1, spine2]);
-    torsoMesh.bind(torsoSkel);
-    torsoMesh.userData.skeleton = torsoSkel;
-    root.add(torsoMesh);
+    // LEFT ARM chain
+    const leftShoulder = makeBone('mixamorig1LeftShoulder', new THREE.Vector3(0.35, 0.18, 0));
+    const leftArm = makeBone('mixamorig1LeftArm', new THREE.Vector3(0, -0.18, 0));
+    const leftForeArm = makeBone('mixamorig1LeftForeArm', new THREE.Vector3(0, -0.28, 0));
+    const leftHand = makeBone('mixamorig1LeftHand', new THREE.Vector3(0, -0.16, 0));
 
-    // limbs
-    root.add(this.createSkinnedLimb([leftArm, leftForeArm, leftHand], 0.7, 0.1, 0x88aaee));
-    root.add(this.createSkinnedLimb([rightArm, rightForeArm, rightHand], 0.7, 0.1, 0x88aaee));
-    root.add(this.createSkinnedLimb([leftUpLeg, leftLeg, leftFoot], 1.0, 0.12, 0xaa8866));
-    root.add(this.createSkinnedLimb([rightUpLeg, rightLeg, rightFoot], 1.0, 0.12, 0xaa8866));
+    spine2.add(leftShoulder);
+    leftShoulder.add(leftArm);
+    leftArm.add(leftForeArm);
+    leftForeArm.add(leftHand);
 
-    // head
-    const headGeo = new THREE.SphereGeometry(0.25, 16, 16);
-    const hSI = [], hSW = [];
-    for (let i = 0; i < headGeo.attributes.position.count; i++) {
-      hSI.push(1,0,0,0); hSW.push(1,0,0,0);
-    }
-    headGeo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(hSI, 4));
-    headGeo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(hSW, 4));
-    const headMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, skinning: true });
-    const headMesh = new THREE.SkinnedMesh(headGeo, headMat);
-    headMesh.add(neck);
-    const headSkel = new THREE.Skeleton([neck, head]);
-    headMesh.bind(headSkel);
-    headMesh.userData.skeleton = headSkel;
-    root.add(headMesh);
+    this.rig.leftShoulder = leftShoulder;
+    this.rig.leftArm = leftArm;
+    this.rig.leftForeArm = leftForeArm;
+    this.rig.leftHand = leftHand;
 
-    // expose rig
-    this.rig = { hips, spine, spine1, spine2, neck, head,
-      leftShoulder, leftArm, leftForeArm, leftHand,
-      rightShoulder, rightArm, rightForeArm, rightHand,
-      leftUpLeg, leftLeg, leftFoot,
-      rightUpLeg, rightLeg, rightFoot };
+    // RIGHT ARM chain
+    const rightShoulder = makeBone('mixamorig1RightShoulder', new THREE.Vector3(-0.35, 0.18, 0));
+    const rightArm = makeBone('mixamorig1RightArm', new THREE.Vector3(0, -0.18, 0));
+    const rightForeArm = makeBone('mixamorig1RightForeArm', new THREE.Vector3(0, -0.28, 0));
+    const rightHand = makeBone('mixamorig1RightHand', new THREE.Vector3(0, -0.16, 0));
+
+    spine2.add(rightShoulder);
+    rightShoulder.add(rightArm);
+    rightArm.add(rightForeArm);
+    rightForeArm.add(rightHand);
+
+    this.rig.rightShoulder = rightShoulder;
+    this.rig.rightArm = rightArm;
+    this.rig.rightForeArm = rightForeArm;
+    this.rig.rightHand = rightHand;
+
+    // LEFT LEG chain
+    const leftUpLeg = makeBone('mixamorig1LeftUpLeg', new THREE.Vector3(0.22, -0.4, 0));
+    const leftLeg = makeBone('mixamorig1LeftLeg', new THREE.Vector3(0, -0.36, 0));
+    const leftFoot = makeBone('mixamorig1LeftFoot', new THREE.Vector3(0, -0.18, 0));
+
+    hips.add(leftUpLeg);
+    leftUpLeg.add(leftLeg);
+    leftLeg.add(leftFoot);
+
+    this.rig.leftUpLeg = leftUpLeg;
+    this.rig.leftLeg = leftLeg;
+    this.rig.leftFoot = leftFoot;
+
+    // RIGHT LEG chain
+    const rightUpLeg = makeBone('mixamorig1RightUpLeg', new THREE.Vector3(-0.22, -0.4, 0));
+    const rightLeg = makeBone('mixamorig1RightLeg', new THREE.Vector3(0, -0.36, 0));
+    const rightFoot = makeBone('mixamorig1RightFoot', new THREE.Vector3(0, -0.18, 0));
+
+    hips.add(rightUpLeg);
+    rightUpLeg.add(rightLeg);
+    rightLeg.add(rightFoot);
+
+    this.rig.rightUpLeg = rightUpLeg;
+    this.rig.rightLeg = rightLeg;
+    this.rig.rightFoot = rightFoot;
+
+    // Now attach simple geometry to bones (no vertex skinning) so visuals follow bones.
+    // Torso box is attached to spine2 to allow torso twists:
+    const torsoGeo = new THREE.BoxGeometry(1, 1.5, 0.6);
+    const torsoMesh = new THREE.Mesh(torsoGeo, bodyMaterial);
+    // position so the hips sit near the bottom of the torso mesh
+    torsoMesh.position.set(0, 0.75, 0);
+    // attach torso to hips and make spine offset via bones (we parent torso to hips but visually offset)
+    hips.add(torsoMesh);
+    this.rig.torsoMesh = torsoMesh;
+
+    // head geometry attached to head bone for natural head rotation:
+    const headGeo = new THREE.BoxGeometry(0.7, 0.7, 0.7);
+    const headMesh = new THREE.Mesh(headGeo, bodyMaterial);
+    headMesh.position.set(0, 0.2, 0); // head bone is at neck -> place mesh slightly above
+    head.add(headMesh);
+    this.rig.headMesh = headMesh;
+
+    // limbs: attach cylinders to arm/leg bones, offset them so rotation pivots are correct
+    const makeLimbMesh = (isArm = true) => {
+      const radius = isArm ? 0.15 : 0.18;
+      const length = isArm ? 0.55 : 0.65;
+      const upperGeo = new THREE.CylinderGeometry(radius, radius, length, 16);
+      const upper = new THREE.Mesh(upperGeo, bodyMaterial);
+      // align cylinder axis with bone: by default cylinder is along Y; pivot at top:
+      upper.geometry.translate(0, -length / 2, 0); // pivot at top of upper limb
+      return { mesh: upper, length };
+    };
+
+    // attach left arm visuals
+    const leftUpper = makeLimbMesh(true);
+    this.rig.leftArm.add(leftUpper.mesh);
+    leftUpper.mesh.position.set(0, 0, 0); // bone already offset
+
+    const leftLower = makeLimbMesh(true);
+    // attach lower to forearm bone and offset pivot
+    this.rig.leftForeArm.add(leftLower.mesh);
+    leftLower.mesh.position.set(0, 0, 0);
+
+    // attach right arm visuals
+    const rightUpper = makeLimbMesh(true);
+    this.rig.rightArm.add(rightUpper.mesh);
+    rightUpper.mesh.position.set(0, 0, 0);
+
+    const rightLower = makeLimbMesh(true);
+    this.rig.rightForeArm.add(rightLower.mesh);
+    rightLower.mesh.position.set(0, 0, 0);
+
+    // legs visuals
+    const leftUpperLeg = makeLimbMesh(false);
+    this.rig.leftUpLeg.add(leftUpperLeg.mesh);
+    leftUpperLeg.mesh.position.set(0, 0, 0);
+
+    const leftLowerLeg = makeLimbMesh(false);
+    this.rig.leftLeg.add(leftLowerLeg.mesh);
+    leftLowerLeg.mesh.position.set(0, 0, 0);
+
+    const rightUpperLeg = makeLimbMesh(false);
+    this.rig.rightUpLeg.add(rightUpperLeg.mesh);
+    rightUpperLeg.mesh.position.set(0, 0, 0);
+
+    const rightLowerLeg = makeLimbMesh(false);
+    this.rig.rightLeg.add(rightLowerLeg.mesh);
+    rightLowerLeg.mesh.position.set(0, 0, 0);
+
+    // small feet boxes for contact
+    const footGeo = new THREE.BoxGeometry(0.28, 0.08, 0.45);
+    const footL = new THREE.Mesh(footGeo, bodyMaterial);
+    footL.position.set(0, -0.18, 0.08);
+    this.rig.leftFoot.add(footL);
+
+    const footR = new THREE.Mesh(footGeo, bodyMaterial);
+    footR.position.set(0, -0.18, 0.08);
+    this.rig.rightFoot.add(footR);
+
+    // Make sure all meshes cast shadows and are on a dedicated layer if you had one
+    root.traverse((c) => {
+      if (c.isMesh) {
+        c.castShadow = true;
+        c.layers.set(1);
+      }
+    });
+
+    // Convenience references used by animations (alias to bones)
+    // hips = this.rig.hips, spine2 = this.rig.spine2, etc already set
 
     return root;
   }
 
-  // --- movement + pathfinding ---
+  cancelActions() {
+    this.miningTarget = null;
+    this.isMining = false;
+    this.miningTimer = 0;
+  }
+
+  startMining(targetRock) {
+    this.miningTarget = targetRock;
+    const direction = this.mesh.position.clone().sub(targetRock.position).normalize();
+    const destination = targetRock.position.clone().add(direction.multiplyScalar(2.5));
+    this.moveTo(destination);
+  }
+
   moveTo(targetPosition) {
     this.isMining = false;
-    const tx = Math.round(targetPosition.x);
-    const tz = Math.round(targetPosition.z);
-    const sx = Math.round(this.mesh.position.x);
-    const sz = Math.round(this.mesh.position.z);
 
-    this.marker.position.set(tx, targetPosition.y + 0.1, tz);
+    const targetGridX = Math.round(targetPosition.x);
+    const targetGridZ = Math.round(targetPosition.z);
+    const startGridX = Math.round(this.mesh.position.x);
+    const startGridZ = Math.round(this.mesh.position.z);
+
+    this.marker.position.set(targetGridX, targetPosition.y + 0.1, targetGridZ);
     this.marker.visible = true;
 
-    this.path = this.calculatePath(sx, sz, tx, tz);
+    this.path = this.calculatePath(startGridX, startGridZ, targetGridX, targetGridZ);
+
     if (this.path.length > 0) {
       this.state = states.WALKING;
       this.pathLine.visible = true;
@@ -196,42 +271,58 @@ export default class Player {
     }
   }
 
-  calculatePath(sx, sz, ex, ez) {
+  calculatePath(startX, startZ, endX, endZ) {
     const grid = this.game.grid;
     if (!grid) return [];
-    const open = [];
-    const closed = new Set();
-    const start = { x: sx, z: sz, g: 0, h: 0, f: 0, parent: null };
-    const end = { x: ex, z: ez };
-    open.push(start);
 
-    const heuristic = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.z - b.z);
+    const openSet = [];
+    const closedSet = new Set();
+    const startNode = { x: startX, z: startZ, g: 0, h: 0, f: 0, parent: null };
+    const endNode = { x: endX, z: endZ };
 
-    while (open.length > 0) {
-      open.sort((a, b) => a.f - b.f);
-      const current = open.shift();
-      if (current.x === end.x && current.z === end.z) {
+    openSet.push(startNode);
+    const getHeuristic = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.z - b.z);
+
+    while (openSet.length > 0) {
+      openSet.sort((a, b) => a.f - b.f);
+      const currentNode = openSet.shift();
+
+      if (currentNode.x === endNode.x && currentNode.z === endNode.z) {
         const path = [];
-        let n = current;
-        while (n) { path.push(new THREE.Vector2(n.x, n.z)); n = n.parent; }
+        let temp = currentNode;
+        while (temp) {
+          path.push(new THREE.Vector2(temp.x, temp.z));
+          temp = temp.parent;
+        }
         return path.reverse();
       }
-      closed.add(`${current.x},${current.z}`);
+
+      closedSet.add(`${currentNode.x},${currentNode.z}`);
+
       for (let dx = -1; dx <= 1; dx++) {
         for (let dz = -1; dz <= 1; dz++) {
           if (dx === 0 && dz === 0) continue;
-          const nx = current.x + dx, nz = current.z + dz;
-          if (nx < 0 || nx >= grid.length || nz < 0 || nz >= grid[0].length) continue;
-          if (grid[nx][nz] === 1) continue;
-          if (closed.has(`${nx},${nz}`)) continue;
-          const g = current.g + (dx && dz ? 1.414 : 1);
-          let neighbor = open.find(n => n.x === nx && n.z === nz);
-          if (!neighbor || g < neighbor.g) {
-            if (!neighbor) { neighbor = { x: nx, z: nz }; open.push(neighbor); }
-            neighbor.g = g;
-            neighbor.h = heuristic(neighbor, end);
+          const neighborX = currentNode.x + dx;
+          const neighborZ = currentNode.z + dz;
+
+          if (neighborX < 0 || neighborX >= grid.length || neighborZ < 0 || neighborZ >= grid[0].length || grid[neighborX][neighborZ] === 1) {
+            continue;
+          }
+
+          if (closedSet.has(`${neighborX},${neighborZ}`)) continue;
+
+          const gCost = currentNode.g + (dx !== 0 && dz !== 0 ? 1.414 : 1);
+          let neighbor = openSet.find(n => n.x === neighborX && n.z === neighborZ);
+
+          if (!neighbor || gCost < neighbor.g) {
+            if (!neighbor) {
+              neighbor = { x: neighborX, z: neighborZ };
+              openSet.push(neighbor);
+            }
+            neighbor.g = gCost;
+            neighbor.h = getHeuristic(neighbor, endNode);
             neighbor.f = neighbor.g + neighbor.h;
-            neighbor.parent = current;
+            neighbor.parent = currentNode;
           }
         }
       }
@@ -241,73 +332,173 @@ export default class Player {
 
   updatePathLine() {
     if (!this.marker.visible) return;
-    const pos = this.pathLine.geometry.attributes.position.array;
-    pos[0] = this.mesh.position.x;
-    pos[1] = 0.1;
-    pos[2] = this.mesh.position.z;
-    pos[3] = this.marker.position.x;
-    pos[4] = this.marker.position.y;
-    pos[5] = this.marker.position.z;
+    const positions = this.pathLine.geometry.attributes.position.array;
+    positions[0] = this.mesh.position.x;
+    positions[1] = 0.1;
+    positions[2] = this.mesh.position.z;
+    positions[3] = this.marker.position.x;
+    positions[4] = this.marker.position.y;
+    positions[5] = this.marker.position.z;
     this.pathLine.geometry.attributes.position.needsUpdate = true;
     this.pathLine.computeLineDistances();
   }
 
-  updateMovement(deltaTime) {
-    if (this.path.length === 0) return;
-    const next = this.path[0];
-    const targetPos = new THREE.Vector3(next.x, this.mesh.position.y, next.z);
-    const dist = this.mesh.position.clone().setY(0).distanceTo(targetPos.clone().setY(0));
-    if (dist < 0.1) {
-      this.mesh.position.x = targetPos.x;
-      this.mesh.position.z = targetPos.z;
-      this.path.shift();
-    } else {
-      const dir = targetPos.clone().sub(this.mesh.position).normalize();
-      this.mesh.position.add(dir.multiplyScalar(this.speed * deltaTime));
-      this.mesh.lookAt(new THREE.Vector3(targetPos.x, this.mesh.position.y, targetPos.z));
-    }
-    this.updatePathLine();
-  }
-
-  // --- animations ---
-  updateIdleAnimation(dt) {
-    const t = this.animationTimer;
-    this.rig.spine.rotation.x = Math.sin(t * 0.8) * 0.05;
-    this.rig.leftArm.rotation.x = Math.sin(t * 0.6) * 0.1;
-    this.rig.rightArm.rotation.x = Math.sin(t * 0.6 + Math.PI) * 0.1;
-  }
-
-  updateWalkAnimation(dt) {
-    const speed = 6.0;
-    const angle = Math.sin(this.animationTimer * speed) * 0.6;
-    const opp = Math.sin(this.animationTimer * speed + Math.PI) * 0.6;
-    this.rig.leftUpLeg.rotation.x = angle;
-    this.rig.rightUpLeg.rotation.x = opp;
-    this.rig.leftArm.rotation.x = opp * 0.5;
-    this.rig.rightArm.rotation.x = angle * 0.5;
-  }
-
-  updateMiningAnimation(dt) {
-    const angle = Math.sin(this.animationTimer * 8.0) * 1.2;
-    this.rig.rightArm.rotation.x = -angle;
-    this.rig.rightForeArm.rotation.x = angle * 0.5;
-    this.rig.leftArm.rotation.x = angle * 0.2;
-  }
-
-  // --- main update loop ---
   update(deltaTime) {
     this.animationTimer += deltaTime;
+
     if (this.state === states.WALKING && this.path.length === 0) {
       this.state = this.miningTarget ? states.MINING : states.IDLE;
       this.miningTimer = 0;
       this.marker.visible = false;
       this.pathLine.visible = false;
     }
-    if (this.state === states.WALKING) this.updateMovement(deltaTime);
-    switch (this.state) {
-      case states.IDLE: this.updateIdleAnimation(deltaTime); break;
-      case states.WALKING: this.updateWalkAnimation(deltaTime); break;
-      case states.MINING: this.updateMiningAnimation(deltaTime); break;
+
+    if (this.state === states.WALKING) {
+      this.updateMovement(deltaTime);
     }
+
+    switch (this.state) {
+      case states.WALKING: this.updateWalkAnimation(); break;
+      case states.MINING: this.updateMineAnimation(); this.updateMineTimer(deltaTime); break;
+      default: this.updateIdleAnimation(); break;
+    }
+  }
+
+  updateMovement(deltaTime) {
+    if (this.path.length === 0) return;
+
+    const nextTile = this.path[0];
+    const targetPosition = new THREE.Vector3(nextTile.x, this.mesh.position.y, nextTile.y);
+    const distance = this.mesh.position.clone().setY(0).distanceTo(targetPosition.clone().setY(0));
+
+    if (distance < 0.1) {
+      this.mesh.position.x = targetPosition.x;
+      this.mesh.position.z = targetPosition.z;
+      this.path.shift();
+    } else {
+      const direction = targetPosition.clone().sub(this.mesh.position).normalize();
+      this.mesh.position.add(direction.multiplyScalar(this.speed * deltaTime));
+      this.mesh.lookAt(new THREE.Vector3(targetPosition.x, this.mesh.position.y, targetPosition.z));
+    }
+    this.updatePathLine();
+  }
+
+  updateMineTimer(deltaTime) {
+    this.miningTimer += deltaTime;
+    if (this.miningTimer >= this.miningDuration) {
+      if (this.miningTarget && this.miningTarget.userData.onMined) {
+        this.miningTarget.userData.onMined();
+      }
+      this.miningTarget = null;
+      this.state = states.IDLE;
+    }
+  }
+
+  // --- Improved animations using bones ---
+  updateIdleAnimation() {
+    const t = this.animationTimer * 1.2;
+
+    // Gentle breathing via hip/torso vertical subtle translate
+    this.rig.hips.position.y = 0.75 + Math.sin(t * 0.7) * 0.02;
+    this.rig.spine.rotation.x = Math.sin(t * 0.5) * 0.02;
+
+    // Slight asymmetrical arm drift (shoulders)
+    this.rig.leftShoulder.rotation.z = Math.sin(t * 0.6) * 0.06;
+    this.rig.rightShoulder.rotation.z = Math.sin(t * 0.6 + 0.9) * 0.05;
+    this.rig.leftArm.rotation.x = Math.sin(t * 0.6 + 0.4) * 0.03;
+    this.rig.rightArm.rotation.x = Math.sin(t * 0.6 - 0.2) * 0.03;
+
+    // head subtle look-around
+    this.rig.neck.rotation.y = Math.sin(t * 0.35) * 0.08;
+    this.rig.head.rotation.y = Math.sin(t * 0.25 - 0.3) * 0.06;
+
+    // legs rest pose slight sway
+    this.rig.leftUpLeg.rotation.x = Math.sin(t * 0.5) * 0.02;
+    this.rig.rightUpLeg.rotation.x = Math.sin(t * 0.5 + Math.PI) * 0.02;
+
+    // reset more aggressive transforms
+    this.rig.spine.rotation.y *= 0.95;
+  }
+
+  updateWalkAnimation() {
+    const speedFactor = 1.4; // controls cadence
+    const t = this.animationTimer * 6 * speedFactor;
+
+    // step amplitude
+    const stepArc = 0.9;
+    const stepLift = 0.18;
+    const hipSway = 0.12;
+    const torsoTwist = 0.18;
+
+    // legs opposite phase
+    const leftPhase = Math.sin(t);
+    const rightPhase = Math.sin(t + Math.PI);
+
+    // Hip sway and vertical bob
+    this.rig.hips.position.y = 0.75 + Math.abs(Math.cos(t)) * -0.02; // slight bob
+    this.rig.hips.position.x = Math.cos(t) * hipSway * 0.2;
+
+    // Upper leg rotation (forward/back)
+    this.rig.leftUpLeg.rotation.x = THREE.MathUtils.clamp(leftPhase * stepArc, -1.2, 1.2);
+    this.rig.rightUpLeg.rotation.x = THREE.MathUtils.clamp(rightPhase * stepArc, -1.2, 1.2);
+
+    // Knee bend: when leg moves back (push), bend knee; when forward, straight
+    this.rig.leftLeg.rotation.x = Math.max(0, -leftPhase) * 0.9;
+    this.rig.rightLeg.rotation.x = Math.max(0, -rightPhase) * 0.9;
+
+    // Foot lift (translate down/up slightly to simulate push)
+    this.rig.leftFoot.position.y = (Math.max(0, leftPhase) * -stepLift) / 3;
+    this.rig.rightFoot.position.y = (Math.max(0, rightPhase) * -stepLift) / 3;
+
+    // Arm counter-swing and elbow bend
+    const armSwing = 0.9;
+    this.rig.leftArm.rotation.x = THREE.MathUtils.clamp(-leftPhase * armSwing, -1.0, 1.0);
+    this.rig.rightArm.rotation.x = THREE.MathUtils.clamp(-rightPhase * armSwing, -1.0, 1.0);
+
+    // Forearm / elbow subtle counter bend
+    this.rig.leftForeArm.rotation.x = Math.max(0, -this.rig.leftArm.rotation.x) * 0.6;
+    this.rig.rightForeArm.rotation.x = Math.max(0, -this.rig.rightArm.rotation.x) * 0.6;
+
+    // Torso twist opposite to pelvis rotation for balance
+    this.rig.spine2.rotation.y = Math.sin(t) * -torsoTwist * 0.5;
+    this.rig.spine.rotation.y = Math.sin(t) * -torsoTwist * 0.25;
+
+    // Head stabilizer: counter-rotate to keep face forward-ish
+    const headStabilize = THREE.MathUtils.lerp(this.rig.neck.rotation.y, -this.rig.spine2.rotation.y * 0.6, 0.6);
+    this.rig.neck.rotation.y += (headStabilize - this.rig.neck.rotation.y) * 0.25;
+    this.rig.head.rotation.y = -this.rig.spine2.rotation.y * 0.2;
+  }
+
+  updateMineAnimation() {
+    if (!this.miningTarget) return;
+    // face target horizontally
+    const lookPos = this.miningTarget.position.clone();
+    lookPos.y = this.mesh.position.y + 0.9;
+    this.mesh.lookAt(lookPos);
+
+    // Mining swing timing
+    const swingSpeed = 2.4;
+    const t = this.miningTimer * swingSpeed;
+
+    // Custom swing curve: slow back, fast down
+    const backSwing = Math.sin(t) * -0.8; // negative for backswing
+    const downSwing = Math.sin(t * 2.0) * 1.2; // quicker downswing overlay
+
+    // Right arm performs primary swing, left arm supports
+    const primary = THREE.MathUtils.clamp(backSwing + downSwing, -1.6, 1.6);
+    this.rig.rightArm.rotation.x = primary * 0.9;
+    this.rig.rightForeArm.rotation.x = Math.max(0, -primary) * 0.9;
+
+    // left arm holds/assists slightly behind the tool
+    this.rig.leftArm.rotation.x = primary * 0.6 - 0.2;
+    this.rig.leftForeArm.rotation.x = Math.max(0, -primary) * 0.5;
+
+    // Torso bend and twist: twist toward target and crouch on swing
+    this.rig.spine.rotation.y = THREE.MathUtils.clamp(primary * 0.2, -0.6, 0.6);
+    this.rig.hips.position.y = 0.75 - Math.max(0, -primary) * 0.12; // crouch slightly on downswing
+
+    // head counter to keep eyes on target
+    this.rig.neck.rotation.y = -this.rig.spine.rotation.y * 0.6;
+    this.rig.head.rotation.x = Math.max(0, -primary) * 0.12;
   }
 }
