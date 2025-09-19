@@ -42,7 +42,6 @@ const rockShader = {
 
     uniform vec2 uAoParam;
     uniform vec2 uCornerParam;
-    // ✨ ADDED: Uniforms for dynamic color control
     uniform vec3 uColorDark;
     uniform vec3 uColorBase;
     uniform vec3 uColorHighlight;
@@ -72,7 +71,6 @@ const rockShader = {
         }
         return a;
     }
-    // Ambient Occlusion approximation for a mesh
     float calcAO(vec3 p, vec3 n) {
         float ao = 0.0;
         float invSamples = 1.0 / 4.0;
@@ -95,7 +93,6 @@ export function createProceduralRock({
   aoParam = new THREE.Vector2(0.8, 1.5),
   cornerParam = new THREE.Vector2(0.25, 40.0),
   metalness = 0.1,
-  // ✨ ADDED: New color parameters with defaults
   colorDark = 0x101015,
   colorBase = 0x404045,
   colorHighlight = 0x909095,
@@ -130,45 +127,52 @@ export function createProceduralRock({
     flatShading: false,
   });
 
-  // ✨ ADDED: Initialize the new color uniforms
   material.userData.uniforms = {
       uAoParam: { value: aoParam },
       uCornerParam: { value: cornerParam },
       uColorDark: { value: new THREE.Color(colorDark) },
       uColorBase: { value: new THREE.Color(colorBase) },
       uColorHighlight: { value: new THREE.Color(colorHighlight) },
+      uHighlight: { value: 0.0 }, // ✨ ADDED: Highlight uniform (0.0 = off, 1.0 = on)
   };
 
   material.onBeforeCompile = shader => {
-    // Link all uniforms to the shader
     Object.assign(shader.uniforms, material.userData.uniforms);
     
     shader.vertexShader = `
       varying vec3 vWorldPosition;
       varying vec3 vObjectNormal;
+      varying vec3 vViewDirection; // ✨ ADDED
       ${shader.vertexShader}
     `.replace(
-      `#include <begin_vertex>`,
-      `#include <begin_vertex>
-       vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
-       vObjectNormal = normal;
+      `#include <worldpos_vertex>`, // A better injection point
+      `#include <worldpos_vertex>
+       vWorldPosition = worldPosition.xyz;
+       vObjectNormal = normalize(normalMatrix * normal);
+       vViewDirection = normalize(cameraPosition - vWorldPosition);
       `
     );
 
     shader.fragmentShader = `
+      varying vec3 vViewDirection; // ✨ ADDED
+      uniform float uHighlight;    // ✨ ADDED
       ${rockShader.shader}
       ${shader.fragmentShader}
     `.replace(
       `#include <color_fragment>`,
       `#include <color_fragment>
       
-      // ✨ CHANGED: Color calculation now uses the new uniforms instead of hardcoded values.
       float ao = calcAO(vWorldPosition * 0.2, vObjectNormal);
       float highlight = pow(clamp(dot(vObjectNormal, vec3(0.0, 1.0, 0.0)), 0.0, 1.0), 2.0);
 
       vec3 finalColor = uColorBase;
       finalColor = mix(uColorDark, finalColor, ao);
       finalColor = mix(finalColor, uColorHighlight, highlight * 0.5);
+
+      // ✨ ADDED: Fresnel highlight effect
+      float fresnel = 1.0 - dot(vViewDirection, vObjectNormal);
+      vec3 highlightColor = vec3(1.0, 1.0, 0.7); // Bright yellow
+      finalColor = mix(finalColor, highlightColor, pow(fresnel, 3.0) * uHighlight);
       
       diffuseColor.rgb = finalColor;
       `
