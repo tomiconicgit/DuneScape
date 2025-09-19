@@ -23,40 +23,66 @@
             align-items: center;
             justify-content: center;
             flex-direction: column;
-            z-index: 99999;
+            z-index: 1; /* Lowered to be behind debugger */
             font-family: monospace;
             transition: opacity 1s ease-out;
+            overflow: hidden; /* Hide spark overflow */
         }
 
-        /* --- STATIC CHISELED METAL LOGO STYLE --- */
+        /* --- NEW: Spark Animation Overlay --- */
+        #loading-screen::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Allows clicks to pass through */
+            z-index: 2;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(255,165,0,0.3) 1px, transparent 4px),
+                radial-gradient(circle at 80% 30%, rgba(255,165,0,0.4) 1px, transparent 3px),
+                radial-gradient(circle at 50% 70%, rgba(255,165,0,0.3) 2px, transparent 5px),
+                radial-gradient(circle at 25% 90%, rgba(255,165,0,0.2) 1px, transparent 4px),
+                radial-gradient(circle at 90% 80%, rgba(255,165,0,0.5) 2px, transparent 4px);
+            background-size: 100px 100px;
+            animation: sparksFly 20s linear infinite;
+        }
+
+        @keyframes sparksFly {
+            from { background-position: 0 0; }
+            to { background-position: 0 -1000px; }
+        }
+
+        /* --- DARK METAL LOGO STYLE --- */
         #loading-screen h1 {
             font-family: 'Cinzel', serif;
-            font-size: 5em;
-            margin: 0 0 40px 0;
+            /* ✨ FIXED: Responsive font size */
+            font-size: clamp(2.5em, 12vw, 6em);
+            margin: 0 20px 40px 20px;
+            text-align: center;
             color: #fff; /* Fallback */
+            z-index: 3; /* Ensure logo is above sparks */
 
-            /* Gradient for metallic look */
-            background: linear-gradient(180deg, #f0f0f0 0%, #b0b0b0 25%, #606060 50%, #b0b0b0 75%, #f0f0f0 100%);
+            /* ✨ NEW: Darker, more textured metal gradient */
+            background: linear-gradient(180deg, #d3d3d3 0%, #888 25%, #444 50%, #888 75%, #d3d3d3 100%);
             -webkit-background-clip: text;
             background-clip: text;
             -webkit-text-fill-color: transparent;
             text-fill-color: transparent;
             
             letter-spacing: 3px;
-
-            /* Static, layered text-shadow for a chiseled 3D effect */
             text-shadow: 
-                /* Dark layers for depth */
                 1px 1px 0px #111,
                 2px 2px 0px #111,
                 3px 3px 1px #222,
-                /* Subtle highlight for a top-edge glint */
                 -1px -1px 2px rgba(255, 255, 255, 0.1);
         }
         
         #loading-container {
             width: 90%;
             max-width: 500px;
+            z-index: 3; /* Ensure loader is above sparks */
         }
         
         #loading-status {
@@ -73,14 +99,8 @@
             scrollbar-width: thin;
             scrollbar-color: #555 #333;
         }
-        #loading-status p {
-            margin: 0 0 5px 0;
-            white-space: pre-wrap;
-            color: #a0e0ff;
-        }
-        #loading-status p:last-child {
-            color: #ffffff;
-        }
+        #loading-status p { margin: 0 0 5px 0; white-space: pre-wrap; color: #a0e0ff; }
+        #loading-status p:last-child { color: #ffffff; }
 
         #loading-bar-container {
             width: 100%;
@@ -108,9 +128,7 @@
 </head>
 <body>
     <div id="loading-screen">
-        
         <h1>DuneScape</h1>
-
         <div id="loading-container">
             <div id="loading-status"></div>
             <div id="loading-bar-container">
