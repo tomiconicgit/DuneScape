@@ -199,7 +199,7 @@ export default class Player {
     Object.assign(this.rig, { leftUpLeg: LUpLeg, leftLeg: LLeg, leftFoot: LFoot });
 
     const RUpLeg = mkBone('mixamorig1RightUpLeg', new THREE.Vector3(-this.params.offsets.hipX, -0.4, 0));
-    const RLeg   = mkBone('mixamorig1RightLeg',   new THREE.VectorVector3 ? new THREE.Vector3(0,-0.36,0) : new THREE.Vector3(0,-0.36,0)); // defensive
+    const RLeg   = mkBone('mixamorig1RightLeg', new THREE.Vector3(0, -0.36, 0));
     const RFoot  = mkBone('mixamorig1RightFoot',  new THREE.Vector3(0,-0.18,0));
     hips.add(RUpLeg); RUpLeg.add(RLeg); RLeg.add(RFoot);
     Object.assign(this.rig, { rightUpLeg: RUpLeg, rightLeg: RLeg, rightFoot: RFoot });
