@@ -145,6 +145,10 @@
         }
     </script>
     <script type="module">
+      // ✨ ADDED: Instantiate debugger first to catch all errors
+      import Debugger from './src/ui/Debugger.js';
+      window.debugger = new Debugger();
+      
       import Loader from './src/ui/Loader.js';
       window.loader = new Loader(); // Make it globally accessible
     </script>
