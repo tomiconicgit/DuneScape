@@ -1,63 +1,51 @@
 // File: src/ui/DeveloperBar.js
-import * as THREE from 'three';
-import { rockPresets } from '../world/assets/rockPresets.js';
-
 export default class DeveloperBar {
-    constructor(buildModeCallback, copyLayoutCallback) {
-        this.buildModeCallback = buildModeCallback;
-        this.copyLayoutCallback = copyLayoutCallback; // ✨ ADDED: Callback for copying
-        this.activeButton = null;
-
+    constructor(player) {
+        this.player = player;
         this.initStyles();
         this.initDOM();
-        this.setupEventListeners();
     }
 
     initStyles() {
         const style = document.createElement('style');
         style.textContent = `
-            .build-bar {
+            .dev-panel {
                 position: fixed;
-                top: 0;
+                bottom: 0;
                 left: 0;
                 width: 100%;
-                background-color: rgba(0, 0, 0, 0.7);
+                max-height: 40vh;
+                background: rgba(0,0,0,0.85);
                 color: #fff;
                 font-family: monospace;
-                font-size: 14px;
+                font-size: 13px;
+                overflow-y: auto;
+                padding: 10px;
+                box-shadow: 0 -2px 8px rgba(0,0,0,0.7);
                 z-index: 10000;
-                display: flex;
-                flex-wrap: wrap;
-                gap: 5px;
-                padding: 5px;
-                box-shadow: 0 2px 5px rgba(0,0,0,0.5);
-                align-items: center; /* Vertically align items */
             }
-            .build-bar button {
-                padding: 8px 12px;
-                background-color: #333;
-                color: #fff;
-                border: 1px solid #555;
+            .dev-panel h3 {
+                margin: 5px 0;
+                font-size: 14px;
                 cursor: pointer;
-                border-radius: 5px;
+                background: #222;
+                padding: 5px;
+                border-radius: 4px;
             }
-            .build-bar button:hover {
-                background-color: #444;
+            .dev-section {
+                display: none;
+                padding: 5px 0 10px 10px;
+                border-left: 2px solid #444;
             }
-            .build-bar button.active {
-                background-color: #5a5;
-                border-color: #7c7;
-                color: #fff;
+            .dev-panel input[type=range] {
+                width: 100%;
             }
-            /* ✨ ADDED: Styles for the new copy button and a separator */
-            .build-bar .separator {
-                width: 1px;
-                height: 25px;
-                background-color: #555;
-                margin: 0 5px;
+            .dev-control {
+                margin: 5px 0;
             }
-            .build-bar .copy-button {
-                background-color: #469;
+            .dev-control label {
+                display: block;
+                margin-bottom: 2px;
             }
         `;
         document.head.appendChild(style);
@@ -65,61 +53,79 @@ export default class DeveloperBar {
 
     initDOM() {
         this.container = document.createElement('div');
-        this.container.className = 'build-bar';
+        this.container.className = 'dev-panel';
         document.body.appendChild(this.container);
 
-        this.addControls();
+        // === SECTIONS ===
+        this.addSection("Body", [
+            { name: "Torso Width", min: 0.5, max: 2, step: 0.01, target: this.player.rig.torsoMesh.scale, axis: "x" },
+            { name: "Torso Height", min: 0.5, max: 2, step: 0.01, target: this.player.rig.torsoMesh.scale, axis: "y" },
+            { name: "Torso Depth", min: 0.5, max: 2, step: 0.01, target: this.player.rig.torsoMesh.scale, axis: "z" },
+        ]);
+
+        this.addSection("Head", [
+            { name: "Head Size", min: 0.3, max: 2, step: 0.01, target: this.player.rig.headMesh.scale, axis: "x", link: ["y","z"] },
+        ]);
+
+        this.addSection("Arms", [
+            { name: "Arm Length", min: 0.5, max: 2, step: 0.01, target: this.player.rig.leftArm.position, axis: "y", mirror: this.player.rig.rightArm.position },
+            { name: "Arm Thickness", min: 0.1, max: 0.5, step: 0.01, target: this.player.rig.leftArm.children[0].scale, axis: "x", mirror: this.player.rig.rightArm.children[0].scale },
+        ]);
+
+        this.addSection("Legs", [
+            { name: "Leg Length", min: 0.5, max: 2, step: 0.01, target: this.player.rig.leftLeg.position, axis: "y", mirror: this.player.rig.rightLeg.position },
+            { name: "Leg Thickness", min: 0.1, max: 0.6, step: 0.01, target: this.player.rig.leftLeg.children[0].scale, axis: "x", mirror: this.player.rig.rightLeg.children[0].scale },
+        ]);
+
+        this.addSection("Animation", [
+            { name: "Walk Speed", min: 0.5, max: 3, step: 0.01, onChange: (val)=> this.player.speed = val },
+            { name: "Breathing Strength", min: 0, max: 0.1, step: 0.001, onChange: (val)=> this.player.idleBreathAmp = val },
+        ]);
+
+        // Expand/collapse behavior
+        this.container.querySelectorAll("h3").forEach(header=>{
+            header.addEventListener("click",()=>{
+                const section = header.nextElementSibling;
+                section.style.display = section.style.display==="block"?"none":"block";
+            });
+        });
     }
-    
-    addControls() {
-        // Create a button for each rock preset
-        for (const rockName in rockPresets) {
-            const button = document.createElement('button');
-            button.textContent = rockName;
-            button.dataset.rockName = rockName;
-            this.container.appendChild(button);
-        }
 
-        // ✨ ADDED: Add a visual separator and the Copy Layout button
-        const separator = document.createElement('div');
-        separator.className = 'separator';
-        this.container.appendChild(separator);
+    addSection(title, controls) {
+        const header = document.createElement("h3");
+        header.textContent = title;
+        const section = document.createElement("div");
+        section.className = "dev-section";
 
-        this.copyButton = document.createElement('button');
-        this.copyButton.textContent = 'Copy Layout';
-        this.copyButton.className = 'copy-button';
-        this.container.appendChild(this.copyButton);
-    }
-    
-    setupEventListeners() {
-        // Handle rock selection toggles
-        this.container.addEventListener('click', (e) => {
-            const button = e.target.closest('button');
-            if (!button || !button.dataset.rockName) return;
+        controls.forEach(ctrl=>{
+            const wrapper = document.createElement("div");
+            wrapper.className = "dev-control";
+            const label = document.createElement("label");
+            label.textContent = ctrl.name;
 
-            const rockName = button.dataset.rockName;
+            const input = document.createElement("input");
+            input.type = "range";
+            input.min = ctrl.min;
+            input.max = ctrl.max;
+            input.step = ctrl.step;
+            input.value = ctrl.target ? ctrl.target[ctrl.axis] : 1;
 
-            if (button === this.activeButton) {
-                this.activeButton.classList.remove('active');
-                this.activeButton = null;
-                this.buildModeCallback('exit');
-            } else {
-                if (this.activeButton) {
-                    this.activeButton.classList.remove('active');
+            input.addEventListener("input", ()=>{
+                const val = parseFloat(input.value);
+                if (ctrl.target) {
+                    ctrl.target[ctrl.axis] = val;
+                    if (ctrl.link) ctrl.link.forEach(ax=> ctrl.target[ax] = val);
+                    if (ctrl.mirror) ctrl.mirror[ctrl.axis] = val;
                 }
-                button.classList.add('active');
-                this.activeButton = button;
-                this.buildModeCallback('enter', rockName);
-            }
+                if (ctrl.onChange) ctrl.onChange(val);
+            });
+
+            wrapper.appendChild(label);
+            wrapper.appendChild(input);
+            section.appendChild(wrapper);
         });
 
-        // ✨ ADDED: Handle the copy button click
-        this.copyButton.addEventListener('click', () => {
-            this.copyLayoutCallback();
-            this.copyButton.textContent = 'Copied!';
-            setTimeout(() => {
-                this.copyButton.textContent = 'Copy Layout';
-            }, 2000);
-        });
+        this.container.appendChild(header);
+        this.container.appendChild(section);
     }
 }
