@@ -30,7 +30,8 @@ export default class Debugger {
             zIndex: '9999',
             display: 'flex',
             flexDirection: 'column',
-            borderTop: '1px solid #444'
+            borderTop: '1px solid #444',
+            pointerEvents: 'none', // ✨ FIXED: Tell the container to ignore touch/click events.
         });
 
         Object.assign(this.logElement.style, {
@@ -40,6 +41,7 @@ export default class Debugger {
             flexGrow: '1',
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-all',
+            pointerEvents: 'auto', // ✨ FIXED: Re-enable events for the scrollable log area.
         });
 
         Object.assign(this.copyButton.style, {
@@ -49,6 +51,7 @@ export default class Debugger {
             border: 'none',
             cursor: 'pointer',
             flexShrink: '0',
+            pointerEvents: 'auto', // ✨ FIXED: Re-enable events for the button.
         });
         this.copyButton.innerText = 'Copy Log';
     }
