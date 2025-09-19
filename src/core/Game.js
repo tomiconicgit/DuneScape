@@ -5,25 +5,18 @@ import Player from '../entities/Player.js';
 import Camera from '../entities/Camera.js';
 import CameraController from './CameraController.js';
 import PlayerController from './PlayerController.js';
-import Debugger from '../ui/Debugger.js';
 import Sky from '../world/Sky.js';
 import Lighting from '../world/Lighting.js';
 import { createProceduralRock } from '../world/assets/rock.js';
-import DeveloperBar from '../ui/DeveloperBar.js';
 import { rockPresets } from '../world/assets/rockPresets.js';
 
 export default class Game {
   constructor() {
-    this.debugger = new Debugger();
-    window.loader.updateStatus('Debugger attached...', 5);
-
     this.clock = new THREE.Clock();
     this.scene = new THREE.Scene();
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     window.loader.updateStatus('Engine initialized...', 10);
 
-    this.buildMode = { active: false, selectedRockConfig: null, selectedRockName: null };
-    this.placedRocks = [];
     this.mineableRocks = [];
     this.grid = null;
 
@@ -38,9 +31,6 @@ export default class Game {
 
     this.setupRenderer();
 
-    // Developer panel (top) with many sliders/toggles, non-blocking
-    this.devBar = new DeveloperBar(this.player);
-
     this.cameraController = new CameraController(this.renderer.domElement, this.camera);
     this.playerController = new PlayerController(
       this.renderer.domElement,
@@ -54,7 +44,7 @@ export default class Game {
     this.camera.setTarget(this.player.mesh);
     window.addEventListener('resize', this.handleResize.bind(this));
 
-    this.debugger.log('Game initialized successfully.');
+    console.log('Game initialized successfully.');
     window.loader.updateStatus('Initialization complete!', 100);
   }
 
@@ -135,9 +125,8 @@ export default class Game {
   createPathfindingGrid() {
     const gridSize = 105;
     this.grid = Array.from({ length: gridSize }, () => Array(gridSize).fill(0));
-    const allRocks = [...this.mineableRocks, ...this.placedRocks.map(r => r.mesh)];
 
-    for (const rock of allRocks) {
+    for (const rock of this.mineableRocks) {
       const centerX = Math.round(rock.position.x);
       const centerZ = Math.round(rock.position.z);
       const radius = Math.ceil(Math.max(rock.scale.x, rock.scale.z) / 2);
@@ -171,9 +160,7 @@ export default class Game {
     requestAnimationFrame(this.animate.bind(this));
     const deltaTime = this.clock.getDelta();
     this.camera.update();
-
     this.player.update(deltaTime);
-
     this.renderer.render(this.scene, this.camera.threeCamera);
   }
 }
