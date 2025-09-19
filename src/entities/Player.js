@@ -1,29 +1,6 @@
 // File: src/entities/Player.js
 import * as THREE from 'three';
 
-// ---- SAFE lazy Subdivision support ----
-// We avoid a hard module import so the game still loads if the examples module
-// isn't available. When subdivision is requested (>0), we try to import once;
-// otherwise we use a no-op modifier.
-let _Subdiv = null;           // cached class or null
-let _subdivTried = false;     // avoid repeated failed imports
-async function ensureSubdivisionLoaded() {
-  if (_Subdiv || _subdivTried) return _Subdiv;
-  _subdivTried = true;
-  try {
-    const m = await import('three/addons/modifiers/SubdivisionModifier.js');
-    _Subdiv = m.SubdivisionModifier || null;
-  } catch (e) {
-    console.warn('[Player] SubdivisionModifier not available. Continuing without it.', e);
-    _Subdiv = null;
-  }
-  return _Subdiv;
-}
-// Synchronous, safe wrapper that returns a no-op if subdiv lib isn't ready
-function getSubdivOrDummy() {
-  return _Subdiv ? _Subdiv : class { modify(g){ return g; } };
-}
-
 const states = { IDLE: 'idle', WALKING: 'walking', MINING: 'mining' };
 
 export default class Player {
@@ -31,25 +8,15 @@ export default class Player {
     this.game = game;
     this.state = states.IDLE;
     this.animationTimer = 0;
-
-    this.params = {
-      offsets: { headY: 0.2, shoulderX: 0.35, hipX: 0.22 },
-      torso:   { w: 1.0, h: 1.5, d: 0.6, segments: 8, subdiv: 0, roundness: 0.0 },
-      arms:    { type: 'capsule', radius: 0.15, length: 0.55, radialSeg: 16, heightSeg: 1, subdiv: 0, thicknessXZ: 1.0 },
-      legs:    { type: 'capsule', radius: 0.18, length: 0.65, radialSeg: 16, heightSeg: 1, subdiv: 0, thicknessXZ: 1.0 },
-      feet:    { scale: 1.0 },
-      mat: {
-        color: new THREE.Color(0x666688),
-        secondary: new THREE.Color(0xffccaa),
-        metalness: 0.1,
-        roughness: 0.8,
-        noiseBlend: 0.35,
-        noiseScale: 3.0,
-      },
-      idleBreathAmp: 0.02,
-    };
+    this.idleBreathAmp = 0.02;
 
     this.rig = {};
+    this.bodyMaterial = new THREE.MeshStandardMaterial({
+        color: 0x8a8a8a,
+        metalness: 0.2,
+        roughness: 0.8,
+    });
+
     this.mesh = this.createCharacterRig();
     this.mesh.position.set(50, 0.9, 102);
     scene.add(this.mesh);
@@ -63,85 +30,13 @@ export default class Player {
     this.miningTarget = null;
     this.miningTimer = 0;
     this.miningDuration = 4.0;
-
-    // Tap marker
-    const xMarkerGeo = new THREE.BufferGeometry();
-    const s = 0.75;
-    xMarkerGeo.setFromPoints([
-      new THREE.Vector3(-s,0,-s), new THREE.Vector3(s,0,s),
-      new THREE.Vector3(s,0,-s),  new THREE.Vector3(-s,0,s)
-    ]);
-    this.marker = new THREE.LineSegments(xMarkerGeo, new THREE.LineBasicMaterial({ color: 0xff0000 }));
-    this.marker.visible = false;
-    scene.add(this.marker);
-
-    const pathGeo = new THREE.BufferGeometry();
-    pathGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(2*3), 3));
-    this.pathLine = new THREE.Line(pathGeo, new THREE.LineDashedMaterial({ color: 0xff0000, dashSize: 0.2, gapSize: 0.1 }));
-    this.pathLine.visible = false;
-    scene.add(this.pathLine);
-  }
-
-  // ------------------ MATERIAL (with noise blend) ------------------
-  buildBodyMaterial() {
-    const mat = new THREE.MeshStandardMaterial({
-      color: this.params.mat.color.clone(),
-      metalness: this.params.mat.metalness,
-      roughness: this.params.mat.roughness,
-    });
-
-    mat.userData.uniforms = {
-      uNoiseBlend:     { value: this.params.mat.noiseBlend },
-      uNoiseScale:     { value: this.params.mat.noiseScale },
-      uSecondaryColor: { value: this.params.mat.secondary.clone() },
-    };
-
-    mat.onBeforeCompile = (shader) => {
-      Object.assign(shader.uniforms, mat.userData.uniforms);
-      shader.vertexShader = `
-        varying vec3 vWorldPos;
-        ${shader.vertexShader}
-      `.replace(
-        '#include <begin_vertex>',
-        `
-        #include <begin_vertex>
-        vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
-        `
-      );
-
-      shader.fragmentShader = `
-        uniform float uNoiseBlend;
-        uniform float uNoiseScale;
-        uniform vec3  uSecondaryColor;
-        varying vec3  vWorldPos;
-
-        float hash31(vec3 p){
-          p = fract(p*0.3183099 + vec3(0.71,0.113,0.419));
-          p *= 17.0;
-          return fract(p.x*p.y*p.z*(p.x+p.y+p.z));
-        }
-        ${shader.fragmentShader}
-      `.replace(
-        '#include <color_fragment>',
-        `
-        #include <color_fragment>
-        float n = hash31(vWorldPos * uNoiseScale);
-        vec3 mixedCol = mix(diffuseColor.rgb, uSecondaryColor, uNoiseBlend * smoothstep(0.4, 1.0, n));
-        diffuseColor.rgb = mixedCol;
-        `
-      );
-    };
-
-    return mat;
   }
 
   // ------------------ RIG + MESHES ------------------
   createCharacterRig() {
     const root = new THREE.Group();
     root.name = 'playerRoot';
-
-    const mat = this.buildBodyMaterial();
-    this.bodyMaterial = mat;
+    const mat = this.bodyMaterial;
 
     const mkBone = (name, pos) => {
       const b = new THREE.Bone();
@@ -150,27 +45,24 @@ export default class Player {
       return b;
     };
 
-    // Hips
+    // --- Skeleton ---
     const hips = mkBone('mixamorig1Hips', new THREE.Vector3(0, 0.75, 0));
     root.add(hips);
     this.rig.hips = hips;
 
-    // Spine chain
     const spine  = mkBone('mixamorig1Spine',  new THREE.Vector3(0, 0.25, 0));
     const spine1 = mkBone('mixamorig1Spine1', new THREE.Vector3(0, 0.25, 0));
     const spine2 = mkBone('mixamorig1Spine2', new THREE.Vector3(0, 0.22, 0));
     const neck   = mkBone('mixamorig1Neck',   new THREE.Vector3(0, 0.18, 0));
-    const head   = mkBone('mixamorig1Head',   new THREE.Vector3(0, this.params.offsets.headY, 0));
+    const head   = mkBone('mixamorig1Head',   new THREE.Vector3(0, 0.2, 0));
     hips.add(spine); spine.add(spine1); spine1.add(spine2); spine2.add(neck); neck.add(head);
     Object.assign(this.rig, { spine, spine1, spine2, neck, head });
 
-    // Shoulders
-    const LShoulder = mkBone('mixamorig1LeftShoulder',  new THREE.Vector3( this.params.offsets.shoulderX, 0.18, 0));
-    const RShoulder = mkBone('mixamorig1RightShoulder', new THREE.Vector3(-this.params.offsets.shoulderX, 0.18, 0));
+    const LShoulder = mkBone('mixamorig1LeftShoulder',  new THREE.Vector3( 0.35, 0.18, 0));
+    const RShoulder = mkBone('mixamorig1RightShoulder', new THREE.Vector3(-0.35, 0.18, 0));
     spine2.add(LShoulder); spine2.add(RShoulder);
     this.rig.leftShoulder = LShoulder; this.rig.rightShoulder = RShoulder;
 
-    // Arms bones
     const LArm = mkBone('mixamorig1LeftArm',     new THREE.Vector3(0,-0.18,0));
     const LFore= mkBone('mixamorig1LeftForeArm', new THREE.Vector3(0,-0.28,0));
     const LHand= mkBone('mixamorig1LeftHand',    new THREE.Vector3(0,-0.16,0));
@@ -183,201 +75,53 @@ export default class Player {
     RShoulder.add(RArm); RArm.add(RFore); RFore.add(RHand);
     Object.assign(this.rig, { rightArm: RArm, rightForeArm: RFore, rightHand: RHand });
 
-    // Legs bones
-    const LUpLeg = mkBone('mixamorig1LeftUpLeg',  new THREE.Vector3( this.params.offsets.hipX, -0.4, 0));
+    const LUpLeg = mkBone('mixamorig1LeftUpLeg',  new THREE.Vector3( 0.22, -0.4, 0));
     const LLeg   = mkBone('mixamorig1LeftLeg',    new THREE.Vector3(0,-0.36,0));
     const LFoot  = mkBone('mixamorig1LeftFoot',   new THREE.Vector3(0,-0.18,0));
     hips.add(LUpLeg); LUpLeg.add(LLeg); LLeg.add(LFoot);
     Object.assign(this.rig, { leftUpLeg: LUpLeg, leftLeg: LLeg, leftFoot: LFoot });
 
-    const RUpLeg = mkBone('mixamorig1RightUpLeg', new THREE.Vector3(-this.params.offsets.hipX, -0.4, 0));
-    const RLeg   = mkBone('mixamorig1RightLeg',   new THREE.Vector3(0, -0.36, 0)); // ✅ no undefined constructors
+    const RUpLeg = mkBone('mixamorig1RightUpLeg', new THREE.Vector3(-0.22, -0.4, 0));
+    const RLeg   = mkBone('mixamorig1RightLeg',   new THREE.Vector3(0, -0.36, 0));
     const RFoot  = mkBone('mixamorig1RightFoot',  new THREE.Vector3(0,-0.18,0));
     hips.add(RUpLeg); RUpLeg.add(RLeg); RLeg.add(RFoot);
     Object.assign(this.rig, { rightUpLeg: RUpLeg, rightLeg: RLeg, rightFoot: RFoot });
 
-    // Torso mesh
-    this.rig.torsoMesh = new THREE.Mesh(this.buildTorsoGeometrySync(), mat);
+    // --- Meshes ---
+    this.rig.torsoMesh = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.5, 0.6), mat);
     this.rig.torsoMesh.position.set(0, 0.75, 0);
     hips.add(this.rig.torsoMesh);
 
-    // Head mesh
     this.rig.headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.35, 16, 12), mat);
     this.rig.headMesh.position.set(0, 0.2, 0);
     head.add(this.rig.headMesh);
 
-    // Arms visuals
-    const [lUpperArmMesh, lLowerArmMesh] = this.buildArmMeshesSync();
-    const [rUpperArmMesh, rLowerArmMesh] = this.buildArmMeshesSync();
-    this.rig.leftArm.add(lUpperArmMesh);  this.rig.leftForeArm.add(lLowerArmMesh);
-    this.rig.rightArm.add(rUpperArmMesh); this.rig.rightForeArm.add(rLowerArmMesh);
-    Object.assign(this.rig, {
-      leftUpperArmMesh: lUpperArmMesh, leftLowerArmMesh: lLowerArmMesh,
-      rightUpperArmMesh: rUpperArmMesh, rightLowerArmMesh: rLowerArmMesh,
-    });
+    const armGeo = new THREE.CapsuleGeometry(0.15, 0.55, 4, 16);
+    armGeo.translate(0, -0.275, 0); // Center pivot at top
+    this.rig.leftArm.add(new THREE.Mesh(armGeo, mat));
+    this.rig.leftForeArm.add(new THREE.Mesh(armGeo, mat));
+    this.rig.rightArm.add(new THREE.Mesh(armGeo, mat));
+    this.rig.rightForeArm.add(new THREE.Mesh(armGeo, mat));
 
-    // Legs visuals
-    const [lUpperLegMesh, lLowerLegMesh] = this.buildLegMeshesSync();
-    const [rUpperLegMesh, rLowerLegMesh] = this.buildLegMeshesSync();
-    this.rig.leftUpLeg.add(lUpperLegMesh);  this.rig.leftLeg.add(lLowerLegMesh);
-    this.rig.rightUpLeg.add(rUpperLegMesh); this.rig.rightLeg.add(rLowerLegMesh);
-    Object.assign(this.rig, {
-      leftUpperLegMesh: lUpperLegMesh, leftLowerLegMesh: lLowerLegMesh,
-      rightUpperLegMesh: rUpperLegMesh, rightLowerLegMesh: rLowerLegMesh,
-    });
+    const legGeo = new THREE.CapsuleGeometry(0.18, 0.65, 4, 16);
+    legGeo.translate(0, -0.325, 0); // Center pivot at top
+    this.rig.leftUpLeg.add(new THREE.Mesh(legGeo, mat));
+    this.rig.leftLeg.add(new THREE.Mesh(legGeo, mat));
+    this.rig.rightUpLeg.add(new THREE.Mesh(legGeo, mat));
+    this.rig.rightLeg.add(new THREE.Mesh(legGeo, mat));
 
-    // Feet
     const footGeo = new THREE.BoxGeometry(0.28, 0.08, 0.45);
-    this.rig.leftFootMesh = new THREE.Mesh(footGeo, mat);
-    this.rig.leftFootMesh.position.set(0, -0.18, 0.08);
-    this.rig.leftFootMesh.scale.setScalar(this.params.feet.scale);
-    LFoot.add(this.rig.leftFootMesh);
+    const leftFoot = new THREE.Mesh(footGeo, mat);
+    leftFoot.position.set(0, -0.18, 0.08);
+    LFoot.add(leftFoot);
+    const rightFoot = new THREE.Mesh(footGeo, mat);
+    rightFoot.position.set(0, -0.18, 0.08);
+    RFoot.add(rightFoot);
 
-    this.rig.rightFootMesh = new THREE.Mesh(footGeo.clone(), mat);
-    this.rig.rightFootMesh.position.set(0, -0.18, 0.08);
-    this.rig.rightFootMesh.scale.setScalar(this.params.feet.scale);
-    RFoot.add(this.rig.rightFootMesh);
-
-    // Shadows + layer
+    // Set shadows and layer for all meshes
     root.traverse((c) => { if (c.isMesh) { c.castShadow = true; c.layers.set(1); } });
 
     return root;
-  }
-
-  // ------------------ GEOMETRY BUILDERS (SYNC, NO-THROW) ------------------
-  buildTorsoGeometrySync() {
-    const p = this.params.torso;
-    let geo = new THREE.BoxGeometry(p.w, p.h, p.d, Math.max(1,p.segments), Math.max(1,p.segments), Math.max(1,p.segments));
-
-    if (p.roundness > 0) {
-      const pos = geo.attributes.position;
-      const v = new THREE.Vector3();
-      for (let i = 0; i < pos.count; i++) {
-        v.fromBufferAttribute(pos, i);
-        const nx = (v.x / (p.w * 0.5));
-        const ny = (v.y / (p.h * 0.5));
-        const nz = (v.z / (p.d * 0.5));
-        const r = Math.sqrt(nx*nx + ny*ny + nz*nz) || 1.0;
-        const f = THREE.MathUtils.lerp(1.0, 0.9, p.roundness) / r;
-        v.multiplyScalar(f);
-        pos.setXYZ(i, v.x, v.y, v.z);
-      }
-      geo.computeVertexNormals();
-    }
-
-    if (p.subdiv > 0) {
-      const Sub = getSubdivOrDummy();
-      const mod = new Sub();
-      try { geo = mod.modify(geo); } catch (e) { console.warn('[Player] Torso subdiv failed, using base geo.', e); }
-      // kick off async real import for future rebuilds
-      ensureSubdivisionLoaded();
-    }
-    return geo;
-  }
-
-  buildArmMeshesSync() {
-    const a = this.params.arms;
-    let upper, lower;
-    if (a.type === 'capsule') {
-      upper = new THREE.Mesh(new THREE.CapsuleGeometry(a.radius, a.length, Math.max(2, a.heightSeg), Math.max(4, a.radialSeg)), this.bodyMaterial);
-      lower = new THREE.Mesh(new THREE.CapsuleGeometry(a.radius*0.95, a.length, Math.max(2, a.heightSeg), Math.max(4, a.radialSeg)), this.bodyMaterial);
-      upper.geometry.translate(0, -a.length/2, 0);
-      lower.geometry.translate(0, -a.length/2, 0);
-    } else {
-      upper = new THREE.Mesh(new THREE.CylinderGeometry(a.radius, a.radius, a.length, Math.max(4,a.radialSeg), Math.max(1,a.heightSeg)), this.bodyMaterial);
-      lower = new THREE.Mesh(new THREE.CylinderGeometry(a.radius*0.95, a.radius*0.95, a.length, Math.max(4,a.radialSeg), Math.max(1,a.heightSeg)), this.bodyMaterial);
-      upper.geometry.translate(0, -a.length/2, 0);
-      lower.geometry.translate(0, -a.length/2, 0);
-    }
-
-    if (a.subdiv > 0) {
-      const Sub = getSubdivOrDummy();
-      try {
-        const mod = new Sub();
-        upper.geometry = mod.modify(upper.geometry);
-        lower.geometry = mod.modify(lower.geometry);
-      } catch (e) { console.warn('[Player] Arm subdiv failed, using base geo.', e); }
-      ensureSubdivisionLoaded();
-    }
-
-    upper.scale.x = upper.scale.z = a.thicknessXZ;
-    lower.scale.x = lower.scale.z = a.thicknessXZ;
-    return [upper, lower];
-  }
-
-  buildLegMeshesSync() {
-    const l = this.params.legs;
-    let upper, lower;
-    if (l.type === 'capsule') {
-      upper = new THREE.Mesh(new THREE.CapsuleGeometry(l.radius, l.length, Math.max(2, l.heightSeg), Math.max(4, l.radialSeg)), this.bodyMaterial);
-      lower = new THREE.Mesh(new THREE.CapsuleGeometry(l.radius*0.95, l.length, Math.max(2, l.heightSeg), Math.max(4, l.radialSeg)), this.bodyMaterial);
-      upper.geometry.translate(0, -l.length/2, 0);
-      lower.geometry.translate(0, -l.length/2, 0);
-    } else {
-      upper = new THREE.Mesh(new THREE.CylinderGeometry(l.radius, l.radius, l.length, Math.max(4,l.radialSeg), Math.max(1,l.heightSeg)), this.bodyMaterial);
-      lower = new THREE.Mesh(new THREE.CylinderGeometry(l.radius*0.95, l.radius*0.95, l.length, Math.max(4,l.radialSeg), Math.max(1,l.heightSeg)), this.bodyMaterial);
-      upper.geometry.translate(0, -l.length/2, 0);
-      lower.geometry.translate(0, -l.length/2, 0);
-    }
-
-    if (l.subdiv > 0) {
-      const Sub = getSubdivOrDummy();
-      try {
-        const mod = new Sub();
-        upper.geometry = mod.modify(upper.geometry);
-        lower.geometry = mod.modify(lower.geometry);
-      } catch (e) { console.warn('[Player] Leg subdiv failed, using base geo.', e); }
-      ensureSubdivisionLoaded();
-    }
-
-    upper.scale.x = upper.scale.z = l.thicknessXZ;
-    lower.scale.x = lower.scale.z = l.thicknessXZ;
-    return [upper, lower];
-  }
-
-  // ------------------ REBUILD HELPERS ------------------
-  rebuildTorso() {
-    const newGeo = this.buildTorsoGeometrySync();
-    this.rig.torsoMesh.geometry.dispose();
-    this.rig.torsoMesh.geometry = newGeo;
-  }
-
-  rebuildArms() {
-    const old = [
-      this.rig.leftUpperArmMesh, this.rig.leftLowerArmMesh,
-      this.rig.rightUpperArmMesh, this.rig.rightLowerArmMesh
-    ];
-    const [lU, lL] = this.buildArmMeshesSync();
-    const [rU, rL] = this.buildArmMeshesSync();
-
-    this.rig.leftArm.remove(old[0]); this.rig.leftForeArm.remove(old[1]);
-    this.rig.rightArm.remove(old[2]); this.rig.rightForeArm.remove(old[3]);
-    old.forEach(m => m.geometry.dispose());
-
-    this.rig.leftUpperArmMesh = lU; this.rig.leftLowerArmMesh = lL;
-    this.rig.rightUpperArmMesh = rU; this.rig.rightLowerArmMesh = rL;
-
-    this.rig.leftArm.add(lU); this.rig.leftForeArm.add(lL);
-    this.rig.rightArm.add(rU); this.rig.rightForeArm.add(rL);
-  }
-
-  rebuildLegs() {
-    const old = [
-      this.rig.leftUpperLegMesh, this.rig.leftLowerLegMesh,
-      this.rig.rightUpperLegMesh, this.rig.rightLowerLegMesh
-    ];
-    const [lU, lL] = this.buildLegMeshesSync();
-    const [rU, rL] = this.buildLegMeshesSync();
-
-    this.rig.leftUpLeg.remove(old[0]); this.rig.leftLeg.remove(old[1]);
-    this.rig.rightUpLeg.remove(old[2]); this.rig.rightLeg.remove(old[3]);
-    old.forEach(m => m.geometry.dispose());
-
-    this.rig.leftUpperLegMesh = lU; this.rig.leftLowerLegMesh = lL;
-    this.rig.rightUpperLegMesh = rU; this.rig.rightLowerLegMesh = rL;
-
-    this.rig.leftUpLeg.add(lU); this.rig.leftLeg.add(lL);
-    this.rig.rightUpLeg.add(rU); this.rig.rightLeg.add(rL);
   }
 
   // ------------------ GAMEPLAY ------------------
@@ -402,18 +146,12 @@ export default class Player {
     const startGridX = Math.round(this.mesh.position.x);
     const startGridZ = Math.round(this.mesh.position.z);
 
-    this.marker.position.set(targetGridX, targetPosition.y + 0.1, targetGridZ);
-    this.marker.visible = true;
-
     this.path = this.calculatePath(startGridX, startGridZ, targetGridX, targetGridZ);
 
     if (this.path.length > 0) {
       this.state = states.WALKING;
-      this.pathLine.visible = true;
-      this.updatePathLine();
     } else {
       this.state = states.IDLE;
-      this.marker.visible = false;
     }
   }
 
@@ -463,23 +201,12 @@ export default class Player {
     return [];
   }
 
-  updatePathLine() {
-    if (!this.marker.visible) return;
-    const pos = this.pathLine.geometry.attributes.position.array;
-    pos[0] = this.mesh.position.x; pos[1] = 0.1; pos[2] = this.mesh.position.z;
-    pos[3] = this.marker.position.x; pos[4] = this.marker.position.y; pos[5] = this.marker.position.z;
-    this.pathLine.geometry.attributes.position.needsUpdate = true;
-    this.pathLine.computeLineDistances();
-  }
-
   update(deltaTime) {
     this.animationTimer += deltaTime;
 
     if (this.state === states.WALKING && this.path.length === 0) {
       this.state = this.miningTarget ? states.MINING : states.IDLE;
       this.miningTimer = 0;
-      this.marker.visible = false;
-      this.pathLine.visible = false;
     }
 
     if (this.state === states.WALKING) this.updateMovement(deltaTime);
@@ -488,6 +215,26 @@ export default class Player {
       case states.WALKING: this.updateWalkAnimation(); break;
       case states.MINING:  this.updateMineAnimation(); this.updateMineTimer(deltaTime); break;
       default:             this.updateIdleAnimation(); break;
+    }
+  }
+
+  updateMovement(deltaTime) {
+    if (this.path.length === 0) return;
+
+    const targetNode = this.path[0];
+    const targetPosition = new THREE.Vector3(targetNode.x, this.mesh.position.y, targetNode.y);
+
+    const direction = targetPosition.clone().sub(this.mesh.position);
+    this.mesh.rotation.y = Math.atan2(direction.x, direction.z);
+
+    const distance = direction.length();
+    const moveDistance = this.speed * deltaTime;
+
+    if (distance <= moveDistance) {
+        this.mesh.position.copy(targetPosition);
+        this.path.shift();
+    } else {
+        this.mesh.position.add(direction.normalize().multiplyScalar(moveDistance));
     }
   }
 
@@ -503,7 +250,7 @@ export default class Player {
   // ------------------ Animations ------------------
   updateIdleAnimation() {
     const t = this.animationTimer * 1.2;
-    const amp = this.params.idleBreathAmp;
+    const amp = this.idleBreathAmp;
 
     this.rig.hips.position.y = 0.75 + Math.sin(t * 0.7) * amp;
     this.rig.spine.rotation.x = Math.sin(t * 0.5) * 0.02;
