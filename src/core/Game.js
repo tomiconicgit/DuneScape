@@ -31,17 +31,14 @@ export default class Game {
         
         this.player = new Player(this.scene, this);
         this.camera = new Camera();
-        // ✨ FIX: Tell the main camera to also render Layer 1, where the player is.
-        this.camera.threeCamera.layers.enable(1);
-
+        this.camera.threeCamera.layers.enable(1); // player layer
+        
         window.loader.updateStatus('Entities created...', 80);
         
         this.setupRenderer();
         
-        this.devBar = new DeveloperBar(
-            this.handleBuildModeToggle.bind(this),
-            this.copyLayout.bind(this)
-        );
+        // ✅ Use new DeveloperBar hooked into player customisation
+        this.devBar = new DeveloperBar(this.player);
         
         this.cameraController = new CameraController(this.renderer.domElement, this.camera);
         this.playerController = new PlayerController(this.renderer.domElement, this, this.camera, this.player, this.landscape);
@@ -136,15 +133,11 @@ export default class Game {
         for (const rock of allRocks) {
             const centerX = Math.round(rock.position.x);
             const centerZ = Math.round(rock.position.z);
-            // Determine a simple radius based on the largest horizontal scale.
-            // A scale of 1.4 will result in a radius of 1, blocking a 3x3 area.
             const radius = Math.ceil(Math.max(rock.scale.x, rock.scale.z) / 2);
-
-            // Mark a square area around the rock as unwalkable
             for (let x = centerX - radius; x <= centerX + radius; x++) {
                 for (let z = centerZ - radius; z <= centerZ + radius; z++) {
                     if (x >= 0 && x < gridSize && z >= 0 && z < gridSize) {
-                        this.grid[x][z] = 1; // Mark as unwalkable
+                        this.grid[x][z] = 1;
                     }
                 }
             }
@@ -156,48 +149,13 @@ export default class Game {
         setTimeout(() => { rockMesh.visible = true; }, 15000);
     }
     
-    handleBuildModeToggle(mode, rockName = null) {
-        if (mode === 'enter' && rockName) {
-            this.buildMode.active = true;
-            this.buildMode.selectedRockConfig = rockPresets[rockName];
-            this.buildMode.selectedRockName = rockName;
-        } else if (mode === 'exit') {
-            this.buildMode.active = false;
-            this.buildMode.selectedRockConfig = null;
-            this.buildMode.selectedRockName = null;
-        }
-    }
-    
-    placeRock(position) {
-        if (!this.buildMode.active) return;
-        
-        const config = { ...this.buildMode.selectedRockConfig, seed: Math.random() };
-        const newRock = createProceduralRock(config);
-        
-        const gridX = Math.round(position.x);
-        const gridZ = Math.round(position.z);
-        
-        newRock.position.set(gridX, position.y, gridZ);
-        newRock.scale.set(config.scaleX, config.scaleY, config.scaleZ);
-
-        this.scene.add(newRock);
-        this.placedRocks.push({ type: this.buildMode.selectedRockName, mesh: newRock });
-        this.createPathfindingGrid();
-    }
-
-    copyLayout() {
-        // ...
-    }
-    
     handleResize() {
         this.camera.handleResize();
         this.renderer.setSize(window.innerWidth, window.innerHeight);
     }
 
     start() {
-        if (window.loader) {
-            window.loader.finish();
-        }
+        if (window.loader) window.loader.finish();
         this.animate();
     }
 
@@ -205,11 +163,7 @@ export default class Game {
         requestAnimationFrame(this.animate.bind(this));
         const deltaTime = this.clock.getDelta();
         this.camera.update();
-
-        if (!this.buildMode.active) {
-            this.player.update(deltaTime);
-        }
-        
+        if (!this.buildMode.active) this.player.update(deltaTime);
         this.renderer.render(this.scene, this.camera.threeCamera);
     }
 }
