@@ -11,21 +11,17 @@ export default class Player {
     this.scene = scene;
     this.state = states.IDLE;
     
-    // Animation properties
     this.mixer = null;
     this.actions = {};
     this.activeAction = null;
 
-    // Pathing and movement
     this.path = [];
     this.speed = 4.0;
 
-    // Mining
     this.miningTarget = null;
     this.miningTimer = 0;
-    this.miningDuration = 2.0; // Default, will be updated from animation clip
+    this.miningDuration = 2.0;
     
-    // Tap Marker and Highlight management
     const markerGeo = new THREE.RingGeometry(0, 0.5, 32);
     const markerMat = new THREE.MeshBasicMaterial({ color: 0xffffff, opacity: 0.8, transparent: true });
     this.tapMarker = new THREE.Mesh(markerGeo, markerMat);
@@ -44,8 +40,6 @@ export default class Player {
     loader.setDRACOLoader(dracoLoader);
 
     try {
-        // --- 1. Load the main character model ---
-        // ✅ FIXED: Updated path to be relative to index.html
         const gltf = await loader.loadAsync('assets/models/Arissa.glb');
         this.mesh = gltf.scene;
         this.mesh.position.set(50, 0, 102);
@@ -59,11 +53,8 @@ export default class Player {
         });
         this.scene.add(this.mesh);
 
-        // --- 2. Set up Animation Mixer ---
         this.mixer = new THREE.AnimationMixer(this.mesh);
         
-        // --- 3. Load all animation files in parallel ---
-        // ✅ FIXED: Updated paths for all animations
         const animationPaths = {
             idle: 'assets/animations/Idle.glb',
             walk: 'assets/animations/Walking.glb',
@@ -79,6 +70,11 @@ export default class Player {
             const key = animationKeys[index];
             const clip = animGltf.animations[0];
             
+            // ✅ FIXED: Add a check to ensure the animation exists before using it.
+            if (!clip) {
+                throw new Error(`Animation file for '${key}' (${animationPaths[key]}) contains no animations.`);
+            }
+            
             const action = this.mixer.clipAction(clip);
             
             if (key === 'mine') {
@@ -93,7 +89,6 @@ export default class Player {
 
         console.log("Player model and animations loaded.", this.actions);
         
-        // --- 4. Start in IDLE state ---
         this.activeAction = this.actions.idle;
         this.activeAction.play();
 
@@ -103,6 +98,8 @@ export default class Player {
     }
   }
 
+  // (The rest of the file is unchanged and omitted for brevity)
+  
   playAction(name) {
     if (this.activeAction?.name === name || !this.actions[name]) return;
     const newAction = this.actions[name];
@@ -138,8 +135,6 @@ export default class Player {
     }
   }
 
-  // (The rest of the file is unchanged and omitted for brevity)
-  
   showTapMarkerAt(position) {
     this.tapMarker.position.copy(position);
     this.tapMarker.position.y += 0.1;
@@ -170,7 +165,7 @@ export default class Player {
   startMining(targetRock) {
     this.miningTarget = targetRock;
     const direction = this.mesh.position.clone().sub(targetRock.position).normalize();
-    const destination = targetRock.position.clone().add(direction.multiplyScalar(2.5)); // Adjust distance as needed
+    const destination = targetRock.position.clone().add(direction.multiplyScalar(2.5));
     this.moveTo(destination);
   }
 
