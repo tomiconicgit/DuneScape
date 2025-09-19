@@ -28,15 +28,15 @@ export default class Player {
     this.miningTimer = 0;
     this.miningDuration = 4.0;
 
-    // === Customisation defaults (used by DeveloperBar) ===
-    this.idleBreathAmp = 0.02; // breathing amplitude
+    // Customisation defaults (used by DeveloperBar)
+    this.idleBreathAmp = 0.02;
 
     // Marker & path visuals
     const xMarkerGeo = new THREE.BufferGeometry();
     const markerSize = 0.75;
     const xMarkerPoints = [
-      new THREE.Vector3(-markerSize, 0, -markerSize), new THREE.Vector3(markerSize, 0, markerSize),
-      new THREE.Vector3(markerSize, 0, -markerSize), new THREE.Vector3(-markerSize, 0, markerSize)
+      new THREE.Vector3(-markerSize, 0, -markerSize), new THREE.Vector3(markerSize, 0,  markerSize),
+      new THREE.Vector3( markerSize, 0, -markerSize), new THREE.Vector3(-markerSize, 0,  markerSize)
     ];
     xMarkerGeo.setFromPoints(xMarkerPoints);
     const xMarkerMat = new THREE.LineBasicMaterial({ color: 0xff0000 });
@@ -57,7 +57,7 @@ export default class Player {
     const root = new THREE.Group();
     root.name = 'playerRoot';
 
-    // single shared material for quick styling
+    // shared material
     const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x666688, roughness: 0.8, metalness: 0.1 });
     this.bodyMaterial = bodyMaterial;
 
@@ -74,11 +74,11 @@ export default class Player {
     this.rig.hips = hips;
 
     // SPINE chain
-    const spine = makeBone('mixamorig1Spine', new THREE.Vector3(0, 0.25, 0));
+    const spine  = makeBone('mixamorig1Spine',  new THREE.Vector3(0, 0.25, 0));
     const spine1 = makeBone('mixamorig1Spine1', new THREE.Vector3(0, 0.25, 0));
-    const spine2 = makeBone('mixamorig1Spine2', new THREE.VectorVector3 ? new THREE.Vector3(0, 0.22, 0) : new THREE.Vector3(0, 0.22, 0)); // safeguard
-    const neck = makeBone('mixamorig1Neck', new THREE.Vector3(0, 0.18, 0));
-    const head = makeBone('mixamorig1Head', new THREE.Vector3(0, 0.2, 0));
+    const spine2 = makeBone('mixamorig1Spine2', new THREE.Vector3(0, 0.22, 0)); // ✅ fixed
+    const neck   = makeBone('mixamorig1Neck',   new THREE.Vector3(0, 0.18, 0));
+    const head   = makeBone('mixamorig1Head',   new THREE.Vector3(0, 0.2,  0));
 
     hips.add(spine);
     spine.add(spine1);
@@ -93,10 +93,10 @@ export default class Player {
     this.rig.head = head;
 
     // LEFT ARM chain
-    const leftShoulder = makeBone('mixamorig1LeftShoulder', new THREE.Vector3(0.35, 0.18, 0));
-    const leftArm = makeBone('mixamorig1LeftArm', new THREE.Vector3(0, -0.18, 0));
-    const leftForeArm = makeBone('mixamorig1LeftForeArm', new THREE.Vector3(0, -0.28, 0));
-    const leftHand = makeBone('mixamorig1LeftHand', new THREE.Vector3(0, -0.16, 0));
+    const leftShoulder = makeBone('mixamorig1LeftShoulder', new THREE.Vector3( 0.35, 0.18, 0));
+    const leftArm      = makeBone('mixamorig1LeftArm',      new THREE.Vector3( 0.00,-0.18, 0));
+    const leftForeArm  = makeBone('mixamorig1LeftForeArm',  new THREE.Vector3( 0.00,-0.28, 0));
+    const leftHand     = makeBone('mixamorig1LeftHand',     new THREE.Vector3( 0.00,-0.16, 0));
 
     spine2.add(leftShoulder);
     leftShoulder.add(leftArm);
@@ -110,9 +110,9 @@ export default class Player {
 
     // RIGHT ARM chain
     const rightShoulder = makeBone('mixamorig1RightShoulder', new THREE.Vector3(-0.35, 0.18, 0));
-    const rightArm = makeBone('mixamorig1RightArm', new THREE.Vector3(0, -0.18, 0));
-    const rightForeArm = makeBone('mixamorig1RightForeArm', new THREE.Vector3(0, -0.28, 0));
-    const rightHand = makeBone('mixamorig1RightHand', new THREE.Vector3(0, -0.16, 0));
+    const rightArm      = makeBone('mixamorig1RightArm',      new THREE.Vector3( 0.00,-0.18, 0));
+    const rightForeArm  = makeBone('mixamorig1RightForeArm',  new THREE.Vector3( 0.00,-0.28, 0));
+    const rightHand     = makeBone('mixamorig1RightHand',     new THREE.Vector3( 0.00,-0.16, 0));
 
     spine2.add(rightShoulder);
     rightShoulder.add(rightArm);
@@ -125,9 +125,9 @@ export default class Player {
     this.rig.rightHand = rightHand;
 
     // LEFT LEG chain
-    const leftUpLeg = makeBone('mixamorig1LeftUpLeg', new THREE.Vector3(0.22, -0.4, 0));
-    const leftLeg = makeBone('mixamorig1LeftLeg', new THREE.Vector3(0, -0.36, 0));
-    const leftFoot = makeBone('mixamorig1LeftFoot', new THREE.Vector3(0, -0.18, 0));
+    const leftUpLeg = makeBone('mixamorig1LeftUpLeg', new THREE.Vector3( 0.22,-0.4, 0));
+    const leftLeg   = makeBone('mixamorig1LeftLeg',   new THREE.Vector3( 0.00,-0.36,0));
+    const leftFoot  = makeBone('mixamorig1LeftFoot',  new THREE.Vector3( 0.00,-0.18,0));
 
     hips.add(leftUpLeg);
     leftUpLeg.add(leftLeg);
@@ -138,9 +138,9 @@ export default class Player {
     this.rig.leftFoot = leftFoot;
 
     // RIGHT LEG chain
-    const rightUpLeg = makeBone('mixamorig1RightUpLeg', new THREE.Vector3(-0.22, -0.4, 0));
-    const rightLeg = makeBone('mixamorig1RightLeg', new THREE.Vector3(0, -0.36, 0));
-    const rightFoot = makeBone('mixamorig1RightFoot', new THREE.Vector3(0, -0.18, 0));
+    const rightUpLeg = makeBone('mixamorig1RightUpLeg', new THREE.Vector3(-0.22,-0.4, 0));
+    const rightLeg   = makeBone('mixamorig1RightLeg',   new THREE.Vector3( 0.00,-0.36,0));
+    const rightFoot  = makeBone('mixamorig1RightFoot',  new THREE.Vector3( 0.00,-0.18,0));
 
     hips.add(rightUpLeg);
     rightUpLeg.add(rightLeg);
@@ -168,16 +168,16 @@ export default class Player {
     const makeLimbMesh = (isArm = true) => {
       const radius = isArm ? 0.15 : 0.18;
       const length = isArm ? 0.55 : 0.65;
-      const upperGeo = new THREE.CylinderGeometry(radius, radius, length, 16);
-      upperGeo.translate(0, -length / 2, 0); // pivot at top
-      return new THREE.Mesh(upperGeo, bodyMaterial);
+      const geo = new THREE.CylinderGeometry(radius, radius, length, 16);
+      geo.translate(0, -length / 2, 0); // pivot at top
+      return new THREE.Mesh(geo, bodyMaterial);
     };
 
     // attach to bones
-    const LUpperArm = makeLimbMesh(true); this.rig.leftArm.add(LUpperArm);
-    const LLowerArm = makeLimbMesh(true); this.rig.leftForeArm.add(LLowerArm);
-    const RUpperArm = makeLimbMesh(true); this.rig.rightArm.add(RUpperArm);
-    const RLowerArm = makeLimbMesh(true); this.rig.rightForeArm.add(RLowerArm);
+    const LUpperArm = makeLimbMesh(true);  this.rig.leftArm.add(LUpperArm);
+    const LLowerArm = makeLimbMesh(true);  this.rig.leftForeArm.add(LLowerArm);
+    const RUpperArm = makeLimbMesh(true);  this.rig.rightArm.add(RUpperArm);
+    const RLowerArm = makeLimbMesh(true);  this.rig.rightForeArm.add(RLowerArm);
     const LUpperLeg = makeLimbMesh(false); this.rig.leftUpLeg.add(LUpperLeg);
     const LLowerLeg = makeLimbMesh(false); this.rig.leftLeg.add(LLowerLeg);
     const RUpperLeg = makeLimbMesh(false); this.rig.rightUpLeg.add(RUpperLeg);
@@ -193,7 +193,7 @@ export default class Player {
     footR.position.set(0, -0.18, 0.08);
     this.rig.rightFoot.add(footR);
 
-    // Shadow + layer
+    // Shadows + layer
     root.traverse((c) => {
       if (c.isMesh) {
         c.castShadow = true;
@@ -271,21 +271,18 @@ export default class Player {
       for (let dx = -1; dx <= 1; dx++) {
         for (let dz = -1; dz <= 1; dz++) {
           if (dx === 0 && dz === 0) continue;
-          const neighborX = currentNode.x + dx;
-          const neighborZ = currentNode.z + dz;
+          const nx = currentNode.x + dx;
+          const nz = currentNode.z + dz;
 
-          if (neighborX < 0 || neighborX >= grid.length || neighborZ < 0 || neighborZ >= grid[0].length || grid[neighborX][neighborZ] === 1) {
-            continue;
-          }
-
-          if (closedSet.has(`${neighborX},${neighborZ}`)) continue;
+          if (nx < 0 || nx >= grid.length || nz < 0 || nz >= grid[0].length || grid[nx][nz] === 1) continue;
+          if (closedSet.has(`${nx},${nz}`)) continue;
 
           const gCost = currentNode.g + (dx !== 0 && dz !== 0 ? 1.414 : 1);
-          let neighbor = openSet.find(n => n.x === neighborX && n.z === neighborZ);
+          let neighbor = openSet.find(n => n.x === nx && n.z === nz);
 
           if (!neighbor || gCost < neighbor.g) {
             if (!neighbor) {
-              neighbor = { x: neighborX, z: neighborZ };
+              neighbor = { x: nx, z: nz };
               openSet.push(neighbor);
             }
             neighbor.g = gCost;
@@ -328,8 +325,8 @@ export default class Player {
 
     switch (this.state) {
       case states.WALKING: this.updateWalkAnimation(); break;
-      case states.MINING: this.updateMineAnimation(); this.updateMineTimer(deltaTime); break;
-      default: this.updateIdleAnimation(); break;
+      case states.MINING:  this.updateMineAnimation(); this.updateMineTimer(deltaTime); break;
+      default:             this.updateIdleAnimation(); break;
     }
   }
 
@@ -363,7 +360,7 @@ export default class Player {
     }
   }
 
-  // --- Improved animations using bones ---
+  // --- Animations ---
   updateIdleAnimation() {
     const t = this.animationTimer * 1.2;
 
@@ -372,17 +369,17 @@ export default class Player {
     this.rig.spine.rotation.x = Math.sin(t * 0.5) * 0.02;
 
     // Slight asymmetrical arm drift
-    this.rig.leftShoulder.rotation.z = Math.sin(t * 0.6) * 0.06;
+    this.rig.leftShoulder.rotation.z  = Math.sin(t * 0.6)      * 0.06;
     this.rig.rightShoulder.rotation.z = Math.sin(t * 0.6 + 0.9) * 0.05;
-    this.rig.leftArm.rotation.x = Math.sin(t * 0.6 + 0.4) * 0.03;
-    this.rig.rightArm.rotation.x = Math.sin(t * 0.6 - 0.2) * 0.03;
+    this.rig.leftArm.rotation.x       = Math.sin(t * 0.6 + 0.4) * 0.03;
+    this.rig.rightArm.rotation.x      = Math.sin(t * 0.6 - 0.2) * 0.03;
 
     // head subtle look-around
     this.rig.neck.rotation.y = Math.sin(t * 0.35) * 0.08;
     this.rig.head.rotation.y = Math.sin(t * 0.25 - 0.3) * 0.06;
 
     // legs rest pose slight sway
-    this.rig.leftUpLeg.rotation.x = Math.sin(t * 0.5) * 0.02;
+    this.rig.leftUpLeg.rotation.x  = Math.sin(t * 0.5) * 0.02;
     this.rig.rightUpLeg.rotation.x = Math.sin(t * 0.5 + Math.PI) * 0.02;
   }
 
@@ -401,24 +398,24 @@ export default class Player {
     this.rig.hips.position.y = 0.75 + Math.abs(Math.cos(t)) * -0.02; // slight bob
     this.rig.hips.position.x = Math.cos(t) * hipSway * 0.2;
 
-    this.rig.leftUpLeg.rotation.x = THREE.MathUtils.clamp(leftPhase * stepArc, -1.2, 1.2);
+    this.rig.leftUpLeg.rotation.x  = THREE.MathUtils.clamp(leftPhase  * stepArc, -1.2, 1.2);
     this.rig.rightUpLeg.rotation.x = THREE.MathUtils.clamp(rightPhase * stepArc, -1.2, 1.2);
 
-    this.rig.leftLeg.rotation.x = Math.max(0, -leftPhase) * 0.9;
+    this.rig.leftLeg.rotation.x  = Math.max(0, -leftPhase)  * 0.9;
     this.rig.rightLeg.rotation.x = Math.max(0, -rightPhase) * 0.9;
 
-    this.rig.leftFoot.position.y = (Math.max(0, leftPhase) * -stepLift) / 3;
+    this.rig.leftFoot.position.y  = (Math.max(0, leftPhase)  * -stepLift) / 3;
     this.rig.rightFoot.position.y = (Math.max(0, rightPhase) * -stepLift) / 3;
 
     const armSwing = 0.9;
-    this.rig.leftArm.rotation.x = THREE.MathUtils.clamp(-leftPhase * armSwing, -1.0, 1.0);
+    this.rig.leftArm.rotation.x  = THREE.MathUtils.clamp(-leftPhase  * armSwing, -1.0, 1.0);
     this.rig.rightArm.rotation.x = THREE.MathUtils.clamp(-rightPhase * armSwing, -1.0, 1.0);
 
-    this.rig.leftForeArm.rotation.x = Math.max(0, -this.rig.leftArm.rotation.x) * 0.6;
+    this.rig.leftForeArm.rotation.x  = Math.max(0, -this.rig.leftArm.rotation.x)  * 0.6;
     this.rig.rightForeArm.rotation.x = Math.max(0, -this.rig.rightArm.rotation.x) * 0.6;
 
     this.rig.spine2.rotation.y = Math.sin(t) * -torsoTwist * 0.5;
-    this.rig.spine.rotation.y = Math.sin(t) * -torsoTwist * 0.25;
+    this.rig.spine.rotation.y  = Math.sin(t) * -torsoTwist * 0.25;
 
     const headStabilize = THREE.MathUtils.lerp(this.rig.neck.rotation.y, -this.rig.spine2.rotation.y * 0.6, 0.6);
     this.rig.neck.rotation.y += (headStabilize - this.rig.neck.rotation.y) * 0.25;
@@ -435,18 +432,18 @@ export default class Player {
     const swingSpeed = 2.4;
     const t = this.miningTimer * swingSpeed;
 
-    const backSwing = Math.sin(t) * -0.8; // negative for backswing
+    const backSwing = Math.sin(t) * -0.8;  // negative for backswing
     const downSwing = Math.sin(t * 2.0) * 1.2; // quicker downswing
 
     const primary = THREE.MathUtils.clamp(backSwing + downSwing, -1.6, 1.6);
-    this.rig.rightArm.rotation.x = primary * 0.9;
-    this.rig.rightForeArm.rotation.x = Math.max(0, -primary) * 0.9;
+    this.rig.rightArm.rotation.x      = primary * 0.9;
+    this.rig.rightForeArm.rotation.x  = Math.max(0, -primary) * 0.9;
 
-    this.rig.leftArm.rotation.x = primary * 0.6 - 0.2;
-    this.rig.leftForeArm.rotation.x = Math.max(0, -primary) * 0.5;
+    this.rig.leftArm.rotation.x       = primary * 0.6 - 0.2;
+    this.rig.leftForeArm.rotation.x   = Math.max(0, -primary) * 0.5;
 
     this.rig.spine.rotation.y = THREE.MathUtils.clamp(primary * 0.2, -0.6, 0.6);
-    this.rig.hips.position.y = 0.75 - Math.max(0, -primary) * 0.12;
+    this.rig.hips.position.y  = 0.75 - Math.max(0, -primary) * 0.12;
 
     this.rig.neck.rotation.y = -this.rig.spine.rotation.y * 0.6;
     this.rig.head.rotation.x = Math.max(0, -primary) * 0.12;
