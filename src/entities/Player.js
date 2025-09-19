@@ -1,6 +1,28 @@
 // File: src/entities/Player.js
 import * as THREE from 'three';
-import { SubdivisionModifier } from 'three/addons/modifiers/SubdivisionModifier.js';
+
+// ---- SAFE lazy Subdivision support ----
+// We avoid a hard module import so the game still loads if the examples module
+// isn't available. When subdivision is requested (>0), we try to import once;
+// otherwise we use a no-op modifier.
+let _Subdiv = null;           // cached class or null
+let _subdivTried = false;     // avoid repeated failed imports
+async function ensureSubdivisionLoaded() {
+  if (_Subdiv || _subdivTried) return _Subdiv;
+  _subdivTried = true;
+  try {
+    const m = await import('three/addons/modifiers/SubdivisionModifier.js');
+    _Subdiv = m.SubdivisionModifier || null;
+  } catch (e) {
+    console.warn('[Player] SubdivisionModifier not available. Continuing without it.', e);
+    _Subdiv = null;
+  }
+  return _Subdiv;
+}
+// Synchronous, safe wrapper that returns a no-op if subdiv lib isn't ready
+function getSubdivOrDummy() {
+  return _Subdiv ? _Subdiv : class { modify(g){ return g; } };
+}
 
 const states = { IDLE: 'idle', WALKING: 'walking', MINING: 'mining' };
 
@@ -10,49 +32,20 @@ export default class Player {
     this.state = states.IDLE;
     this.animationTimer = 0;
 
-    // -------- Customisation params (live-editable by DeveloperBar) --------
     this.params = {
-      // Offsets
-      offsets: {
-        headY: 0.2,
-        shoulderX: 0.35,
-        hipX: 0.22,
-      },
-      // Torso geometry
-      torso: {
-        w: 1.0, h: 1.5, d: 0.6,
-        segments: 8,
-        subdiv: 0,             // Catmull-Clark steps
-        roundness: 0.0,        // 0..1 corner rounding (via modifier pass)
-      },
-      // Arms
-      arms: {
-        type: 'capsule',       // 'capsule' | 'cylinder'
-        radius: 0.15, length: 0.55,
-        radialSeg: 16, heightSeg: 1,
-        subdiv: 0,             // extra smoothing
-        thicknessXZ: 1.0,      // scale x/z
-      },
-      // Legs
-      legs: {
-        type: 'capsule',
-        radius: 0.18, length: 0.65,
-        radialSeg: 16, heightSeg: 1,
-        subdiv: 0,
-        thicknessXZ: 1.0,
-      },
-      // Feet
-      feet: { scale: 1.0 },
-      // Materials / texture blend
+      offsets: { headY: 0.2, shoulderX: 0.35, hipX: 0.22 },
+      torso:   { w: 1.0, h: 1.5, d: 0.6, segments: 8, subdiv: 0, roundness: 0.0 },
+      arms:    { type: 'capsule', radius: 0.15, length: 0.55, radialSeg: 16, heightSeg: 1, subdiv: 0, thicknessXZ: 1.0 },
+      legs:    { type: 'capsule', radius: 0.18, length: 0.65, radialSeg: 16, heightSeg: 1, subdiv: 0, thicknessXZ: 1.0 },
+      feet:    { scale: 1.0 },
       mat: {
         color: new THREE.Color(0x666688),
         secondary: new THREE.Color(0xffccaa),
         metalness: 0.1,
         roughness: 0.8,
-        noiseBlend: 0.35,  // 0..1 mix secondary into base using noise
-        noiseScale: 3.0,   // world-space scale for noise
+        noiseBlend: 0.35,
+        noiseScale: 3.0,
       },
-      // Idle animation
       idleBreathAmp: 0.02,
     };
 
@@ -65,12 +58,13 @@ export default class Player {
     this.path = [];
     this.speed = 4.0;
 
+    // Mining
     this.isMining = false;
     this.miningTarget = null;
     this.miningTimer = 0;
     this.miningDuration = 4.0;
 
-    // Marker & line
+    // Tap marker
     const xMarkerGeo = new THREE.BufferGeometry();
     const s = 0.75;
     xMarkerGeo.setFromPoints([
@@ -121,7 +115,6 @@ export default class Player {
         uniform vec3  uSecondaryColor;
         varying vec3  vWorldPos;
 
-        // simple hash noise
         float hash31(vec3 p){
           p = fract(p*0.3183099 + vec3(0.71,0.113,0.419));
           p *= 17.0;
@@ -132,7 +125,6 @@ export default class Player {
         '#include <color_fragment>',
         `
         #include <color_fragment>
-        // Mix secondary color into base using noise
         float n = hash31(vWorldPos * uNoiseScale);
         vec3 mixedCol = mix(diffuseColor.rgb, uSecondaryColor, uNoiseBlend * smoothstep(0.4, 1.0, n));
         diffuseColor.rgb = mixedCol;
@@ -199,13 +191,13 @@ export default class Player {
     Object.assign(this.rig, { leftUpLeg: LUpLeg, leftLeg: LLeg, leftFoot: LFoot });
 
     const RUpLeg = mkBone('mixamorig1RightUpLeg', new THREE.Vector3(-this.params.offsets.hipX, -0.4, 0));
-    const RLeg   = mkBone('mixamorig1RightLeg', new THREE.Vector3(0, -0.36, 0));
+    const RLeg   = mkBone('mixamorig1RightLeg',   new THREE.Vector3(0, -0.36, 0)); // ✅ no undefined constructors
     const RFoot  = mkBone('mixamorig1RightFoot',  new THREE.Vector3(0,-0.18,0));
     hips.add(RUpLeg); RUpLeg.add(RLeg); RLeg.add(RFoot);
     Object.assign(this.rig, { rightUpLeg: RUpLeg, rightLeg: RLeg, rightFoot: RFoot });
 
-    // Torso mesh (rebuild from params)
-    this.rig.torsoMesh = new THREE.Mesh(this.buildTorsoGeometry(), mat);
+    // Torso mesh
+    this.rig.torsoMesh = new THREE.Mesh(this.buildTorsoGeometrySync(), mat);
     this.rig.torsoMesh.position.set(0, 0.75, 0);
     hips.add(this.rig.torsoMesh);
 
@@ -214,9 +206,9 @@ export default class Player {
     this.rig.headMesh.position.set(0, 0.2, 0);
     head.add(this.rig.headMesh);
 
-    // Limbs visuals
-    const [lUpperArmMesh, lLowerArmMesh] = this.buildArmMeshes();
-    const [rUpperArmMesh, rLowerArmMesh] = this.buildArmMeshes();
+    // Arms visuals
+    const [lUpperArmMesh, lLowerArmMesh] = this.buildArmMeshesSync();
+    const [rUpperArmMesh, rLowerArmMesh] = this.buildArmMeshesSync();
     this.rig.leftArm.add(lUpperArmMesh);  this.rig.leftForeArm.add(lLowerArmMesh);
     this.rig.rightArm.add(rUpperArmMesh); this.rig.rightForeArm.add(rLowerArmMesh);
     Object.assign(this.rig, {
@@ -224,8 +216,9 @@ export default class Player {
       rightUpperArmMesh: rUpperArmMesh, rightLowerArmMesh: rLowerArmMesh,
     });
 
-    const [lUpperLegMesh, lLowerLegMesh] = this.buildLegMeshes();
-    const [rUpperLegMesh, rLowerLegMesh] = this.buildLegMeshes();
+    // Legs visuals
+    const [lUpperLegMesh, lLowerLegMesh] = this.buildLegMeshesSync();
+    const [rUpperLegMesh, rLowerLegMesh] = this.buildLegMeshesSync();
     this.rig.leftUpLeg.add(lUpperLegMesh);  this.rig.leftLeg.add(lLowerLegMesh);
     this.rig.rightUpLeg.add(rUpperLegMesh); this.rig.rightLeg.add(rLowerLegMesh);
     Object.assign(this.rig, {
@@ -233,7 +226,7 @@ export default class Player {
       rightUpperLegMesh: rUpperLegMesh, rightLowerLegMesh: rLowerLegMesh,
     });
 
-    // Feet boxes
+    // Feet
     const footGeo = new THREE.BoxGeometry(0.28, 0.08, 0.45);
     this.rig.leftFootMesh = new THREE.Mesh(footGeo, mat);
     this.rig.leftFootMesh.position.set(0, -0.18, 0.08);
@@ -251,14 +244,12 @@ export default class Player {
     return root;
   }
 
-  // ------------------ GEOMETRY BUILDERS ------------------
-  buildTorsoGeometry() {
+  // ------------------ GEOMETRY BUILDERS (SYNC, NO-THROW) ------------------
+  buildTorsoGeometrySync() {
     const p = this.params.torso;
-    // Base: Box with segments -> optional rounding by quick inflate+subdiv
-    let geo = new THREE.BoxGeometry(p.w, p.h, p.d, p.segments, p.segments, p.segments);
+    let geo = new THREE.BoxGeometry(p.w, p.h, p.d, Math.max(1,p.segments), Math.max(1,p.segments), Math.max(1,p.segments));
 
     if (p.roundness > 0) {
-      // Push vertices toward a rounded shape (approximate bevel)
       const pos = geo.attributes.position;
       const v = new THREE.Vector3();
       for (let i = 0; i < pos.count; i++) {
@@ -266,8 +257,8 @@ export default class Player {
         const nx = (v.x / (p.w * 0.5));
         const ny = (v.y / (p.h * 0.5));
         const nz = (v.z / (p.d * 0.5));
-        const r = Math.sqrt(nx*nx + ny*ny + nz*nz);
-        const f = THREE.MathUtils.lerp(1.0, 0.9, p.roundness) / (r || 1.0);
+        const r = Math.sqrt(nx*nx + ny*ny + nz*nz) || 1.0;
+        const f = THREE.MathUtils.lerp(1.0, 0.9, p.roundness) / r;
         v.multiplyScalar(f);
         pos.setXYZ(i, v.x, v.y, v.z);
       }
@@ -275,98 +266,78 @@ export default class Player {
     }
 
     if (p.subdiv > 0) {
-      const mod = new SubdivisionModifier(p.subdiv);
-      geo = mod.modify(geo);
+      const Sub = getSubdivOrDummy();
+      const mod = new Sub();
+      try { geo = mod.modify(geo); } catch (e) { console.warn('[Player] Torso subdiv failed, using base geo.', e); }
+      // kick off async real import for future rebuilds
+      ensureSubdivisionLoaded();
     }
     return geo;
   }
 
-  buildArmMeshes() {
+  buildArmMeshesSync() {
     const a = this.params.arms;
     let upper, lower;
-
     if (a.type === 'capsule') {
-      upper = new THREE.Mesh(
-        new THREE.CapsuleGeometry(a.radius, a.length, Math.max(2, a.heightSeg), Math.max(4, a.radialSeg)),
-        this.bodyMaterial
-      );
-      lower = new THREE.Mesh(
-        new THREE.CapsuleGeometry(a.radius * 0.95, a.length * 1.0, Math.max(2, a.heightSeg), Math.max(4, a.radialSeg)),
-        this.bodyMaterial
-      );
-      // pivot at top for both (align with bones pointing down Y)
+      upper = new THREE.Mesh(new THREE.CapsuleGeometry(a.radius, a.length, Math.max(2, a.heightSeg), Math.max(4, a.radialSeg)), this.bodyMaterial);
+      lower = new THREE.Mesh(new THREE.CapsuleGeometry(a.radius*0.95, a.length, Math.max(2, a.heightSeg), Math.max(4, a.radialSeg)), this.bodyMaterial);
       upper.geometry.translate(0, -a.length/2, 0);
       lower.geometry.translate(0, -a.length/2, 0);
     } else {
-      // cylinder
-      upper = new THREE.Mesh(
-        new THREE.CylinderGeometry(a.radius, a.radius, a.length, Math.max(4, a.radialSeg), Math.max(1, a.heightSeg)),
-        this.bodyMaterial
-      );
-      lower = new THREE.Mesh(
-        new THREE.CylinderGeometry(a.radius * 0.95, a.radius * 0.95, a.length, Math.max(4, a.radialSeg), Math.max(1, a.heightSeg)),
-        this.bodyMaterial
-      );
+      upper = new THREE.Mesh(new THREE.CylinderGeometry(a.radius, a.radius, a.length, Math.max(4,a.radialSeg), Math.max(1,a.heightSeg)), this.bodyMaterial);
+      lower = new THREE.Mesh(new THREE.CylinderGeometry(a.radius*0.95, a.radius*0.95, a.length, Math.max(4,a.radialSeg), Math.max(1,a.heightSeg)), this.bodyMaterial);
       upper.geometry.translate(0, -a.length/2, 0);
       lower.geometry.translate(0, -a.length/2, 0);
     }
 
     if (a.subdiv > 0) {
-      const mod = new SubdivisionModifier(a.subdiv);
-      upper.geometry = mod.modify(upper.geometry);
-      lower.geometry = mod.modify(lower.geometry);
+      const Sub = getSubdivOrDummy();
+      try {
+        const mod = new Sub();
+        upper.geometry = mod.modify(upper.geometry);
+        lower.geometry = mod.modify(lower.geometry);
+      } catch (e) { console.warn('[Player] Arm subdiv failed, using base geo.', e); }
+      ensureSubdivisionLoaded();
     }
 
-    // thickness scaling
     upper.scale.x = upper.scale.z = a.thicknessXZ;
     lower.scale.x = lower.scale.z = a.thicknessXZ;
-
     return [upper, lower];
   }
 
-  buildLegMeshes() {
+  buildLegMeshesSync() {
     const l = this.params.legs;
     let upper, lower;
-
     if (l.type === 'capsule') {
-      upper = new THREE.Mesh(
-        new THREE.CapsuleGeometry(l.radius, l.length, Math.max(2, l.heightSeg), Math.max(4, l.radialSeg)),
-        this.bodyMaterial
-      );
-      lower = new THREE.Mesh(
-        new THREE.CapsuleGeometry(l.radius * 0.95, l.length, Math.max(2, l.heightSeg), Math.max(4, l.radialSeg)),
-        this.bodyMaterial
-      );
+      upper = new THREE.Mesh(new THREE.CapsuleGeometry(l.radius, l.length, Math.max(2, l.heightSeg), Math.max(4, l.radialSeg)), this.bodyMaterial);
+      lower = new THREE.Mesh(new THREE.CapsuleGeometry(l.radius*0.95, l.length, Math.max(2, l.heightSeg), Math.max(4, l.radialSeg)), this.bodyMaterial);
       upper.geometry.translate(0, -l.length/2, 0);
       lower.geometry.translate(0, -l.length/2, 0);
     } else {
-      upper = new THREE.Mesh(
-        new THREE.CylinderGeometry(l.radius, l.radius, l.length, Math.max(4, l.radialSeg), Math.max(1, l.heightSeg)),
-        this.bodyMaterial
-      );
-      lower = new THREE.Mesh(
-        new THREE.CylinderGeometry(l.radius * 0.95, l.radius * 0.95, l.length, Math.max(4, l.radialSeg), Math.max(1, l.heightSeg)),
-        this.bodyMaterial
-      );
+      upper = new THREE.Mesh(new THREE.CylinderGeometry(l.radius, l.radius, l.length, Math.max(4,l.radialSeg), Math.max(1,l.heightSeg)), this.bodyMaterial);
+      lower = new THREE.Mesh(new THREE.CylinderGeometry(l.radius*0.95, l.radius*0.95, l.length, Math.max(4,l.radialSeg), Math.max(1,l.heightSeg)), this.bodyMaterial);
       upper.geometry.translate(0, -l.length/2, 0);
       lower.geometry.translate(0, -l.length/2, 0);
     }
 
     if (l.subdiv > 0) {
-      const mod = new SubdivisionModifier(l.subdiv);
-      upper.geometry = mod.modify(upper.geometry);
-      lower.geometry = mod.modify(lower.geometry);
+      const Sub = getSubdivOrDummy();
+      try {
+        const mod = new Sub();
+        upper.geometry = mod.modify(upper.geometry);
+        lower.geometry = mod.modify(lower.geometry);
+      } catch (e) { console.warn('[Player] Leg subdiv failed, using base geo.', e); }
+      ensureSubdivisionLoaded();
     }
 
     upper.scale.x = upper.scale.z = l.thicknessXZ;
     lower.scale.x = lower.scale.z = l.thicknessXZ;
-
     return [upper, lower];
   }
 
-  // ------------------ REBUILD HELPERS (called by UI) ------------------
+  // ------------------ REBUILD HELPERS ------------------
   rebuildTorso() {
-    const newGeo = this.buildTorsoGeometry();
+    const newGeo = this.buildTorsoGeometrySync();
     this.rig.torsoMesh.geometry.dispose();
     this.rig.torsoMesh.geometry = newGeo;
   }
@@ -376,12 +347,12 @@ export default class Player {
       this.rig.leftUpperArmMesh, this.rig.leftLowerArmMesh,
       this.rig.rightUpperArmMesh, this.rig.rightLowerArmMesh
     ];
-    const [lU, lL] = this.buildArmMeshes();
-    const [rU, rL] = this.buildArmMeshes();
+    const [lU, lL] = this.buildArmMeshesSync();
+    const [rU, rL] = this.buildArmMeshesSync();
 
     this.rig.leftArm.remove(old[0]); this.rig.leftForeArm.remove(old[1]);
     this.rig.rightArm.remove(old[2]); this.rig.rightForeArm.remove(old[3]);
-    old.forEach(m => { m.geometry.dispose(); });
+    old.forEach(m => m.geometry.dispose());
 
     this.rig.leftUpperArmMesh = lU; this.rig.leftLowerArmMesh = lL;
     this.rig.rightUpperArmMesh = rU; this.rig.rightLowerArmMesh = rL;
@@ -395,12 +366,12 @@ export default class Player {
       this.rig.leftUpperLegMesh, this.rig.leftLowerLegMesh,
       this.rig.rightUpperLegMesh, this.rig.rightLowerLegMesh
     ];
-    const [lU, lL] = this.buildLegMeshes();
-    const [rU, rL] = this.buildLegMeshes();
+    const [lU, lL] = this.buildLegMeshesSync();
+    const [rU, rL] = this.buildLegMeshesSync();
 
     this.rig.leftUpLeg.remove(old[0]); this.rig.leftLeg.remove(old[1]);
     this.rig.rightUpLeg.remove(old[2]); this.rig.rightLeg.remove(old[3]);
-    old.forEach(m => { m.geometry.dispose(); });
+    old.forEach(m => m.geometry.dispose());
 
     this.rig.leftUpperLegMesh = lU; this.rig.leftLowerLegMesh = lL;
     this.rig.rightUpperLegMesh = rU; this.rig.rightLowerLegMesh = rL;
@@ -518,24 +489,6 @@ export default class Player {
       case states.MINING:  this.updateMineAnimation(); this.updateMineTimer(deltaTime); break;
       default:             this.updateIdleAnimation(); break;
     }
-  }
-
-  updateMovement(deltaTime) {
-    if (!this.path.length) return;
-    const next = this.path[0];
-    const target = new THREE.Vector3(next.x, this.mesh.position.y, next.z);
-    const dist = this.mesh.position.clone().setY(0).distanceTo(target.clone().setY(0));
-
-    if (dist < 0.1) {
-      this.mesh.position.x = target.x;
-      this.mesh.position.z = target.z;
-      this.path.shift();
-    } else {
-      const dir = target.clone().sub(this.mesh.position).normalize();
-      this.mesh.position.add(dir.multiplyScalar(this.speed * deltaTime));
-      this.mesh.lookAt(new THREE.Vector3(target.x, this.mesh.position.y, target.z));
-    }
-    this.updatePathLine();
   }
 
   updateMineTimer(dt) {
