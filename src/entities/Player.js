@@ -26,13 +26,49 @@ export default class Player {
     this.speed = 4.0;
 
     // Mining
-    this.isMining = false;
     this.miningTarget = null;
     this.miningTimer = 0;
     this.miningDuration = 4.0;
+
+    // ✨ ADDED: Tap Marker
+    const markerGeo = new THREE.RingGeometry(0, 0.5, 32);
+    const markerMat = new THREE.MeshBasicMaterial({ color: 0xffffff, opacity: 0.8, transparent: true });
+    this.tapMarker = new THREE.Mesh(markerGeo, markerMat);
+    this.tapMarker.rotation.x = -Math.PI / 2;
+    this.tapMarker.visible = false;
+    scene.add(this.tapMarker);
+    this.markerAnimation = { active: false, time: 0, duration: 0.75 };
+    
+    // ✨ ADDED: Highlight management
+    this.highlightedObject = null;
+  }
+  
+  showTapMarkerAt(position) {
+    this.tapMarker.position.copy(position);
+    this.tapMarker.position.y += 0.1; // Prevent z-fighting
+    this.tapMarker.visible = true;
+    this.markerAnimation.active = true;
+    this.markerAnimation.time = 0;
+  }
+  
+  setHighlightedObject(object) {
+      // Turn off previous highlight if it exists and is different
+      if (this.highlightedObject && this.highlightedObject !== object) {
+          if (this.highlightedObject.material.userData.uniforms?.uHighlight) {
+              this.highlightedObject.material.userData.uniforms.uHighlight.value = 0.0;
+          }
+      }
+
+      this.highlightedObject = object;
+
+      // Turn on new highlight if an object is provided
+      if (object) {
+          if (object.material.userData.uniforms?.uHighlight) {
+              object.material.userData.uniforms.uHighlight.value = 1.0;
+          }
+      }
   }
 
-  // ------------------ RIG + MESHES ------------------
   createCharacterRig() {
     const root = new THREE.Group();
     root.name = 'playerRoot';
@@ -45,7 +81,6 @@ export default class Player {
       return b;
     };
 
-    // --- Skeleton ---
     const hips = mkBone('mixamorig1Hips', new THREE.Vector3(0, 0.75, 0));
     root.add(hips);
     this.rig.hips = hips;
@@ -87,7 +122,6 @@ export default class Player {
     hips.add(RUpLeg); RUpLeg.add(RLeg); RLeg.add(RFoot);
     Object.assign(this.rig, { rightUpLeg: RUpLeg, rightLeg: RLeg, rightFoot: RFoot });
 
-    // --- Meshes ---
     this.rig.torsoMesh = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.5, 0.6), mat);
     this.rig.torsoMesh.position.set(0, 0.75, 0);
     hips.add(this.rig.torsoMesh);
@@ -97,14 +131,14 @@ export default class Player {
     head.add(this.rig.headMesh);
 
     const armGeo = new THREE.CapsuleGeometry(0.15, 0.55, 4, 16);
-    armGeo.translate(0, -0.275, 0); // Center pivot at top
+    armGeo.translate(0, -0.275, 0);
     this.rig.leftArm.add(new THREE.Mesh(armGeo, mat));
     this.rig.leftForeArm.add(new THREE.Mesh(armGeo, mat));
     this.rig.rightArm.add(new THREE.Mesh(armGeo, mat));
     this.rig.rightForeArm.add(new THREE.Mesh(armGeo, mat));
 
     const legGeo = new THREE.CapsuleGeometry(0.18, 0.65, 4, 16);
-    legGeo.translate(0, -0.325, 0); // Center pivot at top
+    legGeo.translate(0, -0.325, 0);
     this.rig.leftUpLeg.add(new THREE.Mesh(legGeo, mat));
     this.rig.leftLeg.add(new THREE.Mesh(legGeo, mat));
     this.rig.rightUpLeg.add(new THREE.Mesh(legGeo, mat));
@@ -118,13 +152,11 @@ export default class Player {
     rightFoot.position.set(0, -0.18, 0.08);
     RFoot.add(rightFoot);
 
-    // Set shadows and layer for all meshes
     root.traverse((c) => { if (c.isMesh) { c.castShadow = true; c.layers.set(1); } });
 
     return root;
   }
 
-  // ------------------ GAMEPLAY ------------------
   cancelActions() {
     this.miningTarget = null;
     this.isMining = false;
@@ -203,6 +235,20 @@ export default class Player {
 
   update(deltaTime) {
     this.animationTimer += deltaTime;
+    
+    // ✨ ADDED: Marker animation update loop
+    if (this.markerAnimation.active) {
+        this.markerAnimation.time += deltaTime;
+        const progress = this.markerAnimation.time / this.markerAnimation.duration;
+        const scale = 1.5 * progress;
+        this.tapMarker.scale.set(scale, scale, scale);
+        this.tapMarker.material.opacity = 0.8 * (1 - progress);
+
+        if (progress >= 1) {
+            this.markerAnimation.active = false;
+            this.tapMarker.visible = false;
+        }
+    }
 
     if (this.state === states.WALKING && this.path.length === 0) {
       this.state = this.miningTarget ? states.MINING : states.IDLE;
@@ -246,8 +292,7 @@ export default class Player {
       this.state = states.IDLE;
     }
   }
-
-  // ------------------ Animations ------------------
+  
   updateIdleAnimation() {
     const t = this.animationTimer * 1.2;
     const amp = this.idleBreathAmp;
