@@ -39,19 +39,18 @@ export default class Player {
   async loadModel() {
     const loader = new GLTFLoader();
     
-    // Set up DracoLoader for compressed models
     const dracoLoader = new DRACOLoader();
     dracoLoader.setDecoderPath('https://unpkg.com/three@0.158.0/examples/jsm/libs/draco/');
     loader.setDRACOLoader(dracoLoader);
 
     try {
         // --- 1. Load the main character model ---
-        const gltf = await loader.loadAsync('src/entities/Arissa.glb');
+        // ✅ FIXED: Updated path to be relative to index.html
+        const gltf = await loader.loadAsync('assets/models/Arissa.glb');
         this.mesh = gltf.scene;
         this.mesh.position.set(50, 0, 102);
         
-        // Adjust scale and configure shadows
-        this.mesh.scale.set(1.0, 1.0, 1.0); // ✨ Adjust scale for Arissa if needed
+        this.mesh.scale.set(1.0, 1.0, 1.0);
         this.mesh.traverse(child => {
             if (child.isMesh) {
                 child.castShadow = true;
@@ -64,11 +63,12 @@ export default class Player {
         this.mixer = new THREE.AnimationMixer(this.mesh);
         
         // --- 3. Load all animation files in parallel ---
+        // ✅ FIXED: Updated paths for all animations
         const animationPaths = {
-            idle: 'src/entities/animations/Idle.glb',
-            walk: 'src/entities/animations/Walking.glb',
-            mine: 'src/entities/animations/HeavyWeaponSwing.glb',
-            sitting: 'src/entities/animations/SittingIdle.glb'
+            idle: 'assets/animations/Idle.glb',
+            walk: 'assets/animations/Walking.glb',
+            mine: 'assets/animations/HeavyWeaponSwing.glb',
+            sitting: 'assets/animations/SittingIdle.glb'
         };
 
         const animationPromises = Object.values(animationPaths).map(path => loader.loadAsync(path));
@@ -77,14 +77,13 @@ export default class Player {
         const animationKeys = Object.keys(animationPaths);
         animationGltfs.forEach((animGltf, index) => {
             const key = animationKeys[index];
-            const clip = animGltf.animations[0]; // Assuming one animation per file
+            const clip = animGltf.animations[0];
             
             const action = this.mixer.clipAction(clip);
             
             if (key === 'mine') {
                 action.setLoop(THREE.LoopOnce);
                 action.clampWhenFinished = true;
-                // Get the real duration from the animation clip
                 this.miningDuration = clip.duration;
             } else {
                 action.setLoop(THREE.LoopRepeat);
@@ -139,8 +138,8 @@ export default class Player {
     }
   }
 
-  // (The rest of the file remains the same, so it is omitted for brevity)
-
+  // (The rest of the file is unchanged and omitted for brevity)
+  
   showTapMarkerAt(position) {
     this.tapMarker.position.copy(position);
     this.tapMarker.position.y += 0.1;
