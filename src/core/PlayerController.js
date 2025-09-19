@@ -55,18 +55,14 @@ export default class PlayerController {
 
         this.raycaster.setFromCamera(tapPosition, this.camera.threeCamera);
         
-        // ✨ FIX: Raycast against the entire scene to reliably find all objects.
         const intersects = this.raycaster.intersectObjects(this.game.scene.children, true);
 
-        // Find the first valid target (a rock or the landscape)
         let landscapeIntersection = null;
 
         for (const intersect of intersects) {
             // If we hit a mineable rock, that takes priority.
             if (intersect.object.userData.isMineable) {
-                if (!this.game.buildMode.active) {
-                    this.player.startMining(intersect.object);
-                }
+                this.player.startMining(intersect.object);
                 return; // Action taken, stop processing
             }
             // If we hit the landscape, store it but keep looking for rocks closer to the camera.
@@ -77,14 +73,10 @@ export default class PlayerController {
             }
         }
 
-        // If we found a landscape intersection and no rocks were clicked, handle movement/building.
+        // If we found a landscape intersection and no rocks were clicked, handle movement.
         if (landscapeIntersection) {
-            if (this.game.buildMode.active) {
-                this.game.placeRock(landscapeIntersection.point);
-            } else {
-                this.player.cancelActions();
-                this.player.moveTo(landscapeIntersection.point);
-            }
+            this.player.cancelActions();
+            this.player.moveTo(landscapeIntersection.point);
         }
     }
 }
