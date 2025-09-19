@@ -44,6 +44,7 @@ export default class Game {
     this.camera.setTarget(this.player.mesh);
     window.addEventListener('resize', this.handleResize.bind(this));
 
+    // ✨ CHANGED: Use standard console.log, which the global debugger will capture.
     console.log('Game initialized successfully.');
     window.loader.updateStatus('Initialization complete!', 100);
   }
@@ -155,6 +156,8 @@ export default class Game {
     if (window.loader) window.loader.finish();
     this.animate();
   }
+
+
 
   animate() {
     requestAnimationFrame(this.animate.bind(this));
