@@ -11,8 +11,8 @@ export default class Camera {
         this.orbitAngle = Math.PI / 4; // Starting angle
 
         // Config
-        this.orbitDistance = 4; // Fixed distance from the target
-        this.cameraHeight = 6;   // Fixed height relative to the target
+        this.orbitDistance = 6; // Fixed distance from the target
+        this.cameraHeight = 3;   // Fixed height relative to the target
     }
 
     setTarget(target) {
