@@ -53,6 +53,48 @@ export default class Player {
         });
         this.scene.add(this.mesh);
 
+        // ✨ --- START: ATTACH AXE TO HAND --- ✨
+        
+        // 1. Load the metal axe model
+        const axeGltf = await loader.loadAsync('assets/tools/metalaxe.glb');
+        const axeMesh = axeGltf.scene;
+        
+        // Ensure the axe also casts shadows
+        axeMesh.traverse(child => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.layers.set(1);
+            }
+        });
+
+        // 2. Find the right hand bone in the player model's skeleton
+        let rightHandBone = null;
+        this.mesh.traverse(bone => {
+            // Models rigged with Mixamo typically use this bone name.
+            if (bone.isBone && bone.name === 'mixamorigRightHand') {
+                rightHandBone = bone;
+            }
+        });
+
+        // 3. Attach the axe to the hand bone if found
+        if (rightHandBone) {
+            // Parenting the axe to the bone makes it move with the hand
+            rightHandBone.add(axeMesh);
+            console.log("Axe attached to right hand.");
+
+            // 4. Adjust the axe's local position, rotation, and scale
+            // These values are fine-tuned to make it look like she's holding it.
+            axeMesh.position.set(0.05, 0.1, -0.05);
+            axeMesh.rotation.set(Math.PI / 2, Math.PI, 0);
+            axeMesh.scale.set(1.2, 1.2, 1.2);
+            
+        } else {
+            console.warn("Could not find 'mixamorigRightHand' bone. Axe not attached.");
+            // If the bone isn't found, add axe to the scene anyway for debugging
+            this.scene.add(axeMesh);
+        }
+        // ✨ --- END: ATTACH AXE TO HAND --- ✨
+
         this.mixer = new THREE.AnimationMixer(this.mesh);
         
         // ✨ FIXED: Updated to use your three animation files.
