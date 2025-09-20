@@ -83,10 +83,10 @@ export default class Player {
             console.log("Axe attached to right hand.");
 
             // 4. Adjust the axe's local position, rotation, and scale
-            // These values are fine-tuned to make it look like she's holding it.
-            axeMesh.position.set(0.05, 0.1, -0.05);
-            axeMesh.rotation.set(Math.PI / 2, Math.PI, 0);
-            axeMesh.scale.set(1.2, 1.2, 1.2);
+            // ✨ UPDATED VALUES
+            axeMesh.position.set(-1.8500, 3.9500, -0.9800);
+            axeMesh.rotation.set(1.2915, 2.1817, 2.7053); // Radians
+            axeMesh.scale.set(0.9200, 0.9200, 0.9200);
             
         } else {
             console.warn("Could not find 'mixamorigRightHand' bone. Axe not attached.");
