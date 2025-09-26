@@ -1,27 +1,10 @@
-// File: main.js
-import Game from './src/core/Game.js';
+// file: main.js
 
-// Use an async function to initialize and start the game
-async function main() {
-    try {
-        if (!window.loader) {
-            throw new Error("Loader not found.");
-        }
-        
-        window.loader.updateStatus('Loading game module...', 0);
-        const game = new Game();
-        await game.init(); // Wait for initialization to complete
-        game.start();
+import loadingManager from './loading.js';
+import Game from './src/core/game.js'; // The "address book" file, named lowercase
 
-    } catch (error) {
-        if (window.loader) {
-            window.loader.fail(error);
-        } else {
-            document.body.innerHTML = `<div style="color: red; font-family: monospace; padding: 20px;">
-                <h1>Fatal Error</h1><p>${error.message}</p><pre>${error.stack}</pre>
-            </div>`;
-        }
-    }
-}
-
-main(); // Run the async main function
+// Wait for the basic HTML document to be ready.
+document.addEventListener('DOMContentLoaded', () => {
+    // Pass the main Game class to the loader.
+    loadingManager.start(Game);
+});
